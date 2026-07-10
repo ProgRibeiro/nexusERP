@@ -1,0 +1,587 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Controle de Acesso
+model User {
+  id                   String                 @id @default(uuid())
+  name                 String
+  email                String                 @unique
+  password             String
+  roleId               String?
+  role                 Role?                  @relation(fields: [roleId], references: [id])
+  permissions          String                 @default("[]") // JSON string of permission codes
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  leads                Lead[]                 @relation("LeadOwner")
+  activities           CrmActivity[]
+  statusHistory        ServiceOrderStatusHistory[]
+  serviceOrdersAsTech  ServiceOrderTechnician[]
+  auditLogs            AuditLog[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // Administrador, Gestor, Comercial, Operacional, Técnico, Faturamento, Financeiro, Estoque
+  description String?
+  users       User[]
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  code        String  @unique // e.g. "crm.read", "finance.write"
+  name        String
+  description String?
+}
+
+// 2. Cadastro de Clientes
+model Client {
+  id                    String             @id @default(uuid())
+  name                  String
+  socialName            String?            // Razão Social
+  fancyName             String?            // Nome Fantasia
+  cpfCnpj               String             @unique
+  stateRegistration     String?            // Inscrição Estadual
+  municipalRegistration String?            // Inscrição Municipal
+  email                 String
+  phone                 String
+  whatsapp              String?
+  segment               String?            // e.g. Climatização, Eletricista, Refrigeração
+  origin                String?            // Como chegou: Google, Indicação, etc.
+  status                String             @default("ATIVO") // ATIVO, INATIVO
+  notes                 String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  contacts              ClientContact[]
+  addresses             ClientAddress[]
+  equipments            ClientEquipment[]
+  quotes                Quote[]
+  serviceOrders         ServiceOrder[]
+  invoices              Invoice[]
+  accountsReceivable    AccountsReceivable[]
+  contracts             Contract[]
+}
+
+model ClientContact {
+  id          String   @id @default(uuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name        String
+  role        String?  // Cargo
+  email       String
+  phone       String
+  whatsapp    String?
+  isFinancial Boolean  @default(false)
+  isTechnical Boolean  @default(false)
+  isApproval  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  quotes      Quote[]
+  serviceOrders ServiceOrder[]
+}
+
+model ClientAddress {
+  id           String   @id @default(uuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label        String   // Principal, Cobrança, Execução, etc.
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  cep          String
+  reference    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  quotes       Quote[]
+  serviceOrders ServiceOrder[]
+}
+
+model ClientEquipment {
+  id           String   @id @default(uuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type         String   // Ar Condicionado, Painel Elétrico, etc.
+  brand        String
+  model        String
+  serialNumber String
+  capacity     String?  // e.g. 12000 BTU, 220V
+  tag          String?  // Tag identificador interno
+  location     String?  // Onde está instalado
+  installDate  DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// 3. CRM & Funil Comercial
+model Lead {
+  id              String        @id @default(uuid())
+  name            String
+  email           String?
+  phone           String
+  company         String?
+  status          String        @default("NOVO") // NOVO, EM_ANDAMENTO, CONVERTIDO, PERDIDO
+  pipelineStageId String?
+  pipelineStage   CrmStage?     @relation(fields: [pipelineStageId], references: [id])
+  value           Float         @default(0.0)
+  closePrediction DateTime?
+  source          String?       // Google, Site, etc.
+  ownerId         String?
+  owner           User?         @relation("LeadOwner", fields: [ownerId], references: [id])
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  activities      CrmActivity[]
+}
+
+model CrmPipeline {
+  id          String     @id @default(uuid())
+  name        String
+  description String?
+  stages      CrmStage[]
+}
+
+model CrmStage {
+  id         String       @id @default(uuid())
+  pipelineId String
+  pipeline   CrmPipeline  @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  name       String       // Novo lead, Contato realizado, Diagnóstico feito, Visita agendada, etc.
+  order      Int          @default(0)
+  leads      Lead[]
+}
+
+model CrmActivity {
+  id          String   @id @default(uuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  type        String   // LIGACAO, WHATSAPP, REUNIAO, VISITA, NOTA
+  description String
+  date        DateTime
+  done        Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 4. Orçamentos (Quotes)
+model Quote {
+  id                 String               @id @default(uuid())
+  code               String               @unique // Q-2026-0001
+  clientId           String
+  client             Client               @relation(fields: [clientId], references: [id])
+  addressId          String?
+  address            ClientAddress?       @relation(fields: [addressId], references: [id])
+  contactId          String?
+  contact            ClientContact?       @relation(fields: [contactId], references: [id])
+  status             String               @default("RASCUNHO") // RASCUNHO, ENVIADO, NEGOCIACAO, APROVADO, REPROVADO, EXPIRADO, CANCELADO, CONVERTIDO
+  version            Int                  @default(1)
+  validUntil         DateTime
+  warrantyDays       Int                  @default(90)
+  executionTerm      String?              // Prazo de execução (ex: "5 dias úteis")
+  paymentTerms       String?              // Condições de pagamento (ex: "Pix 50% + 50% após conclusão")
+  subtotal           Float                @default(0.0)
+  discount           Float                @default(0.0)
+  tax                Float                @default(0.0)
+  total              Float                @default(0.0)
+  costEstimate       Float                @default(0.0)
+  estimatedMargin    Float                @default(0.0) // Lucro/Margem estimada
+  notes              String?
+  approvedAt         DateTime?
+  approvedBy         String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  items              QuoteItem[]
+  versions           QuoteVersion[]
+  approvals          QuoteApproval[]
+  serviceOrders      ServiceOrder[]
+  accountsReceivable AccountsReceivable[]
+}
+
+model QuoteItem {
+  id          String    @id @default(uuid())
+  quoteId     String
+  quote       Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  type        String    // SERVICO, PRODUTO, MAO_DE_OBRA, DESLOCAMENTO, IMPOSTO
+  description String
+  quantity    Float     @default(1)
+  unit        String    @default("UN") // UN, HR, KM
+  unitPrice   Float     @default(0.0)
+  costPrice   Float     @default(0.0)
+  discount    Float     @default(0.0)
+  total       Float     @default(0.0)
+}
+
+model QuoteVersion {
+  id          String   @id @default(uuid())
+  quoteId     String
+  version     Int
+  total       Float
+  status      String
+  changesJson String
+  createdAt   DateTime @default(now())
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+model QuoteApproval {
+  id             String    @id @default(uuid())
+  quoteId        String
+  quote          Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  approved       Boolean
+  justification  String?
+  userId         String
+  createdAt      DateTime  @default(now())
+}
+
+// 5. Operacional & Ordem de Serviço (OS)
+model ServiceOrder {
+  id                   String                      @id @default(uuid())
+  code                 String                      @unique // OS-2026-0001
+  quoteId              String?
+  quote                Quote?                      @relation(fields: [quoteId], references: [id])
+  clientId             String
+  client               Client                      @relation(fields: [clientId], references: [id])
+  addressId            String?
+  address              ClientAddress?              @relation(fields: [addressId], references: [id])
+  contactId            String?
+  contact              ClientContact?              @relation(fields: [contactId], references: [id])
+  status               String                      @default("CRIADA") // CRIADA, AGUARDANDO_AGENDAMENTO, AGENDADA, DESLOCAMENTO, EXECUCAO, PAUSADA, AGUARDANDO_PECA, AGUARDANDO_CLIENTE, RETORNO, CONCLUIDA, REVISAO, RELATORIO_ENVIADO, FATURAMENTO, FATURADA, CANCELADA
+  priority             String                      @default("MEDIA") // BAIXA, MEDIA, ALTA, URGENTE
+  type                 String                      // INSTALACAO, PREVENTIVA, CORRETIVA, CONTRATO, VISITA_TECNICA, GARANTIA, RETORNO, EMERGENCIA, LAUDO_TECNICO, ORCAMENTO_TECNICO
+  scheduledDate        DateTime?
+  scheduledTime        String?
+  problemReported      String?
+  technicalDiagnosis   String?
+  checklistJson        String                      @default("[]") // Saved checklist answers
+  signatureBase64      String?                     // Client signature
+  signatureName        String?                     // Person who signed
+  marginReal           Float                       @default(0.0)
+  faturamentoStatus    String                      @default("AGUARDANDO_FATURAMENTO") // AGUARDANDO_FATURAMENTO, CONFERENCIA, EMISSAO_NF, NF_EMITIDA, NF_ENVIADA
+  invoiceId            String?
+  notes                String?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+  completedAt          DateTime?
+  items                ServiceOrderItem[]
+  materials            ServiceOrderMaterial[]
+  photos               ServiceOrderPhoto[]
+  statusHistory        ServiceOrderStatusHistory[]
+  technicians          ServiceOrderTechnician[]
+  completionReport     CompletionReport?
+  invoices             Invoice[]
+  accountsReceivable   AccountsReceivable[]
+  accountsPayable      AccountsPayable[]
+  stockMovements       StockMovement[]
+  contractId           String?
+  contract             Contract?                   @relation(fields: [contractId], references: [id])
+}
+
+model ServiceOrderItem {
+  id             String       @id @default(uuid())
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  description    String
+  quantity       Float        @default(1)
+  unit           String       @default("UN")
+  unitPrice      Float        @default(0.0)
+  total          Float        @default(0.0)
+}
+
+model ServiceOrderMaterial {
+  id             String       @id @default(uuid())
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id])
+  quantity       Float        @default(1)
+  costPrice      Float        @default(0.0)
+  salePrice      Float        @default(0.0)
+  usedQuantity   Float        @default(0) // actual quantity used
+  status         String       @default("PREVISTO") // PREVISTO, UTILIZADO, DEVOLVIDO
+}
+
+model ServiceOrderPhoto {
+  id             String       @id @default(uuid())
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  step           String       // ANTES, DEPOIS, EVIDENCIA
+  url            String       // Image url or base64 data
+  caption        String?
+  uploadedAt     DateTime     @default(now())
+}
+
+model ServiceOrderStatusHistory {
+  id             String       @id @default(uuid())
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  oldStatus      String
+  newStatus      String
+  changedById    String
+  changedBy      User         @relation(fields: [changedById], references: [id])
+  justification  String?
+  changedAt      DateTime     @default(now())
+}
+
+model ServiceOrderTechnician {
+  id             String       @id @default(uuid())
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+}
+
+model CompletionReport {
+  id                    String       @id @default(uuid())
+  serviceOrderId        String       @unique
+  serviceOrder          ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  clientFeedback        String?
+  technicalObservations String?
+  warrantyTerms         String?      @default("Garantia de 90 dias nos serviços prestados.")
+  approvedByClient      Boolean      @default(false)
+  approvedAt            DateTime?
+  createdAt             DateTime     @default(now())
+}
+
+// 6. Faturamento e Nota Fiscal (Invoices)
+model Invoice {
+  id             String             @id @default(uuid())
+  code           String             @unique // NF-000123
+  serviceOrderId String
+  serviceOrder   ServiceOrder       @relation(fields: [serviceOrderId], references: [id])
+  clientId       String
+  client         Client             @relation(fields: [clientId], references: [id])
+  issueDate      DateTime           @default(now())
+  value          Float
+  taxValue       Float              @default(0.0)
+  status         String             @default("EMITIDA") // EMITIDA, ENVIADA, CANCELADA, SUBSTITUIDA
+  pdfUrl         String?
+  xmlUrl         String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  receivables    AccountsReceivable[]
+}
+
+// 7. Financeiro (Accounts Receivable/Payable, Transactions)
+model AccountsReceivable {
+  id             String        @id @default(uuid())
+  clientId       String
+  client         Client        @relation(fields: [clientId], references: [id])
+  serviceOrderId String?
+  serviceOrder   ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
+  quoteId        String?
+  quote          Quote?        @relation(fields: [quoteId], references: [id])
+  invoiceId      String?
+  invoice        Invoice?      @relation(fields: [invoiceId], references: [id])
+  totalValue     Float
+  receivedValue  Float         @default(0.0)
+  pendingValue   Float
+  issueDate      DateTime      @default(now())
+  dueDate        DateTime
+  paymentDate    DateTime?
+  paymentMethod  String?       // PIX, BOLETO, CARTAO, DINHEIRO, TRANSFERENCIA
+  status         String        @default("ABERTO") // ABERTO, VENCIDO, PARCIAL, PAGO, CANCELADO, ESTORNADO
+  bankAccountId  String?
+  bankAccount    BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  category       String        @default("RECEITA_SERVICO") // RECEITA_SERVICO, VENDA_PECA, CONTRATO, OUTROS
+  costCenter     String        @default("GERAL")
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  transactions   FinancialTransaction[]
+}
+
+model AccountsPayable {
+  id             String        @id @default(uuid())
+  providerName   String        // Fornecedor
+  serviceOrderId String?
+  serviceOrder   ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
+  description    String
+  category       String        // PECA, COMBUSTIVEL, ALUGUEL, FERRAMENTAS, IMPOSTOS, FOLHA, MARKETING, OUTROS
+  costCenter     String        @default("GERAL")
+  value          Float
+  dueDate        DateTime
+  paymentDate    DateTime?
+  paymentMethod  String?
+  status         String        @default("ABERTO") // ABERTO, VENCIDO, PAGO, CANCELADO, ESTORNADO
+  receiptUrl     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  transactions   FinancialTransaction[]
+}
+
+model FinancialTransaction {
+  id                   String              @id @default(uuid())
+  type                 String              // RECEITA, DESPESA
+  value                Float
+  date                 DateTime            @default(now())
+  category             String
+  costCenter           String              @default("GERAL")
+  accountsReceivableId String?
+  accountsReceivable   AccountsReceivable? @relation(fields: [accountsReceivableId], references: [id])
+  accountsPayableId    String?
+  accountsPayable      AccountsPayable?    @relation(fields: [accountsPayableId], references: [id])
+  description          String
+  bankAccountId        String?
+  bankAccount          BankAccount?        @relation(fields: [bankAccountId], references: [id])
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+}
+
+model BankAccount {
+  id            String                 @id @default(uuid())
+  name          String                 @unique // Caixa Geral, Banco do Brasil, Itaú
+  bank          String
+  agency        String
+  accountNumber String
+  balance       Float                  @default(0.0)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  receivables   AccountsReceivable[]
+  transactions  FinancialTransaction[]
+  reconciliations BankReconciliation[]
+}
+
+model BankReconciliation {
+  id            String      @id @default(uuid())
+  bankAccountId String
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id])
+  date          DateTime
+  bankBalance   Float
+  systemBalance Float
+  status        String      @default("PENDENTE") // PENDENTE, CONCILIADO
+  createdAt     DateTime    @default(now())
+}
+
+// 8. Produtos, Estoque e Serviços
+model Product {
+  id            String                 @id @default(uuid())
+  code          String                 @unique // P-0001
+  name          String
+  type          String                 @default("PECA") // PECA, MATERIAL, EQUIPAMENTO
+  costPrice     Float                  @default(0.0)
+  salePrice     Float                  @default(0.0)
+  stockQuantity Float                  @default(0)
+  minStock      Float                  @default(0)
+  unit          String                 @default("UN")
+  supplierId    String?
+  supplier      Supplier?              @relation(fields: [supplierId], references: [id])
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  materials     ServiceOrderMaterial[]
+  movements     StockMovement[]
+}
+
+model StockMovement {
+  id             String        @id @default(uuid())
+  productId      String
+  product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type           String        // ENTRADA, SAIDA
+  quantity       Float
+  reason         String        // COMPRA, AJUSTE, OS_UTILIZADO, OS_DEVOLVIDO, PERDA
+  serviceOrderId String?
+  serviceOrder   ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
+  date           DateTime      @default(now())
+  cost           Float         @default(0.0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Service {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  defaultPrice Float    @default(0.0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Supplier {
+  id        String    @id @default(uuid())
+  name      String
+  cnpj      String    @unique
+  phone     String
+  email     String
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+// 9. Contratos Recorrentes
+model Contract {
+  id            String             @id @default(uuid())
+  clientId      String
+  client        Client             @relation(fields: [clientId], references: [id])
+  code          String             @unique // C-2026-0001
+  value         Float
+  billingPeriod String             @default("MENSAL") // MENSAL, TRIMESTRAL, ANUAL
+  startDate     DateTime
+  endDate       DateTime
+  status        String             @default("ATIVO") // ATIVO, SUSPENSO, CANCELADO, VENCIDO
+  notes         String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  items         ContractItem[]
+  serviceOrders ServiceOrder[]
+}
+
+model ContractItem {
+  id          String   @id @default(uuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0.0)
+}
+
+// 10. Utilitários Gerais (Notificações, Auditoria, Logs)
+model Notification {
+  id         String   @id @default(uuid())
+  title      String
+  message    String
+  type       String   // COMERCIAL, OPERACIONAL, FINANCEIRO, ESTOQUE
+  read       Boolean  @default(false)
+  link       String?
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String   // CRIACAO, EDICAO, EXCLUSAO, APROVACAO, CANCELAMENTO
+  entity      String   // Cliente, Orcamento, OS, ContaReceber, etc.
+  entityId    String
+  changesJson String   // JSON format string of values changed
+  timestamp   DateTime @default(now())
+}
+
+model Attachment {
+  id         String   @id @default(uuid())
+  name       String
+  url        String
+  sizeBytes  Int
+  mimeType   String
+  entityType String   // OS, Orcamento, Cliente, etc.
+  entityId   String
+  createdAt  DateTime @default(now())
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique // company.name, company.cnpj, etc.
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

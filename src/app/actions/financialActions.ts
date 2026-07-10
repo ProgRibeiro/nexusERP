@@ -1,0 +1,429 @@
+"use server";
+
+import { prisma } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+
+export interface ReceivableDTO {
+  id: string;
+  clientName: string;
+  osCode: string | null;
+  totalValue: number;
+  receivedValue: number;
+  pendingValue: number;
+  dueDate: Date;
+  paymentDate: Date | null;
+  status: string;
+  paymentMethod: string | null;
+  category: string;
+  costCenter: string;
+}
+
+export interface PayableDTO {
+  id: string;
+  providerName: string;
+  description: string;
+  category: string;
+  costCenter: string;
+  value: number;
+  dueDate: Date;
+  paymentDate: Date | null;
+  status: string;
+}
+
+/**
+ * Obtém as contas a receber
+ */
+export async function getReceivables(): Promise<ReceivableDTO[]> {
+  try {
+    const list = await prisma.accountsReceivable.findMany({
+      include: {
+        client: true,
+        serviceOrder: { select: { code: true } },
+      },
+      orderBy: { dueDate: "desc" },
+    });
+
+    return list.map((r) => ({
+      id: r.id,
+      clientName: r.client.name,
+      osCode: r.serviceOrder?.code || null,
+      totalValue: r.totalValue,
+      receivedValue: r.receivedValue,
+      pendingValue: r.pendingValue,
+      dueDate: r.dueDate,
+      paymentDate: r.paymentDate,
+      status: r.status,
+      paymentMethod: r.paymentMethod,
+      category: r.category,
+      costCenter: r.costCenter,
+    }));
+  } catch (error) {
+    console.error("Erro ao obter contas a receber:", error);
+    return [];
+  }
+}
+
+/**
+ * Obtém as contas a pagar
+ */
+export async function getPayables(): Promise<PayableDTO[]> {
+  try {
+    const list = await prisma.accountsPayable.findMany({
+      orderBy: { dueDate: "desc" },
+    });
+    return list;
+  } catch (error) {
+    console.error("Erro ao obter contas a pagar:", error);
+    return [];
+  }
+}
+
+/**
+ * Obtém as contas bancárias da empresa
+ */
+export async function getBankAccounts() {
+  try {
+    return await prisma.bankAccount.findMany({ orderBy: { name: "asc" } });
+  } catch (error) {
+    console.error("Erro ao obter contas bancárias:", error);
+    return [];
+  }
+}
+
+/**
+ * Obtém histórico de transações financeiras
+ */
+export async function getTransactions() {
+  try {
+    return await prisma.financialTransaction.findMany({
+      include: { bankAccount: true },
+      orderBy: { date: "desc" },
+    });
+  } catch (error) {
+    console.error("Erro ao obter transações:", error);
+    return [];
+  }
+}
+
+/**
+ * Registra o recebimento (total ou parcial) de uma cobrança
+ * REGRAS DE NEGÓCIO EXIGIDAS:
+ * 1. Atualiza valores recebidos e pendentes.
+ * 2. Atualiza status para Pago ou Parcial.
+ * 3. Cria transação financeira correspondente.
+ * 4. Altera o saldo da conta bancária.
+ */
+export async function receivePayment(data: {
+  receivableId: string;
+  receivedValue: number;
+  paymentMethod: string;
+  bankAccountId: string;
+  userId: string;
+}) {
+  try {
+    const rec = await prisma.accountsReceivable.findUnique({
+      where: { id: data.receivableId },
+      include: { client: true },
+    });
+
+    if (!rec) throw new Error("Conta a receber não encontrada.");
+
+    if (data.receivedValue <= 0) throw new Error("O valor recebido deve ser maior que zero.");
+    if (data.receivedValue > rec.pendingValue) {
+      throw new Error(`O valor recebido (R$ ${data.receivedValue}) não pode ser maior que o saldo pendente (R$ ${rec.pendingValue}).`);
+    }
+
+    const newReceived = rec.receivedValue + data.receivedValue;
+    const newPending = rec.pendingValue - data.receivedValue;
+    const newStatus = newPending <= 0.01 ? "PAGO" : "PARCIAL";
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Atualiza a Conta a Receber
+      const updatedRec = await tx.accountsReceivable.update({
+        where: { id: data.receivableId },
+        data: {
+          receivedValue: newReceived,
+          pendingValue: newPending,
+          status: newStatus,
+          paymentDate: newStatus === "PAGO" ? new Date() : null,
+          paymentMethod: data.paymentMethod,
+          bankAccountId: data.bankAccountId,
+        },
+      });
+
+      // 2. Lança a Transação de Caixa
+      const transaction = await tx.financialTransaction.create({
+        data: {
+          type: "RECEITA",
+          value: data.receivedValue,
+          category: rec.category,
+          costCenter: rec.costCenter,
+          accountsReceivableId: rec.id,
+          description: `Recebimento ${newStatus} de fatura - Cliente: ${rec.client.name}`,
+          bankAccountId: data.bankAccountId,
+          date: new Date(),
+        },
+      });
+
+      // 3. Atualiza o saldo da conta bancária
+      const bank = await tx.bankAccount.findUnique({ where: { id: data.bankAccountId } });
+      if (bank) {
+        await tx.bankAccount.update({
+          where: { id: data.bankAccountId },
+          data: { balance: bank.balance + data.receivedValue },
+        });
+      }
+
+      return { updatedRec, transaction };
+    });
+
+    // Log de auditoria
+    await prisma.auditLog.create({
+      data: {
+        userId: data.userId,
+        action: "EDICAO",
+        entity: "ContasReceber",
+        entityId: data.receivableId,
+        changesJson: JSON.stringify({
+          received: data.receivedValue,
+          status: newStatus,
+          pending: newPending,
+        }),
+      },
+    });
+
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+
+    return { success: true, receivable: result.updatedRec };
+  } catch (error: any) {
+    console.error("Erro ao receber pagamento:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Paga uma conta (Contas a Pagar)
+ */
+export async function payBill(data: {
+  payableId: string;
+  paymentMethod: string;
+  bankAccountId: string;
+  userId: string;
+}) {
+  try {
+    const pay = await prisma.accountsPayable.findUnique({
+      where: { id: data.payableId },
+    });
+
+    if (!pay) throw new Error("Conta a pagar não encontrada.");
+    if (pay.status === "PAGO") throw new Error("Esta conta já está paga.");
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Atualizar conta a pagar
+      const updatedPay = await tx.accountsPayable.update({
+        where: { id: data.payableId },
+        data: {
+          status: "PAGO",
+          paymentDate: new Date(),
+          paymentMethod: data.paymentMethod,
+        },
+      });
+
+      // 2. Lançar transação de despesa
+      const transaction = await tx.financialTransaction.create({
+        data: {
+          type: "DESPESA",
+          value: pay.value,
+          category: pay.category,
+          costCenter: pay.costCenter,
+          accountsPayableId: pay.id,
+          description: `Pagamento de conta: ${pay.providerName} (${pay.description})`,
+          bankAccountId: data.bankAccountId,
+          date: new Date(),
+        },
+      });
+
+      // 3. Atualizar saldo da conta bancária (subtrair)
+      const bank = await tx.bankAccount.findUnique({ where: { id: data.bankAccountId } });
+      if (bank) {
+        await tx.bankAccount.update({
+          where: { id: data.bankAccountId },
+          data: { balance: bank.balance - pay.value },
+        });
+      }
+
+      return { updatedPay, transaction };
+    });
+
+    // Log de auditoria
+    await prisma.auditLog.create({
+      data: {
+        userId: data.userId,
+        action: "EDICAO",
+        entity: "ContasPagar",
+        entityId: data.payableId,
+        changesJson: JSON.stringify({
+          status: "PAGO",
+          value: pay.value,
+        }),
+      },
+    });
+
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+
+    return { success: true, payable: result.updatedPay };
+  } catch (error: any) {
+    console.error("Erro ao pagar conta:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Cria uma nova Conta a Pagar (Despesa)
+ */
+export async function createPayable(
+  data: {
+    providerName: string;
+    description: string;
+    category: string;
+    costCenter?: string;
+    value: number;
+    dueDate: Date;
+  },
+  userId: string
+) {
+  try {
+    const payable = await prisma.accountsPayable.create({
+      data: {
+        providerName: data.providerName,
+        description: data.description,
+        category: data.category,
+        costCenter: data.costCenter || "GERAL",
+        value: data.value,
+        dueDate: data.dueDate,
+        status: "ABERTO",
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: "CRIACAO",
+        entity: "ContasPagar",
+        entityId: payable.id,
+        changesJson: JSON.stringify(payable),
+      },
+    });
+
+    revalidatePath("/financeiro");
+    return { success: true, payable };
+  } catch (error: any) {
+    console.error("Erro ao criar conta a pagar:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Estorna uma transação financeira (Cancelamento/Reversão de pagamento)
+ * REGRAS DE NEGÓCIO EXIGIDAS:
+ * 1. Estorno deve registrar motivo e usuário responsável.
+ * 2. Atualiza os saldos da conta a receber/pagar correspondentes.
+ * 3. Corrige o saldo da conta bancária.
+ * 4. Remove ou cria transação reversa (aqui criaremos um log de estorno e mudamos a transação para ESTORNADA).
+ */
+export async function estornoTransaction(
+  transactionId: string,
+  justification: string,
+  userId: string
+) {
+  try {
+    const transaction = await prisma.financialTransaction.findUnique({
+      where: { id: transactionId },
+    });
+
+    if (!transaction) throw new Error("Transação não encontrada.");
+    if (transaction.category === "ESTORNO") throw new Error("Esta transação já é um estorno.");
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Atualizar a transação para categoria "ESTORNADA"
+      await tx.financialTransaction.update({
+        where: { id: transactionId },
+        data: {
+          category: "ESTORNO",
+          description: `[ESTORNADO] ${transaction.description}. Motivo: ${justification}`,
+        },
+      });
+
+      // 2. Corrigir saldo da conta bancária
+      const bank = await tx.bankAccount.findUnique({ where: { id: transaction.bankAccountId || "" } });
+      if (bank) {
+        const balanceAdjustment = transaction.type === "RECEITA" ? -transaction.value : transaction.value;
+        await tx.bankAccount.update({
+          where: { id: bank.id },
+          data: { balance: bank.balance + balanceAdjustment },
+        });
+      }
+
+      // 3. Ajustar contas a receber ou pagar vinculadas
+      if (transaction.accountsReceivableId) {
+        const rec = await tx.accountsReceivable.findUnique({ where: { id: transaction.accountsReceivableId } });
+        if (rec) {
+          const newReceived = Math.max(0, rec.receivedValue - transaction.value);
+          const newPending = rec.totalValue - newReceived;
+          const newStatus = newReceived <= 0 ? "ABERTO" : "PARCIAL";
+
+          await tx.accountsReceivable.update({
+            where: { id: rec.id },
+            data: {
+              receivedValue: newReceived,
+              pendingValue: newPending,
+              status: newStatus,
+              paymentDate: null,
+            },
+          });
+        }
+      }
+
+      if (transaction.accountsPayableId) {
+        const pay = await tx.accountsPayable.findUnique({ where: { id: transaction.accountsPayableId } });
+        if (pay) {
+          await tx.accountsPayable.update({
+            where: { id: pay.id },
+            data: {
+              status: "ABERTO",
+              paymentDate: null,
+              paymentMethod: null,
+            },
+          });
+        }
+      }
+
+      return { success: true };
+    });
+
+    // Log de auditoria
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: "CANCELAMENTO",
+        entity: "TransacaoFinanceira",
+        entityId: transactionId,
+        changesJson: JSON.stringify({
+          action: "Estorno de transação",
+          value: transaction.value,
+          justification,
+        }),
+      },
+    });
+
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao realizar estorno:", error);
+    return { success: false, error: error.message };
+  }
+}

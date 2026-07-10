@@ -1,36 +1,94 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ERP de Prestação de Serviços - Antigravity Climatização
 
-## Getting Started
+Este é um sistema ERP web completo para gestão operacional e financeira de empresas prestadoras de serviços (climatização, elétrica, civil, etc.). O sistema é estruturado em torno da **Ordem de Serviço (OS)** como núcleo centralizador, integrando o fluxo de vendas comercial com a execução técnica de campo e o faturamento financeiro.
 
-First, run the development server:
+---
 
+## 🚀 Tecnologias Utilizadas
+
+* **Framework:** Next.js 16 (App Router / React 19)
+* **Linguagem:** TypeScript
+* **Estilização:** Tailwind CSS v4
+* **Gráficos:** Recharts
+* **ORM:** Prisma ORM (v7.8.0)
+* **Banco de Dados:** PostgreSQL 16 (Ambiente de Produção e Docker local)
+* **Containerização:** Docker & Docker Compose
+
+---
+
+## 🛠️ Como Iniciar o Projeto Localmente
+
+### 1. Requisitos Pró-Requisitos
+* Node.js v20+ instalado
+* Docker e Docker Desktop instalados e rodando
+
+### 2. Configurar Variáveis de Ambiente
+Copie o arquivo de exemplo de ambiente `.env.example` para `.env`:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env
+```
+O arquivo `.env` deve conter a URL de conexão para a porta exposta do banco de dados (recomenda-se a porta **5433** para evitar conflitos com servidores PostgreSQL locais ativos):
+```env
+DATABASE_URL="postgresql://erp_user:erp_password@localhost:5433/erp_prestacao_servicos?schema=public"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Subir o Banco PostgreSQL via Docker
+Inicie o container do banco de dados local PostgreSQL em segundo plano:
+```bash
+docker compose up -d
+```
+*Isto irá instanciar um container rodando PostgreSQL 16 exposto na porta `5433`.*
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Rodar as Migrations do Prisma
+Gere a estrutura de tabelas e relacionamentos no banco de dados:
+```bash
+npx prisma migrate dev --name init_postgres
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 5. Popular o Banco com Dados de Teste (Seed)
+Carregue os dados realistas de simulação (usuários, clientes, leads de CRM, orçamentos e Ordens de Serviço antigas):
+```bash
+npm run db:seed
+```
 
-## Learn More
+### 6. Executar o Servidor de Desenvolvimento
+Inicie o servidor local do Next.js:
+```bash
+npm run dev
+```
+O site estará no ar em: **[http://localhost:3000](http://localhost:3000)**
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🔄 Fluxo de Negócio Operacional
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+O ERP conecta todos os departamentos da empresa de ponta a ponta:
 
-## Deploy on Vercel
+1. **CRM & Funil comercial:** Captura de leads e agendamento de follow-ups em Kanban.
+2. **Orçamento e Margem:** Elaboração de propostas com auditoria interna de margem de contribuição (alvos em vermelho se abaixo da meta).
+3. **Ordem de Serviço (OS):** Criação automática pós-aprovação do orçamento, com escala de equipe técnica e controle de peças.
+4. **Execução de Campo (Técnico):** Interface mobile-friendly para check-in por GPS, checklist de qualidade, inserção de medições, fotos antes/depois e **Assinatura Eletrônica** do cliente.
+5. **Relatório de Conclusão:** Emissão visual para aprovação do cliente com layout otimizado para impressão (PDF).
+6. **Faturamento & NFS-e:** Emissão simulada de NFS-e com imposto retido e parcelamento financeiro.
+7. **Controle Financeiro:** Gestão de Contas a Receber (baixas totais/parciais), Contas a Pagar (despesas operacionais), Extrato com **Estorno Rastreável** e relatório **DRE** de competência de caixa.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🔒 Simulação de Perfis de Usuário
+No topo direito do painel de administração, há um seletor rápido para alternar o perfil de usuário logado. Isto permite testar o controle de permissão por perfil (Role-Based Access Control) nas telas:
+* **Administrador:** Acesso completo.
+* **Gestor:** Visualização ampla, aprovações comerciais e agendamento.
+* **Comercial:** CRM e propostas de orçamento.
+* **Operacional:** Agendamentos e controle técnico.
+* **Técnico:** Interface de campo ([/execucao](http://localhost:3000/execucao)).
+* **Faturamento:** Fila de faturamento e Notas Fiscais.
+* **Financeiro:** Contas, baixas, estornos e DRE.
+
+---
+
+## 📈 Decisões de Arquitetura de Produção: Float vs Decimal
+Durante a etapa de migração para o PostgreSQL, optou-se por manter os campos financeiros mapeados como `Float` (que se traduz em `Double Precision` no PostgreSQL) para garantir a estabilidade das Server Actions, cálculos do Dashboard e tipagens do React na base de código ativa.
+
+**Próximos Passos (Fase 2 de Refatoração):**
+* Avaliar a conversão gradual de campos monetários críticos para `Decimal` (`Numeric(10,2)` no PostgreSQL) para evitar erros de arredondamento de ponto flutuante em grandes volumes financeiros.
+* Implementar a biblioteca `decimal.js` ou realizar a conversão explícita com `.toNumber()` na leitura dos dados em todas as consultas Prisma nas views do Next.js.
