@@ -1,7 +1,10 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { requireAuth, requirePermission } from "@/lib/auth";
 
 export interface BillingQueueItem {
   id: string;
@@ -12,21 +15,30 @@ export interface BillingQueueItem {
   completedAt: Date | null;
   value: number;
   marginReal: number;
+  legalName: string;
+  description: string;
+  cnae: string;
+  email: string;
+  cep: string;
+  addressNumber: string;
+  isCnpj: boolean;
+  missingFields: string[];
 }
 
 /**
- * Obtém a fila de OSs aguardando faturamento (status = FATURAMENTO ou CONCLUIDA)
+ * Obtém a fila de OSs efetivamente liberadas para faturamento.
  */
 export async function getBillingQueue(): Promise<BillingQueueItem[]> {
   try {
+    await requireAuth();
+
     const queue = await prisma.serviceOrder.findMany({
       where: {
-        status: {
-          in: ["CONCLUIDA", "FATURAMENTO"],
-        },
+        status: "FATURAMENTO",
       },
       include: {
-        client: true,
+        client: { include: { addresses: true } },
+        address: true,
         items: true,
         materials: true,
       },
@@ -35,12 +47,23 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
 
     return queue.map((os) => {
       // Calcular valor total da OS (itens de serviço + materiais utilizados)
-      const itemsVal = os.items.reduce((sum, item) => sum + item.total, 0);
+      const itemsVal = os.items.reduce((sum, item) => sum + Number(item.total), 0);
       const materialsVal = os.materials
         .filter((m) => m.status === "UTILIZADO")
-        .reduce((sum, m) => sum + m.usedQuantity * m.salePrice, 0);
-      
+        .reduce((sum, m) => sum + m.usedQuantity * Number(m.salePrice), 0);
+
       const value = itemsVal + materialsVal;
+      const address = os.address || os.client.addresses[0] || null;
+      const legalName = os.client.socialName || os.client.name;
+      const description = os.items.map((item) => item.description).filter(Boolean).join("; ");
+      const document = os.client.cpfCnpj.replace(/\D/g, "");
+      const missingFields: string[] = [];
+      if (!legalName) missingFields.push("Razão social / tomador");
+      if (![11, 14].includes(document.length)) missingFields.push("CPF/CNPJ válido");
+      if (value <= 0) missingFields.push("Valor");
+      if (!os.client.email || os.client.email.endsWith("@importado.local")) missingFields.push("E-mail válido");
+      if (!address?.cep) missingFields.push("CEP");
+      if (!address?.number) missingFields.push("Número do endereço");
 
       return {
         id: os.id,
@@ -51,17 +74,25 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
         completedAt: os.completedAt,
         value,
         marginReal: os.marginReal,
+        legalName,
+        description,
+        cnae: "",
+        email: os.client.email,
+        cep: address?.cep || "",
+        addressNumber: address?.number || "",
+        isCnpj: document.length === 14,
+        missingFields,
       };
     });
   } catch (error) {
-    console.error("Erro ao obter fila de faturamento:", error);
+    logger.error("Erro ao obter fila de faturamento:", error);
     return [];
   }
 }
 
 /**
- * Executa o faturamento de uma OS:
- * 1. Emite a Nota Fiscal fictícia.
+ * Registra no ERP uma nota já emitida no sistema fiscal externo:
+ * 1. Salva os dados de controle da nota.
  * 2. Atualiza a OS para "FATURADA".
  * 3. Gera a cobrança no contas a receber (com suporte a parcelamento!).
  * 4. Alimenta logs de auditoria e notificações.
@@ -79,12 +110,23 @@ export async function processBilling(data: {
   userId: string;
 }) {
   try {
+    const session = await requirePermission("faturamento.write");
+    data.userId = session.userId; // nunca confiar no valor vindo do client
+
     const os = await prisma.serviceOrder.findUnique({
       where: { id: data.osId },
       include: { client: true },
     });
 
     if (!os) throw new Error("Ordem de Serviço não encontrada.");
+    if (os.status !== "FATURAMENTO") {
+      throw new Error("A OS precisa estar liberada para faturamento antes de registrar a nota fiscal.");
+    }
+    if (!data.invoiceCode.trim()) throw new Error("Informe o número da nota fiscal.");
+    if (!Number.isFinite(data.totalValue) || data.totalValue <= 0) throw new Error("Informe um valor válido para a nota fiscal.");
+    if (!Number.isInteger(data.installments) || data.installments < 1) throw new Error("Informe ao menos uma parcela.");
+    const duplicateInvoice = await prisma.invoice.findUnique({ where: { code: data.invoiceCode.trim() } });
+    if (duplicateInvoice) throw new Error("Já existe uma nota fiscal cadastrada com este número.");
 
     const taxValue = (data.totalValue * (data.taxPercent / 100)) || 0;
 
@@ -93,13 +135,13 @@ export async function processBilling(data: {
       // 1. Criar Nota Fiscal (Invoice)
       const invoice = await tx.invoice.create({
         data: {
-          code: data.invoiceCode,
+          code: data.invoiceCode.trim(),
           serviceOrderId: data.osId,
           clientId: os.clientId,
           value: data.totalValue,
           taxValue,
           status: "EMITIDA",
-          pdfUrl: `/invoices/${data.invoiceCode.toLowerCase()}.pdf`,
+          pdfUrl: null,
         },
       });
 
@@ -191,7 +233,27 @@ export async function processBilling(data: {
 
     return { success: true, invoice: result.invoice, receivables: result.receivables };
   } catch (error: any) {
-    console.error("Erro ao processar faturamento:", error);
+    logger.error("Erro ao processar faturamento:", error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Obtém as Notas Fiscais emitidas
+ */
+export async function getInvoices() {
+  try {
+    await requireAuth();
+
+    return await prisma.invoice.findMany({
+      include: {
+        client: true,
+        serviceOrder: { select: { code: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (error) {
+    logger.error("Erro ao obter notas fiscais:", error);
+    return [];
   }
 }

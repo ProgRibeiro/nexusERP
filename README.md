@@ -11,8 +11,9 @@ Este é um sistema ERP web completo para gestão operacional e financeira de emp
 * **Estilização:** Tailwind CSS v4
 * **Gráficos:** Recharts
 * **ORM:** Prisma ORM (v7.8.0)
-* **Banco de Dados:** PostgreSQL 16 (Ambiente de Produção e Docker local)
-* **Containerização:** Docker & Docker Compose
+* **Banco de Dados:** PostgreSQL nativo
+* **Execução:** Node.js nativo com PostgreSQL
+* **Produção:** Linux/Cloudex com systemd, Nginx e HTTPS
 
 ---
 
@@ -20,29 +21,30 @@ Este é um sistema ERP web completo para gestão operacional e financeira de emp
 
 ### 1. Requisitos Pró-Requisitos
 * Node.js v20+ instalado
-* Docker e Docker Desktop instalados e rodando
+* PostgreSQL instalado e rodando localmente
 
 ### 2. Configurar Variáveis de Ambiente
 Copie o arquivo de exemplo de ambiente `.env.example` para `.env`:
 ```bash
 cp .env.example .env
 ```
-O arquivo `.env` deve conter a URL de conexão para a porta exposta do banco de dados (recomenda-se a porta **5433** para evitar conflitos com servidores PostgreSQL locais ativos):
+O arquivo `.env` deve conter a conexão do PostgreSQL local na porta padrão:
 ```env
-DATABASE_URL="postgresql://erp_user:erp_password@localhost:5433/erp_prestacao_servicos?schema=public"
+DATABASE_URL="postgresql://seu_usuario@localhost:5432/erp_prestacao_servicos?schema=public"
+SESSION_SECRET="uma-string-aleatoria-com-pelo-menos-32-caracteres"
 ```
 
-### 3. Subir o Banco PostgreSQL via Docker
-Inicie o container do banco de dados local PostgreSQL em segundo plano:
+### 3. Criar o banco PostgreSQL local
+
 ```bash
-docker compose up -d
+createdb erp_prestacao_servicos
 ```
-*Isto irá instanciar um container rodando PostgreSQL 16 exposto na porta `5433`.*
 
 ### 4. Rodar as Migrations do Prisma
-Gere a estrutura de tabelas e relacionamentos no banco de dados:
+Gere o Prisma Client e aplique a estrutura do banco:
 ```bash
-npx prisma migrate dev --name init_postgres
+npm run prisma:generate
+npm run prisma:deploy
 ```
 
 ### 5. Popular o Banco com Dados de Teste (Seed)
@@ -86,9 +88,21 @@ No topo direito do painel de administração, há um seletor rápido para altern
 
 ---
 
-## 📈 Decisões de Arquitetura de Produção: Float vs Decimal
-Durante a etapa de migração para o PostgreSQL, optou-se por manter os campos financeiros mapeados como `Float` (que se traduz em `Double Precision` no PostgreSQL) para garantir a estabilidade das Server Actions, cálculos do Dashboard e tipagens do React na base de código ativa.
+## Produção Linux / Cloudex
 
-**Próximos Passos (Fase 2 de Refatoração):**
-* Avaliar a conversão gradual de campos monetários críticos para `Decimal` (`Numeric(10,2)` no PostgreSQL) para evitar erros de arredondamento de ponto flutuante em grandes volumes financeiros.
-* Implementar a biblioteca `decimal.js` ou realizar a conversão explícita com `.toNumber()` na leitura dos dados em todas as consultas Prisma nas views do Next.js.
+A implantação não usa Docker. O processo completo com PostgreSQL nativo,
+deploy blue/green, atualizações atômicas, backups automáticos, systemd, Nginx e
+certificado HTTPS está em [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+Os campos monetários críticos usam `Decimal(10,2)` no PostgreSQL para evitar
+erros de arredondamento de ponto flutuante.
+
+## Backups locais
+
+```bash
+npm run backup                 # backup manual verificado
+npm run backup:install-local   # instala backup automático de hora em hora no macOS
+```
+
+Os arquivos ficam em `backups/`, possuem checksum SHA-256 e podem ser
+verificados com `npm run backup:restore -- backups/ARQUIVO.dump`.

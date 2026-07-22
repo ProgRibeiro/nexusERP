@@ -1,7 +1,14 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { requireAuth, requirePermission } from "@/lib/auth";
+import { quoteCreateSchema, quoteItemSchema } from "@/lib/schemas";
+import { z } from "zod";
+import { calculateProposalTax } from "@/lib/tax";
+import { loadTaxProfile } from "@/lib/taxProfile";
 
 export interface QuoteItemInput {
   type: string; // SERVICO, PRODUTO, MAO_DE_OBRA, DESLOCAMENTO, IMPOSTO
@@ -18,6 +25,8 @@ export interface QuoteItemInput {
  */
 export async function getQuotes(search?: string) {
   try {
+    await requireAuth();
+
     const quotes = await prisma.quote.findMany({
       where: search
         ? {
@@ -45,10 +54,11 @@ export async function getQuotes(search?: string) {
       total: q.total,
       validUntil: q.validUntil,
       version: q.version,
+      createdAt: q.createdAt,
       serviceOrders: q.serviceOrders,
     }));
   } catch (error) {
-    console.error("Erro ao obter orçamentos:", error);
+    logger.error("Erro ao obter orçamentos:", error);
     return [];
   }
 }
@@ -58,6 +68,8 @@ export async function getQuotes(search?: string) {
  */
 export async function getQuoteDetails(id: string) {
   try {
+    await requireAuth();
+
     const quote = await prisma.quote.findUnique({
       where: { id },
       include: {
@@ -75,7 +87,7 @@ export async function getQuoteDetails(id: string) {
 
     return quote;
   } catch (error) {
-    console.error(`Erro ao obter orçamento ${id}:`, error);
+    logger.error(`Erro ao obter orçamento ${id}:`, error);
     return null;
   }
 }
@@ -100,6 +112,11 @@ export async function createQuote(
   userId: string
 ) {
   try {
+    const session = await requirePermission("quotes.write");
+    userId = session.userId; // nunca confiar no valor vindo do client
+    quoteCreateSchema.parse(data);
+    z.array(quoteItemSchema).min(1, "O orçamento precisa de ao menos um item.").parse(items);
+
     const count = await prisma.quote.count();
     const code = `Q-2026-${String(count + 1).padStart(4, "0")}`;
 
@@ -110,7 +127,8 @@ export async function createQuote(
     let subtotal = 0;
     let costEstimate = 0;
 
-    const itemsData = items.map((item) => {
+    const itemsData = [];
+    for (const item of items) {
       const itemSubtotal = item.quantity * item.unitPrice;
       const itemDiscount = item.quantity * item.discount;
       const itemTotal = itemSubtotal - itemDiscount;
@@ -118,7 +136,7 @@ export async function createQuote(
       subtotal += itemSubtotal;
       costEstimate += item.quantity * item.costPrice;
 
-      return {
+      itemsData.push({
         type: item.type,
         description: item.description,
         quantity: item.quantity,
@@ -127,12 +145,51 @@ export async function createQuote(
         costPrice: item.costPrice,
         discount: item.discount,
         total: itemTotal,
-      };
-    });
+      });
+
+      // Cadastra o item avulso na hora se ele não existir
+      try {
+        if (item.type === "SERVICO") {
+          const exists = await prisma.service.findFirst({
+            where: { name: { equals: item.description } }
+          });
+          if (!exists) {
+            await prisma.service.create({
+              data: {
+                name: item.description,
+                defaultPrice: item.unitPrice,
+              }
+            });
+          }
+        } else if (item.type === "PECAS" || item.type === "PRODUTO") {
+          const existsByName = await prisma.product.findFirst({
+            where: { name: { equals: item.description } }
+          });
+          if (!existsByName) {
+            const prodCount = await prisma.product.count();
+            await prisma.product.create({
+              data: {
+                code: `P-${String(prodCount + 1).padStart(4, "0")}`,
+                name: item.description,
+                type: "PECA",
+                salePrice: item.unitPrice,
+                costPrice: item.costPrice || (item.unitPrice * 0.6),
+                unit: item.unit || "UN",
+                stockQuantity: 0,
+              }
+            });
+          }
+        }
+      } catch (err) {
+        logger.error("Erro ao registrar item avulso durante orçamento:", err);
+      }
+    }
 
     const discount = data.discount || 0;
-    const tax = data.tax || 0;
-    const total = subtotal - discount + tax;
+    const taxProfile = await loadTaxProfile();
+    const calculation = calculateProposalTax(subtotal, discount, taxProfile.rate);
+    const tax = calculation.tax;
+    const total = calculation.total;
     const estimatedMargin = total - costEstimate;
 
     const quote = await prisma.quote.create({
@@ -166,15 +223,15 @@ export async function createQuote(
         action: "CRIACAO",
         entity: "Orcamento",
         entityId: quote.id,
-        changesJson: JSON.stringify(quote),
+        changesJson: JSON.stringify({ quote, taxProfile }),
       },
     });
 
     revalidatePath("/orcamentos");
     return { success: true, quote };
   } catch (error: any) {
-    console.error("Erro ao criar orçamento:", error);
-    return { success: false, error: error.message };
+    logger.error("Erro ao criar orçamento:", error);
+    return { success: false, error: error.issues?.[0]?.message || error.message };
   }
 }
 
@@ -188,6 +245,9 @@ export async function updateQuoteStatus(
   justification?: string
 ) {
   try {
+    const session = await requirePermission("quotes.write");
+    userId = session.userId; // nunca confiar no valor vindo do client
+
     const oldQuote = await prisma.quote.findUnique({
       where: { id: quoteId },
     });
@@ -237,7 +297,7 @@ export async function updateQuoteStatus(
     revalidatePath("/orcamentos");
     return { success: true, quote };
   } catch (error: any) {
-    console.error("Erro ao atualizar status do orçamento:", error);
+    logger.error("Erro ao atualizar status do orçamento:", error);
     return { success: false, error: error.message };
   }
 }
@@ -252,6 +312,9 @@ export async function updateQuoteStatus(
  */
 export async function approveAndConvertQuote(quoteId: string, userId: string) {
   try {
+    const session = await requirePermission("quotes.write");
+    userId = session.userId; // nunca confiar no valor vindo do client
+
     // 1. Carregar Orçamento com itens
     const quote = await prisma.quote.findUnique({
       where: { id: quoteId },
@@ -283,7 +346,16 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
     const products = quote.items.filter((item) => item.type === "PRODUTO");
 
     const hasInstallation = services.some((s) => s.description.toLowerCase().includes("instalação") || s.description.toLowerCase().includes("instalacao"));
-    const osType = hasInstallation ? "INSTALACAO" : "CORRETIVA";
+    const osType = quote.proposalType === "PREVENTIVA" ? "PREVENTIVA" : hasInstallation ? "INSTALACAO" : "CORRETIVA";
+    let preventiveChecklist: Array<{ id: string; label: string; group?: string; checked: boolean }> = [];
+    if (quote.proposalType === "PREVENTIVA" && quote.preventivePlanJson) {
+      try {
+        const plan = JSON.parse(quote.preventivePlanJson) as { scope?: Array<{ id: string; label: string; group?: string }> };
+        preventiveChecklist = (plan.scope || []).map((item) => ({ ...item, checked: false }));
+      } catch {
+        logger.warn("preventive_plan_invalid", { quoteId: quote.id });
+      }
+    }
 
     // Criar a OS no banco
     const os = await prisma.serviceOrder.create({
@@ -296,6 +368,7 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
         status: "CRIADA", // Status inicial padrão
         priority: "MEDIA",
         type: osType,
+        checklistJson: JSON.stringify(preventiveChecklist),
         problemReported: `Serviço gerado a partir do Orçamento ${quote.code}.\n\nItens vendidos:\n${quote.items
           .map((i) => `- ${i.description} (${i.quantity}x)`)
           .join("\n")}\n\nObservações gerais: ${quote.notes || "Sem observações."}`,
@@ -411,7 +484,272 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
 
     return { success: true, os, quoteStatus: "CONVERTIDO" };
   } catch (error: any) {
-    console.error("Erro na conversão de orçamento para OS:", error);
+    logger.error("Erro na conversão de orçamento para OS:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Obtém todos os produtos e serviços cadastrados para o autocomplete
+ */
+export async function getQuoteCatalog() {
+  try {
+    await requireAuth();
+
+    const products = await prisma.product.findMany({
+      select: { name: true, salePrice: true, costPrice: true, unit: true },
+      orderBy: { name: "asc" }
+    });
+    const services = await prisma.service.findMany({
+      select: { name: true, defaultPrice: true },
+      orderBy: { name: "asc" }
+    });
+    return { products, services };
+  } catch (error) {
+    logger.error("Erro ao obter catálogo:", error);
+    return { products: [], services: [] };
+  }
+}
+
+export interface ClientItemHistoryDTO {
+  description: string;
+  type: string;
+  unit: string;
+  count: number;
+  avgQuantity: number;
+  lastUnitPrice: number;
+}
+
+/**
+ * Histórico de itens já orçados para um cliente específico — usado para
+ * priorizar itens frequentes no seletor de catálogo e pré-preencher
+ * quantidade/preço com base no que já foi praticado com este cliente.
+ */
+export async function getClientItemHistory(clientId: string): Promise<ClientItemHistoryDTO[]> {
+  if (!clientId) return [];
+
+  try {
+    await requireAuth();
+
+    const items = await prisma.quoteItem.findMany({
+      where: { quote: { clientId } },
+      orderBy: { quote: { createdAt: "desc" } },
+      take: 200,
+    });
+
+    const byDescription = new Map<
+      string,
+      { type: string; unit: string; count: number; totalQuantity: number; lastUnitPrice: number }
+    >();
+
+    items.forEach((item) => {
+      const existing = byDescription.get(item.description);
+      if (existing) {
+        existing.count += 1;
+        existing.totalQuantity += item.quantity;
+      } else {
+        byDescription.set(item.description, {
+          type: item.type,
+          unit: item.unit,
+          count: 1,
+          totalQuantity: item.quantity,
+          lastUnitPrice: Number(item.unitPrice),
+        });
+      }
+    });
+
+    return Array.from(byDescription.entries())
+      .map(([description, v]) => ({
+        description,
+        type: v.type,
+        unit: v.unit,
+        count: v.count,
+        avgQuantity: v.totalQuantity / v.count,
+        lastUnitPrice: v.lastUnitPrice,
+      }))
+      .sort((a, b) => b.count - a.count);
+  } catch (error) {
+    logger.error("Erro ao obter histórico de itens do cliente:", error);
+    return [];
+  }
+}
+
+/**
+ * Registra um novo item (Serviço ou Produto) no catálogo
+ */
+export async function registerCatalogItem(data: {
+  type: string;
+  name: string;
+  price: number;
+  cost?: number;
+  unit?: string;
+}) {
+  try {
+    await requirePermission("quotes.write");
+
+    if (data.type === "SERVICO") {
+      const exists = await prisma.service.findFirst({
+        where: { name: { equals: data.name } }
+      });
+      if (exists) {
+        return { success: false, error: "Serviço já cadastrado com este nome." };
+      }
+      const service = await prisma.service.create({
+        data: {
+          name: data.name,
+          defaultPrice: data.price,
+        }
+      });
+      return { success: true, item: { name: service.name, price: service.defaultPrice, type: "SERVICO" } };
+    } else {
+      const exists = await prisma.product.findFirst({
+        where: { name: { equals: data.name } }
+      });
+      if (exists) {
+        return { success: false, error: "Peça já cadastrada com este nome." };
+      }
+      const prodCount = await prisma.product.count();
+      const product = await prisma.product.create({
+        data: {
+          code: `P-${String(prodCount + 1).padStart(4, "0")}`,
+          name: data.name,
+          type: "PECA",
+          salePrice: data.price,
+          costPrice: data.cost || (data.price * 0.6),
+          unit: data.unit || "UN",
+          stockQuantity: 0,
+        }
+      });
+      return {
+        success: true,
+        item: {
+          name: product.name,
+          price: Number(product.salePrice),
+          type: "PECAS",
+          unit: product.unit,
+          costPrice: Number(product.costPrice),
+        },
+      };
+    }
+  } catch (error: any) {
+    logger.error("Erro ao registrar item no catálogo:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Atualiza um Orçamento Existente
+ */
+export async function updateQuote(
+  quoteId: string,
+  data: {
+    clientId: string;
+    addressId?: string;
+    contactId?: string;
+    validityDays?: number;
+    warrantyDays?: number;
+    executionTerm?: string;
+    paymentTerms?: string;
+    notes?: string;
+    discount?: number;
+    tax?: number;
+  },
+  items: QuoteItemInput[],
+  userId: string
+) {
+  try {
+    const session = await requirePermission("quotes.write");
+    userId = session.userId; // nunca confiar no valor vindo do client
+
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + (data.validityDays || 15));
+
+    // Cálculos
+    let subtotal = 0;
+    let costEstimate = 0;
+    const itemsData: any[] = [];
+    for (const item of items) {
+      const itemSubtotal = item.quantity * item.unitPrice;
+      const itemDiscount = item.quantity * (item.discount || 0);
+      const itemTotal = itemSubtotal - itemDiscount;
+
+      subtotal += itemSubtotal;
+      costEstimate += item.quantity * (item.costPrice || 0);
+
+      itemsData.push({
+        type: item.type,
+        description: item.description,
+        quantity: item.quantity,
+        unit: item.unit || "UN",
+        unitPrice: item.unitPrice,
+        costPrice: item.costPrice || 0.0,
+        discount: item.discount || 0.0,
+        total: itemTotal
+      });
+    }
+
+    const discount = data.discount || 0;
+    const taxProfile = await loadTaxProfile();
+    const calculation = calculateProposalTax(subtotal, discount, taxProfile.rate);
+    const tax = calculation.tax;
+    const total = calculation.total;
+
+    // Deletar os itens antigos e criar os novos em uma transação do Prisma
+    const quote = await prisma.$transaction(async (tx) => {
+      // Deletar itens antigos
+      await tx.quoteItem.deleteMany({
+        where: { quoteId }
+      });
+
+      // Atualizar o orçamento
+      const updated = await tx.quote.update({
+        where: { id: quoteId },
+        data: {
+          clientId: data.clientId,
+          addressId: data.addressId || null,
+          contactId: data.contactId || null,
+          validUntil,
+          warrantyDays: data.warrantyDays || 90,
+          executionTerm: data.executionTerm,
+          paymentTerms: data.paymentTerms,
+          subtotal,
+          discount,
+          tax,
+          total,
+          costEstimate,
+          notes: data.notes,
+          items: {
+            create: itemsData
+          }
+        },
+        include: {
+          client: true,
+          items: true
+        }
+      });
+
+      // Log de Auditoria
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: "UPDATE",
+          entity: "Quote",
+          entityId: quoteId,
+          changesJson: JSON.stringify({
+            data,
+            itemsCount: items.length,
+            total,
+            taxProfile,
+          })
+        }
+      });
+
+      return updated;
+    });
+
+    return { success: true, quote };
+  } catch (error: any) {
+    logger.error("Erro ao atualizar orçamento:", error);
     return { success: false, error: error.message };
   }
 }

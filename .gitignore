@@ -48,6 +48,15 @@ next-env.d.ts
 
 # backup files
 /prisma_sqlite_backup/
+/backups/
+
+# uploaded files (fotos de OS, assinaturas) — persistidos no disco do servidor, não versionados
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# local development/diagnostic artifacts
+/.claude/
+/src/tests/test_output.log
 
 # allow example envs
 !.env.example

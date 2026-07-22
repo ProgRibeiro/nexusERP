@@ -1,0 +1,11 @@
+[Unit]
+Description=Nexus ERP - executar backup diário
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=nexus-erp-backup-daily.service
+
+[Install]
+WantedBy=timers.target

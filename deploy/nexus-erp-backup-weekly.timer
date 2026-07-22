@@ -1,0 +1,11 @@
+[Unit]
+Description=Nexus ERP - executar backup semanal
+
+[Timer]
+OnCalendar=Sun *-*-* 03:15:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=nexus-erp-backup-weekly.service
+
+[Install]
+WantedBy=timers.target

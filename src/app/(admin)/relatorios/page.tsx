@@ -148,15 +148,15 @@ export default function RelatoriosPage() {
       {/* Papel Timbrado - Relatório de Conclusão */}
       <div className="bg-zinc-100/30 p-8 rounded-2xl border border-zinc-200">
         <div className="max-w-4xl mx-auto bg-white border border-zinc-200 shadow-lg p-8 rounded-xl font-sans text-zinc-800 space-y-8 print:border-0 print:shadow-none print:p-0">
-          
+
           {/* Cabeçalho da Empresa */}
           <div className="flex justify-between items-start border-b-2 border-zinc-800 pb-5">
             <div>
               <h2 className="text-xl font-bold text-zinc-950 uppercase tracking-wide">
-                Antigravity Climatização
+                NX Climatização
               </h2>
               <p className="text-xs text-zinc-500 font-medium mt-1 leading-normal">
-                Antigravity Climatização & Elétrica Ltda.
+                NX Climatização & Elétrica Ltda.
                 <br />
                 CNPJ: 07.889.332/0001-00 • Fone: (11) 3300-4400
                 <br />

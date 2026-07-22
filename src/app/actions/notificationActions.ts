@@ -1,7 +1,10 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { requireAuth } from "@/lib/auth";
 
 export interface NotificationDTO {
   id: string;
@@ -18,6 +21,8 @@ export interface NotificationDTO {
  */
 export async function getNotifications(): Promise<NotificationDTO[]> {
   try {
+    await requireAuth();
+
     const notifications = await prisma.notification.findMany({
       orderBy: [
         { read: "asc" },
@@ -27,7 +32,7 @@ export async function getNotifications(): Promise<NotificationDTO[]> {
     });
     return notifications;
   } catch (error) {
-    console.error("Erro ao carregar notificações:", error);
+    logger.error("Erro ao carregar notificações:", error);
     return [];
   }
 }
@@ -37,6 +42,8 @@ export async function getNotifications(): Promise<NotificationDTO[]> {
  */
 export async function markNotificationAsRead(id: string) {
   try {
+    await requireAuth();
+
     await prisma.notification.update({
       where: { id },
       data: { read: true },
@@ -44,7 +51,7 @@ export async function markNotificationAsRead(id: string) {
     revalidatePath("/");
     return { success: true };
   } catch (error) {
-    console.error(`Erro ao marcar notificação ${id} como lida:`, error);
+    logger.error(`Erro ao marcar notificação ${id} como lida:`, error);
     return { success: false, error };
   }
 }
@@ -54,6 +61,8 @@ export async function markNotificationAsRead(id: string) {
  */
 export async function markAllNotificationsAsRead() {
   try {
+    await requireAuth();
+
     await prisma.notification.updateMany({
       where: { read: false },
       data: { read: true },
@@ -61,7 +70,7 @@ export async function markAllNotificationsAsRead() {
     revalidatePath("/");
     return { success: true };
   } catch (error) {
-    console.error("Erro ao marcar todas as notificações como lidas:", error);
+    logger.error("Erro ao marcar todas as notificações como lidas:", error);
     return { success: false };
   }
 }

@@ -1,7 +1,10 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { requireAuth, requirePermission } from "@/lib/auth";
 
 export interface ProductDTO {
   id: string;
@@ -22,6 +25,8 @@ export interface ProductDTO {
  */
 export async function getProducts(search?: string): Promise<ProductDTO[]> {
   try {
+    await requireAuth();
+
     const products = await prisma.product.findMany({
       where: search
         ? {
@@ -42,8 +47,8 @@ export async function getProducts(search?: string): Promise<ProductDTO[]> {
       code: p.code,
       name: p.name,
       type: p.type,
-      costPrice: p.costPrice,
-      salePrice: p.salePrice,
+      costPrice: Number(p.costPrice),
+      salePrice: Number(p.salePrice),
       stockQuantity: p.stockQuantity,
       minStock: p.minStock,
       unit: p.unit,
@@ -51,7 +56,7 @@ export async function getProducts(search?: string): Promise<ProductDTO[]> {
       supplierName: p.supplier?.name || null,
     }));
   } catch (error) {
-    console.error("Erro ao obter produtos do estoque:", error);
+    logger.error("Erro ao obter produtos do estoque:", error);
     return [];
   }
 }
@@ -72,6 +77,9 @@ export async function createProduct(data: {
   userId: string;
 }) {
   try {
+    const session = await requirePermission("estoque.write");
+    data.userId = session.userId; // nunca confiar no valor vindo do client
+
     const existing = await prisma.product.findUnique({
       where: { code: data.code },
     });
@@ -122,7 +130,7 @@ export async function createProduct(data: {
     revalidatePath("/estoque");
     return { success: true, product };
   } catch (error: any) {
-    console.error("Erro ao cadastrar produto:", error);
+    logger.error("Erro ao cadastrar produto:", error);
     return { success: false, error: error.message };
   }
 }
@@ -139,6 +147,9 @@ export async function adjustProductStock(data: {
   userId: string;
 }) {
   try {
+    const session = await requirePermission("estoque.write");
+    data.userId = session.userId; // nunca confiar no valor vindo do client
+
     const product = await prisma.product.findUnique({
       where: { id: data.productId },
     });
@@ -169,7 +180,7 @@ export async function adjustProductStock(data: {
         type: data.type,
         quantity: data.quantity,
         reason: data.reason,
-        cost: product.costPrice,
+        cost: Number(product.costPrice),
         date: new Date(),
       },
     });
@@ -206,7 +217,7 @@ export async function adjustProductStock(data: {
     revalidatePath("/estoque");
     return { success: true, product: updatedProduct };
   } catch (error: any) {
-    console.error("Erro ao ajustar estoque:", error);
+    logger.error("Erro ao ajustar estoque:", error);
     return { success: false, error: error.message };
   }
 }
@@ -216,6 +227,8 @@ export async function adjustProductStock(data: {
  */
 export async function getStockMovements(productId?: string) {
   try {
+    await requireAuth();
+
     const movements = await prisma.stockMovement.findMany({
       where: productId ? { productId } : undefined,
       include: {
@@ -237,7 +250,7 @@ export async function getStockMovements(productId?: string) {
       cost: m.cost,
     }));
   } catch (error) {
-    console.error("Erro ao obter movimentações de estoque:", error);
+    logger.error("Erro ao obter movimentações de estoque:", error);
     return [];
   }
 }
@@ -247,9 +260,93 @@ export async function getStockMovements(productId?: string) {
  */
 export async function getSuppliers() {
   try {
+    await requireAuth();
+
     return await prisma.supplier.findMany({ orderBy: { name: "asc" } });
   } catch (error) {
-    console.error("Erro ao obter fornecedores:", error);
+    logger.error("Erro ao obter fornecedores:", error);
     return [];
+  }
+}
+
+/**
+ * Atualiza os dados de um item/peça no estoque
+ */
+export async function updateProduct(data: {
+  id: string;
+  code: string;
+  name: string;
+  type?: string;
+  costPrice: number;
+  salePrice: number;
+  stockQuantity: number;
+  minStock: number;
+  unit?: string;
+  userId: string;
+}) {
+  try {
+    const session = await requirePermission("estoque.write");
+    data.userId = session.userId; // nunca confiar no valor vindo do client
+
+    const existing = await prisma.product.findFirst({
+      where: { code: data.code }
+    });
+
+    if (existing && existing.id !== data.id) {
+      throw new Error(`Já existe outro produto cadastrado com o código ${data.code}.`);
+    }
+
+    const oldProduct = await prisma.product.findUnique({
+      where: { id: data.id }
+    });
+    if (!oldProduct) {
+      throw new Error("Produto não encontrado.");
+    }
+
+    const updated = await prisma.product.update({
+      where: { id: data.id },
+      data: {
+        code: data.code,
+        name: data.name,
+        type: data.type || "PECA",
+        costPrice: data.costPrice,
+        salePrice: data.salePrice,
+        stockQuantity: data.stockQuantity,
+        minStock: data.minStock,
+        unit: data.unit || "UN",
+      },
+    });
+
+    // Registra movimentação de ajuste se o estoque foi modificado manualmente
+    if (oldProduct.stockQuantity !== data.stockQuantity) {
+      const difference = data.stockQuantity - oldProduct.stockQuantity;
+      await prisma.stockMovement.create({
+        data: {
+          productId: updated.id,
+          type: difference > 0 ? "ENTRADA" : "SAIDA",
+          quantity: Math.abs(difference),
+          reason: "AJUSTE",
+          cost: data.costPrice,
+          date: new Date(),
+        },
+      });
+    }
+
+    // Registra log de auditoria
+    await prisma.auditLog.create({
+      data: {
+        userId: data.userId,
+        action: "EDICAO",
+        entity: "Produto",
+        entityId: updated.id,
+        changesJson: JSON.stringify({ antes: oldProduct, depois: updated }),
+      },
+    });
+
+    revalidatePath("/estoque");
+    return { success: true, product: updated };
+  } catch (error: any) {
+    logger.error("Erro ao atualizar produto:", error);
+    return { success: false, error: error.message };
   }
 }

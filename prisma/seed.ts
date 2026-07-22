@@ -1,8 +1,13 @@
 import { prisma } from "../src/lib/db";
+import crypto from "crypto";
+
+function hashPassword(password: string): string {
+  return crypto.pbkdf2Sync(password, "nx_erp_salt_key_2026", 1000, 64, "sha512").toString("hex");
+}
 
 async function main() {
   console.log("Iniciando limpeza do banco de dados...");
-  
+
   // Limpar tabelas em ordem reversa de dependência
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
@@ -119,7 +124,7 @@ async function main() {
       data: {
         name: u.name,
         email: u.email,
-        password: "123", // Simplificado para fins de simulação rápida no login
+        password: hashPassword("123"), // Hasheada com pbkdf2 seguro
         roleId: roles[u.role].id,
         permissions: JSON.stringify(u.perms),
       },
@@ -948,6 +953,8 @@ async function main() {
       { key: "company.im", value: "324312-9" }, // Inscrição Municipal
       { key: "company.ie", value: "110.220.330.123" }, // Inscrição Estadual
       { key: "company.serviceCode", value: "14.01" }, // Código serviço padrão ISS (Manutenção)
+      { key: "company.fiscalRegime", value: "SIMPLES_NACIONAL" },
+      { key: "company.taxRate", value: "6" },
     ],
   });
 

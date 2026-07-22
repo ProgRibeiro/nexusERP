@@ -1,0 +1,11 @@
+[Unit]
+Description=Nexus ERP - executar backup a cada hora
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5m
+Persistent=true
+Unit=nexus-erp-backup-hourly.service
+
+[Install]
+WantedBy=timers.target

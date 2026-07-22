@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import {
   getNotifications,
   markNotificationAsRead,
@@ -17,43 +18,109 @@ import {
   DollarSign,
   Wrench,
   Flame,
-  FileSignature,
-  Settings,
-  Menu,
   Search,
   Plus,
   X,
+  Sun,
+  Moon,
+  Keyboard,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { CommandPalette } from "./ui/CommandPalette";
+import { getSearchResultTarget } from "@/lib/searchNavigation";
+
+// Badge color shown next to each global search result type.
+const SEARCH_RESULT_BADGE: Record<SearchResult["type"], string> = {
+  cliente: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-450 border-blue-100 dark:border-blue-900/40",
+  lead: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/40",
+  equipamento: "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-400 border-cyan-100 dark:border-cyan-900/40",
+  os: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-450 border-emerald-100 dark:border-emerald-900/40",
+  orcamento: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-450 border-amber-100 dark:border-amber-900/40",
+  nota: "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-450 border-purple-100 dark:border-purple-900/40",
+  receber: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40",
+  pagar: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-100 dark:border-rose-900/40",
+  contrato: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-450 border-indigo-100 dark:border-indigo-900/40",
+  produto: "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-450 border-orange-100 dark:border-orange-900/40",
+  usuario: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
+};
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, users, switchUser } = useAuth();
+  const { darkMode, toggleDarkMode, openTab, openTabs, activeTabId, sidebarOpen, setSidebarOpen } = useWorkspace();
 
   const [notifications, setNotifications] = useState<NotificationDTO[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
 
-  // Estados do Redesign
+  // Search & Contextual New states
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNewOpen, setIsNewOpen] = useState(false);
+  const activeTab = openTabs.find((tab) => tab.id === activeTabId);
 
-  // Carregar notificações ao montar e em intervalos (simulando polling a cada 30 segundos)
+  const contextualNewItems = useMemo(() => {
+    const requestId = () => String(Date.now());
+    if (activeTab?.type === "clientes" && activeTab.params?.id) {
+      return [
+        { label: "Orçamento para este cliente", color: "bg-amber-500", run: () => openTab("orcamentos", "Novo orçamento", { new: "true", clientId: activeTab.params.id, requestId: requestId() }) },
+        { label: "OS deste cliente", color: "bg-emerald-500", run: () => openTab("ordens-servico", "OS do cliente", { clientId: activeTab.params.id }) },
+        { label: "Cobrança para este cliente", color: "bg-cyan-500", run: () => openTab("financeiro", "Nova cobrança", { tab: "receber", new: "true", type: "RECEITA", clientId: activeTab.params.id, requestId: requestId() }) },
+      ];
+    }
+    if (activeTab?.type === "ordens-servico" && activeTab.params?.id) {
+      return [
+        { label: "Adicionar material", color: "bg-orange-500", run: () => openTab("ordens-servico", activeTab.title, { id: activeTab.params.id, section: "materials" }) },
+        { label: "Gerar relatório", color: "bg-blue-500", run: () => openTab("ordens-servico", activeTab.title, { id: activeTab.params.id, section: "relatorio" }) },
+        { label: "Abrir controle fiscal", color: "bg-purple-500", run: () => openTab("faturamento", "Painel Fiscal") },
+      ];
+    }
+    if (activeTab?.type === "financeiro") {
+      return [
+        { label: "Nova conta a receber", color: "bg-emerald-500", run: () => openTab("financeiro", "Nova receita", { tab: "receber", new: "true", type: "RECEITA", requestId: requestId() }) },
+        { label: "Nova conta a pagar", color: "bg-rose-500", run: () => openTab("financeiro", "Nova despesa", { tab: "pagar", new: "true", type: "DESPESA", requestId: requestId() }) },
+      ];
+    }
+    if (activeTab?.type === "estoque") {
+      return [{ label: "Novo produto ou peça", color: "bg-orange-500", run: () => openTab("estoque", "Estoque", { new: "true", requestId: requestId() }) }];
+    }
+    if (activeTab?.type === "contratos") {
+      return [{ label: "Novo contrato", color: "bg-purple-500", run: () => openTab("contratos", "Contratos", { new: "true", requestId: requestId() }) }];
+    }
+    return [];
+  }, [activeTab, openTab]);
+
+  // Listen to keyboard shortcut (Ctrl+K or Cmd+K) to open palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setIsPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Load notifications
   useEffect(() => {
     async function loadNotif() {
-      const data = await getNotifications();
-      setNotifications(data);
+      try {
+        const data = await getNotifications();
+        setNotifications(data);
+      } catch (err) {
+        console.error(err);
+      }
     }
     loadNotif();
-
     const interval = setInterval(loadNotif, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // Efeito de Busca Global
+  // Global search effect
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
       setSearchResults([]);
@@ -62,9 +129,13 @@ export default function Header() {
     }
 
     const delayDebounceFn = setTimeout(async () => {
-      const data = await searchGlobalAction(searchQuery);
-      setSearchResults(data);
-      setIsSearchOpen(true);
+      try {
+        const data = await searchGlobalAction(searchQuery);
+        setSearchResults(data);
+        setIsSearchOpen(true);
+      } catch (err) {
+        console.error(err);
+      }
     }, 250);
 
     return () => clearTimeout(delayDebounceFn);
@@ -83,21 +154,21 @@ export default function Header() {
     if (path.startsWith("/estoque")) return "Controle de Estoque & Peças";
     if (path.startsWith("/contratos")) return "Gestão de Contratos de Manutenção";
     if (path.startsWith("/configuracoes")) return "Configurações & Logs de Auditoria";
-    return "ERP Antigravity";
+    return "NX ERP";
   };
 
   const getNotifIcon = (type: string) => {
     switch (type) {
       case "ESTOQUE":
-        return <Package size={16} className="text-amber-500" />;
+        return <Package size={14} className="text-amber-500" />;
       case "FINANCEIRO":
-        return <DollarSign size={16} className="text-emerald-500" />;
+        return <DollarSign size={14} className="text-emerald-500" />;
       case "OPERACIONAL":
-        return <Wrench size={16} className="text-blue-500" />;
+        return <Wrench size={14} className="text-blue-500" />;
       case "COMERCIAL":
-        return <Flame size={16} className="text-indigo-500" />;
+        return <Flame size={14} className="text-indigo-500" />;
       default:
-        return <Bell size={16} className="text-zinc-500" />;
+        return <Bell size={14} className="text-zinc-500" />;
     }
   };
 
@@ -120,8 +191,12 @@ export default function Header() {
   };
 
   const handleUserSwitch = async (email: string) => {
-    await switchUser(email);
+    const res = await switchUser(email);
     setIsProfileOpen(false);
+    if (!res.success) {
+      alert(res.error || "Não foi possível trocar de perfil.");
+      return;
+    }
     router.refresh();
   };
 
@@ -147,27 +222,36 @@ export default function Header() {
   };
 
   return (
-    <header className="h-16 border-b border-zinc-200 bg-white flex items-center justify-between px-6 z-20">
-      <div className="flex items-center gap-4 shrink-0">
-        {/* Título da tela */}
-        <h1 className="text-xl font-semibold text-zinc-900 leading-tight">
+    <header className="h-14 sm:h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between px-3 sm:px-4 lg:px-6 z-20 shrink-0 select-none gap-2">
+      {/* Title & Mobile Menu Toggle */}
+      <div className="flex items-center gap-3 shrink-0">
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 xl:hidden cursor-pointer flex items-center justify-center"
+          title="Menu Lateral"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <h1 className="max-w-[38vw] truncate text-sm sm:max-w-[45vw] lg:max-w-none lg:text-base font-bold text-zinc-900 dark:text-zinc-50 leading-tight">
           {getPageTitle(pathname)}
         </h1>
       </div>
 
-      {/* Busca Global Centralizada */}
-      <div className="flex-1 max-w-md mx-8 relative hidden md:block">
+      {/* Global Search Bar */}
+      <div className="flex-1 max-w-md mx-4 xl:mx-8 relative hidden xl:block z-30">
         <div className="relative w-full">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
-            <Search size={16} />
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400 dark:text-zinc-550">
+            <Search size={15} />
           </div>
           <input
             type="text"
-            placeholder="Buscar cliente, OS, orçamento, nota..."
+            placeholder="Buscar cliente, OS, nota, CPF, CNPJ..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onFocus={() => searchQuery.trim().length >= 2 && setIsSearchOpen(true)}
-            className="w-full pl-9 pr-8 py-1.5 bg-zinc-50 border border-zinc-200 rounded-lg text-sm placeholder-zinc-400 text-zinc-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+            className="w-full pl-9 pr-8 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs placeholder-zinc-400 text-zinc-800 dark:text-zinc-150 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
           />
           {searchQuery && (
             <button
@@ -175,22 +259,22 @@ export default function Header() {
                 setSearchQuery("");
                 setSearchResults([]);
               }}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-650"
             >
               <X size={14} />
             </button>
           )}
 
-          {/* Popover de Resultados da Busca */}
+          {/* Search Dropdown Panel */}
           {isSearchOpen && searchResults.length > 0 && (
-            <div className="absolute left-0 mt-2 w-full rounded-xl border border-zinc-200 bg-white shadow-xl py-2 z-50 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-150">
-              <div className="px-4 py-1.5 border-b border-zinc-50 flex justify-between items-center">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+            <div className="absolute left-0 mt-2 w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg py-2 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+                <span className="text-[10px] font-bold text-zinc-450 uppercase tracking-wider">
                   Resultados da Busca
                 </span>
                 <button
                   onClick={() => setIsSearchOpen(false)}
-                  className="text-zinc-400 hover:text-zinc-600 text-xs"
+                  className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-xs font-semibold"
                 >
                   Fechar
                 </button>
@@ -201,28 +285,22 @@ export default function Header() {
                   onClick={() => {
                     setIsSearchOpen(false);
                     setSearchQuery("");
-                    router.push(result.link);
+                    // Open in custom tab
+                    const { tabType, params } = getSearchResultTarget(result.type, result.id);
+                    openTab(tabType, result.title, params);
                   }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-zinc-50 flex items-start justify-between border-b border-zinc-50 last:border-0 transition-all cursor-pointer"
+                  className="w-full text-left px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-start justify-between border-b border-zinc-50 dark:border-zinc-800/40 last:border-0 transition-all cursor-pointer"
                 >
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-semibold text-xs text-zinc-850 truncate max-w-[280px]">
+                    <span className="font-semibold text-xs text-zinc-800 dark:text-zinc-200 truncate max-w-[280px]">
                       {result.title}
                     </span>
-                    <span className="text-[11px] text-zinc-400 truncate max-w-[280px]">
+                    <span className="text-[10px] text-zinc-450 truncate max-w-[280px]">
                       {result.subtitle}
                     </span>
                   </div>
                   <span
-                    className={`text-[8px] px-2 py-0.5 rounded font-bold uppercase tracking-wider shrink-0 ml-2 mt-0.5 ${
-                      result.type === "cliente"
-                        ? "bg-blue-50 text-blue-600 border border-blue-100"
-                        : result.type === "os"
-                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                        : result.type === "orcamento"
-                        ? "bg-amber-50 text-amber-600 border border-amber-100"
-                        : "bg-purple-50 text-purple-600 border border-purple-100"
-                    }`}
+                    className={`text-[8px] px-2 py-0.5 rounded font-semibold uppercase tracking-wide shrink-0 ml-2 mt-0.5 border ${SEARCH_RESULT_BADGE[result.type]}`}
                   >
                     {result.type}
                   </span>
@@ -232,37 +310,75 @@ export default function Header() {
           )}
 
           {isSearchOpen && searchResults.length === 0 && searchQuery.trim().length >= 2 && (
-            <div className="absolute left-0 mt-2 w-full rounded-xl border border-zinc-200 bg-white shadow-xl p-6 text-center text-xs text-zinc-400 z-50">
+            <div className="absolute left-0 mt-2 w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-6 text-center text-xs text-zinc-400 dark:text-zinc-500">
               Nenhum resultado encontrado para &quot;{searchQuery}&quot;
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
-        {/* Botão + Novo Ação Rápida */}
+      <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 shrink-0">
+        <button
+          onClick={() => setIsPaletteOpen(true)}
+          className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:bg-zinc-50 dark:hover:bg-zinc-800 xl:hidden"
+          title="Busca global"
+          aria-label="Abrir busca global"
+        >
+          <Search size={15} />
+        </button>
+        {/* Command Palette Keyboard Indicator */}
+        <button
+          onClick={() => setIsPaletteOpen(true)}
+          className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all cursor-pointer hidden xl:flex items-center gap-1.5"
+          title="Atalhos rápidos (Ctrl + K)"
+        >
+          <Keyboard size={15} />
+          <span className="text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">Ctrl + K</span>
+        </button>
+
+        {/* Theme Light / Dark Switch */}
+        <button
+          onClick={toggleDarkMode}
+          className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all cursor-pointer"
+          title={darkMode ? "Modo Claro" : "Modo Escuro"}
+        >
+          {darkMode ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
+
+        {/* Button + Novo Contextual Action */}
         <div className="relative">
           <button
             onClick={() => setIsNewOpen(!isNewOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold transition-all cursor-pointer shadow-md shadow-emerald-500/10"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold transition-colors cursor-pointer"
           >
-            <Plus size={16} />
-            <span>Novo</span>
+            <Plus size={15} />
+            <span className="hidden sm:inline">Novo</span>
           </button>
 
           {isNewOpen && (
-            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-zinc-200 bg-white shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-              <div className="px-4 py-1.5 border-b border-zinc-100 mb-1">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                  Criar Novo Registro
+            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 mb-1">
+                <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                  {contextualNewItems.length ? "Ações nesta tela" : "Criar novo registro"}
                 </p>
               </div>
+              {contextualNewItems.map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => { setIsNewOpen(false); item.run(); }}
+                  className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${item.color}`} />
+                  {item.label}
+                </button>
+              ))}
+              {contextualNewItems.length > 0 && <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />}
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  router.push("/crm?new=true");
+                  openTab("crm", "CRM / Funil", { new: "true", requestId: String(Date.now()) });
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-all flex items-center gap-2 cursor-pointer"
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                 Novo Lead (CRM)
@@ -270,9 +386,9 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  router.push("/clientes?new=true");
+                  openTab("clientes", "Clientes", { new: "true", requestId: String(Date.now()) });
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-all flex items-center gap-2 cursor-pointer"
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                 Novo Cliente
@@ -280,9 +396,9 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  router.push("/orcamentos?new=true");
+                  openTab("orcamentos", "Orçamentos", { new: "true", requestId: String(Date.now()) });
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-all flex items-center gap-2 cursor-pointer"
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                 Novo Orçamento
@@ -290,9 +406,9 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  router.push("/ordens-servico?new=true");
+                  openTab("ordens-servico", "Ordens de Serviço", { new: "true", requestId: String(Date.now()) });
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-all flex items-center gap-2 cursor-pointer"
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 Nova Ordem de Serviço
@@ -300,58 +416,88 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  router.push("/financeiro?tab=pagar&new=true");
+                  openTab("financeiro", "Financeiro", { tab: "pagar", new: "true", type: "DESPESA", requestId: String(Date.now()) });
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-all flex items-center gap-2 cursor-pointer"
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                 Nova Despesa (Pagar)
+              </button>
+              <button
+                onClick={() => {
+                  setIsNewOpen(false);
+                  openTab("financeiro", "Nova cobrança", { tab: "receber", new: "true", type: "RECEITA", requestId: String(Date.now()) });
+                }}
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Nova Conta a Receber
+              </button>
+              <button
+                onClick={() => {
+                  setIsNewOpen(false);
+                  openTab("estoque", "Estoque", { new: "true", requestId: String(Date.now()) });
+                }}
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                Novo Produto / Peça
+              </button>
+              <button
+                onClick={() => {
+                  setIsNewOpen(false);
+                  openTab("contratos", "Contratos", { new: "true", requestId: String(Date.now()) });
+                }}
+                className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                Novo Contrato
               </button>
             </div>
           )}
         </div>
 
-        {/* Seletor de Perfil (Simulação de Multiperfil) */}
+        {/* User Simulator Dropdown */}
         <div className="relative">
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 text-xs font-medium hover:bg-zinc-50 hover:border-zinc-300 transition-all text-zinc-700 cursor-pointer"
+            className="flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-850 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all text-zinc-700 dark:text-zinc-350 cursor-pointer"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="font-bold text-zinc-950">
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+            <span className="hidden lg:inline font-bold text-zinc-950 dark:text-zinc-50">
               {user ? user.roleName : "..."}
             </span>
           </button>
 
           {isProfileOpen && (
-            <div className="absolute right-0 mt-2 w-72 rounded-xl border border-zinc-200 bg-white shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-              <div className="px-4 py-2 border-b border-zinc-100">
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+            <div className="absolute right-0 mt-2 w-72 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800">
+                <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
                   Escolha um perfil para testar:
                 </p>
               </div>
-              <div className="max-h-80 overflow-y-auto py-1">
+              <div className="max-h-80 overflow-y-auto py-1 scrollbar-none">
                 {users.map((u) => (
                   <button
                     key={u.email}
                     onClick={() => handleUserSwitch(u.email)}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-zinc-50 flex flex-col gap-0.5 transition-all cursor-pointer ${
-                      user?.email === u.email ? "bg-zinc-50/50" : ""
+                    className={`w-full text-left px-4 py-2.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/80 flex flex-col gap-0.5 transition-all cursor-pointer ${
+                      user?.email === u.email ? "bg-zinc-50/50 dark:bg-zinc-800/40" : ""
                     }`}
                   >
                     <div className="flex justify-between items-center w-full">
-                      <span className="font-medium text-zinc-800 truncate pr-2">
+                      <span className="font-bold text-zinc-800 dark:text-zinc-200 truncate pr-2">
                         {u.name}
                       </span>
                       <span
-                        className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wide ${getRoleColorClass(
+                        className={`text-[8px] px-2 py-0.5 rounded font-bold uppercase tracking-wide ${getRoleColorClass(
                           u.roleName
                         )}`}
                       >
                         {u.roleName}
                       </span>
                     </div>
-                    <span className="text-xs text-zinc-400 truncate">{u.email}</span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">{u.email}</span>
                   </button>
                 ))}
               </div>
@@ -359,30 +505,30 @@ export default function Header() {
           )}
         </div>
 
-        {/* Notificações (Sino) */}
+        {/* Notifications (Bell) */}
         <div className="relative">
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="p-2 rounded-lg border border-zinc-200 text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50 relative transition-all cursor-pointer animate-in duration-100"
+            className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:text-zinc-850 dark:hover:text-zinc-250 hover:bg-zinc-50 dark:hover:bg-zinc-800 relative transition-all cursor-pointer"
           >
-            <Bell size={18} />
+            <Bell size={15} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-bold border-2 border-white animate-bounce">
+              <span className="absolute -top-1 -right-1 bg-danger text-white text-[8px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-bold border-2 border-white dark:border-zinc-900 animate-bounce">
                 {unreadCount}
               </span>
             )}
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 mt-2 w-96 rounded-xl border border-zinc-200 bg-white shadow-xl py-2 z-50 flex flex-col max-h-[480px] animate-in fade-in slide-in-from-top-1 duration-150">
-              <div className="px-4 py-2 border-b border-zinc-100 flex items-center justify-between">
-                <span className="font-bold text-sm text-zinc-800">
+            <div className="absolute right-0 mt-2 w-96 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg py-2 z-50 flex flex-col max-h-[480px] animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                <span className="font-bold text-xs text-zinc-800 dark:text-zinc-100">
                   Notificações e Alertas
                 </span>
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllAsRead}
-                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-all flex items-center gap-1 cursor-pointer"
+                    className="text-[10px] font-bold text-primary hover:text-primary-hover transition-all flex items-center gap-1 cursor-pointer"
                   >
                     <CheckCircle size={12} />
                     Limpar todas
@@ -390,38 +536,38 @@ export default function Header() {
                 )}
               </div>
 
-              <div className="overflow-y-auto flex-1 py-1">
+              <div className="overflow-y-auto flex-1 py-1 scrollbar-none">
                 {notifications.length === 0 ? (
                   <div className="p-8 text-center text-zinc-400 flex flex-col items-center gap-2">
-                    <Bell size={24} className="text-zinc-300" />
-                    <p className="text-sm font-medium">Nenhuma notificação</p>
+                    <Bell size={20} className="text-zinc-300 dark:text-zinc-700" />
+                    <p className="text-xs font-semibold">Nenhuma notificação</p>
                   </div>
                 ) : (
                   notifications.map((notif) => (
                     <button
                       key={notif.id}
                       onClick={() => handleNotifClick(notif)}
-                      className={`w-full text-left px-4 py-3 hover:bg-zinc-50 flex items-start gap-3 border-b border-zinc-50 last:border-0 transition-all cursor-pointer ${
-                        !notif.read ? "bg-emerald-50/20" : ""
+                      className={`w-full text-left px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-start gap-3 border-b border-zinc-50 dark:border-zinc-800/40 last:border-0 transition-all cursor-pointer ${
+                        !notif.read ? "bg-primary/5 dark:bg-primary/5" : ""
                       }`}
                     >
-                      <div className="p-2 rounded-lg bg-zinc-100 shrink-0 mt-0.5">
+                      <div className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 shrink-0 mt-0.5">
                         {getNotifIcon(notif.type)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start gap-1">
                           <p
-                            className={`text-sm truncate ${
-                              !notif.read ? "font-semibold text-zinc-900" : "text-zinc-700"
+                            className={`text-xs truncate ${
+                              !notif.read ? "font-bold text-zinc-900 dark:text-white" : "text-zinc-650 dark:text-zinc-350"
                             }`}
                           >
                             {notif.title}
                           </p>
-                          <span className="text-[10px] text-zinc-400 whitespace-nowrap pt-0.5">
+                          <span className="text-[9px] text-zinc-400 dark:text-zinc-500 whitespace-nowrap pt-0.5">
                             {formatDateTime(notif.createdAt)}
                           </span>
                         </div>
-                        <p className="text-xs text-zinc-500 mt-1 line-clamp-2">
+                        <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
                           {notif.message}
                         </p>
                       </div>
@@ -433,6 +579,9 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      {/* Command Palette Overlay */}
+      <CommandPalette isOpen={isPaletteOpen} onClose={() => setIsPaletteOpen(false)} />
     </header>
   );
 }

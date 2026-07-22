@@ -117,7 +117,7 @@ export default function CrmPage() {
 
   const handleMoveLead = async (leadId: string, stageId: string) => {
     setActionLoading(true);
-    const res = await moveLead(leadId, stageId, currentUser?.id);
+    const res = await moveLead(leadId, stageId);
     if (res.success) {
       await loadPipeline();
       // Se o modal de detalhes estiver aberto e o lead for o mesmo, atualizar os detalhes
@@ -149,12 +149,12 @@ export default function CrmPage() {
       // Atualizar dados localmente e no modal
       const refreshedPipeline = await getCrmPipeline();
       setPipeline(refreshedPipeline);
-      
+
       // Encontrar lead atualizado
       const updated = refreshedPipeline
         .flatMap((s) => s.leads)
         .find((l) => l.id === selectedLead.id);
-      
+
       if (updated) {
         setSelectedLead(updated);
       }
@@ -176,7 +176,7 @@ export default function CrmPage() {
     if (!confirm("Deseja converter este lead em cliente e gerar um orçamento automaticamente?")) return;
 
     setActionLoading(true);
-    const res = await convertLeadToQuote(leadId, currentUser.id);
+    const res = await convertLeadToQuote(leadId);
     if (res.success) {
       alert("Lead convertido com sucesso! Redirecionando para a listagem de Orçamentos...");
       setIsDetailModalOpen(false);

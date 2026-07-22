@@ -1,6 +1,9 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
+import { requirePermission } from "@/lib/auth";
 
 export interface AuditLogDTO {
   id: string;
@@ -19,6 +22,9 @@ export interface AuditLogDTO {
  */
 export async function getAuditLogs(): Promise<AuditLogDTO[]> {
   try {
+    // Logs de auditoria expõem quem fez o quê no sistema todo — restrito a Administrador.
+    await requirePermission("admin.all");
+
     const logs = await prisma.auditLog.findMany({
       include: {
         user: {
@@ -34,7 +40,7 @@ export async function getAuditLogs(): Promise<AuditLogDTO[]> {
     return logs.map((log) => ({
       id: log.id,
       userName: log.user?.name || "Sistema / Autopass",
-      userEmail: log.user?.email || "cron@antigravity.io",
+      userEmail: log.user?.email || "cron@nxerp.io",
       roleName: log.user?.role?.name || "Motor Interno",
       action: log.action,
       entity: log.entity,
@@ -43,7 +49,7 @@ export async function getAuditLogs(): Promise<AuditLogDTO[]> {
       timestamp: log.timestamp,
     }));
   } catch (error) {
-    console.error("Erro ao obter logs de auditoria:", error);
+    logger.error("Erro ao obter logs de auditoria:", error);
     return [];
   }
 }

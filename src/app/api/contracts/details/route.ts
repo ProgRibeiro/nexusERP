@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireAuth, AuthError } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: Request) {
   try {
+    await requireAuth();
+
     const { searchParams } = new URL(request.url);
     const contractId = searchParams.get("id");
 
@@ -41,7 +45,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      items: contract.items,
+      items: contract.items.map((item) => ({ ...item, unitPrice: Number(item.unitPrice) })),
       serviceOrders: contract.serviceOrders.map((os) => ({
         id: os.id,
         code: os.code,
@@ -52,11 +56,14 @@ export async function GET(request: Request) {
         id: r.id,
         dueDate: r.dueDate,
         status: r.status,
-        totalValue: r.totalValue,
+        totalValue: Number(r.totalValue),
       })),
     });
   } catch (error: any) {
-    console.error("Erro na API de detalhes do contrato:", error);
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    logger.error("contract_details_api_failed", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ERP Antigravity - Prestação de Serviços",
+  title: "NX ERP - Prestação de Serviços",
   description: "Sistema de Gestão Integrada para Prestadores de Serviços Técnicos.",
 };
 

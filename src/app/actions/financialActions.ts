@@ -1,7 +1,11 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { requireAuth, requirePermission } from "@/lib/auth";
+import { receivePaymentSchema, payBillSchema } from "@/lib/schemas";
 
 export interface ReceivableDTO {
   id: string;
@@ -35,6 +39,8 @@ export interface PayableDTO {
  */
 export async function getReceivables(): Promise<ReceivableDTO[]> {
   try {
+    await requireAuth();
+
     const list = await prisma.accountsReceivable.findMany({
       include: {
         client: true,
@@ -47,9 +53,9 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
       id: r.id,
       clientName: r.client.name,
       osCode: r.serviceOrder?.code || null,
-      totalValue: r.totalValue,
-      receivedValue: r.receivedValue,
-      pendingValue: r.pendingValue,
+      totalValue: Number(r.totalValue),
+      receivedValue: Number(r.receivedValue),
+      pendingValue: Number(r.pendingValue),
       dueDate: r.dueDate,
       paymentDate: r.paymentDate,
       status: r.status,
@@ -58,7 +64,7 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
       costCenter: r.costCenter,
     }));
   } catch (error) {
-    console.error("Erro ao obter contas a receber:", error);
+    logger.error("Erro ao obter contas a receber:", error);
     return [];
   }
 }
@@ -68,12 +74,14 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
  */
 export async function getPayables(): Promise<PayableDTO[]> {
   try {
+    await requireAuth();
+
     const list = await prisma.accountsPayable.findMany({
       orderBy: { dueDate: "desc" },
     });
-    return list;
+    return list.map((item) => ({ ...item, value: Number(item.value) }));
   } catch (error) {
-    console.error("Erro ao obter contas a pagar:", error);
+    logger.error("Erro ao obter contas a pagar:", error);
     return [];
   }
 }
@@ -83,9 +91,12 @@ export async function getPayables(): Promise<PayableDTO[]> {
  */
 export async function getBankAccounts() {
   try {
-    return await prisma.bankAccount.findMany({ orderBy: { name: "asc" } });
+    await requireAuth();
+
+    const accounts = await prisma.bankAccount.findMany({ orderBy: { name: "asc" } });
+    return accounts.map((account) => ({ ...account, balance: Number(account.balance) }));
   } catch (error) {
-    console.error("Erro ao obter contas bancárias:", error);
+    logger.error("Erro ao obter contas bancárias:", error);
     return [];
   }
 }
@@ -95,12 +106,21 @@ export async function getBankAccounts() {
  */
 export async function getTransactions() {
   try {
-    return await prisma.financialTransaction.findMany({
+    await requireAuth();
+
+    const transactions = await prisma.financialTransaction.findMany({
       include: { bankAccount: true },
       orderBy: { date: "desc" },
     });
+    return transactions.map((transaction) => ({
+      ...transaction,
+      value: Number(transaction.value),
+      bankAccount: transaction.bankAccount
+        ? { ...transaction.bankAccount, balance: Number(transaction.bankAccount.balance) }
+        : null,
+    }));
   } catch (error) {
-    console.error("Erro ao obter transações:", error);
+    logger.error("Erro ao obter transações:", error);
     return [];
   }
 }
@@ -121,6 +141,10 @@ export async function receivePayment(data: {
   userId: string;
 }) {
   try {
+    const session = await requirePermission("financeiro.write");
+    data.userId = session.userId; // nunca confiar no valor vindo do client
+    receivePaymentSchema.parse(data);
+
     const rec = await prisma.accountsReceivable.findUnique({
       where: { id: data.receivableId },
       include: { client: true },
@@ -129,12 +153,12 @@ export async function receivePayment(data: {
     if (!rec) throw new Error("Conta a receber não encontrada.");
 
     if (data.receivedValue <= 0) throw new Error("O valor recebido deve ser maior que zero.");
-    if (data.receivedValue > rec.pendingValue) {
+    if (data.receivedValue > Number(rec.pendingValue)) {
       throw new Error(`O valor recebido (R$ ${data.receivedValue}) não pode ser maior que o saldo pendente (R$ ${rec.pendingValue}).`);
     }
 
-    const newReceived = rec.receivedValue + data.receivedValue;
-    const newPending = rec.pendingValue - data.receivedValue;
+    const newReceived = Number(rec.receivedValue) + data.receivedValue;
+    const newPending = Number(rec.pendingValue) - data.receivedValue;
     const newStatus = newPending <= 0.01 ? "PAGO" : "PARCIAL";
 
     const result = await prisma.$transaction(async (tx) => {
@@ -170,7 +194,7 @@ export async function receivePayment(data: {
       if (bank) {
         await tx.bankAccount.update({
           where: { id: data.bankAccountId },
-          data: { balance: bank.balance + data.receivedValue },
+          data: { balance: Number(bank.balance) + data.receivedValue },
         });
       }
 
@@ -197,8 +221,8 @@ export async function receivePayment(data: {
 
     return { success: true, receivable: result.updatedRec };
   } catch (error: any) {
-    console.error("Erro ao receber pagamento:", error);
-    return { success: false, error: error.message };
+    logger.error("Erro ao receber pagamento:", error);
+    return { success: false, error: error.issues?.[0]?.message || error.message };
   }
 }
 
@@ -212,6 +236,10 @@ export async function payBill(data: {
   userId: string;
 }) {
   try {
+    const session = await requirePermission("financeiro.write");
+    data.userId = session.userId; // nunca confiar no valor vindo do client
+    payBillSchema.parse(data);
+
     const pay = await prisma.accountsPayable.findUnique({
       where: { id: data.payableId },
     });
@@ -249,7 +277,7 @@ export async function payBill(data: {
       if (bank) {
         await tx.bankAccount.update({
           where: { id: data.bankAccountId },
-          data: { balance: bank.balance - pay.value },
+          data: { balance: Number(bank.balance) - Number(pay.value) },
         });
       }
 
@@ -275,8 +303,8 @@ export async function payBill(data: {
 
     return { success: true, payable: result.updatedPay };
   } catch (error: any) {
-    console.error("Erro ao pagar conta:", error);
-    return { success: false, error: error.message };
+    logger.error("Erro ao pagar conta:", error);
+    return { success: false, error: error.issues?.[0]?.message || error.message };
   }
 }
 
@@ -295,6 +323,9 @@ export async function createPayable(
   userId: string
 ) {
   try {
+    const session = await requirePermission("financeiro.write");
+    userId = session.userId; // nunca confiar no valor vindo do client
+
     const payable = await prisma.accountsPayable.create({
       data: {
         providerName: data.providerName,
@@ -320,7 +351,7 @@ export async function createPayable(
     revalidatePath("/financeiro");
     return { success: true, payable };
   } catch (error: any) {
-    console.error("Erro ao criar conta a pagar:", error);
+    logger.error("Erro ao criar conta a pagar:", error);
     return { success: false, error: error.message };
   }
 }
@@ -339,6 +370,9 @@ export async function estornoTransaction(
   userId: string
 ) {
   try {
+    const session = await requirePermission("financeiro.write");
+    userId = session.userId; // nunca confiar no valor vindo do client
+
     const transaction = await prisma.financialTransaction.findUnique({
       where: { id: transactionId },
     });
@@ -359,10 +393,11 @@ export async function estornoTransaction(
       // 2. Corrigir saldo da conta bancária
       const bank = await tx.bankAccount.findUnique({ where: { id: transaction.bankAccountId || "" } });
       if (bank) {
-        const balanceAdjustment = transaction.type === "RECEITA" ? -transaction.value : transaction.value;
+        const transactionValue = Number(transaction.value);
+        const balanceAdjustment = transaction.type === "RECEITA" ? -transactionValue : transactionValue;
         await tx.bankAccount.update({
           where: { id: bank.id },
-          data: { balance: bank.balance + balanceAdjustment },
+          data: { balance: Number(bank.balance) + balanceAdjustment },
         });
       }
 
@@ -370,8 +405,8 @@ export async function estornoTransaction(
       if (transaction.accountsReceivableId) {
         const rec = await tx.accountsReceivable.findUnique({ where: { id: transaction.accountsReceivableId } });
         if (rec) {
-          const newReceived = Math.max(0, rec.receivedValue - transaction.value);
-          const newPending = rec.totalValue - newReceived;
+          const newReceived = Math.max(0, Number(rec.receivedValue) - Number(transaction.value));
+          const newPending = Number(rec.totalValue) - newReceived;
           const newStatus = newReceived <= 0 ? "ABERTO" : "PARCIAL";
 
           await tx.accountsReceivable.update({
@@ -423,7 +458,56 @@ export async function estornoTransaction(
 
     return { success: true };
   } catch (error: any) {
-    console.error("Erro ao realizar estorno:", error);
+    logger.error("Erro ao realizar estorno:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Cria uma nova Conta a Receber (Receita)
+ */
+export async function createReceivable(
+  data: {
+    clientId: string;
+    totalValue: number;
+    dueDate: Date;
+    category?: string;
+    costCenter?: string;
+    notes?: string;
+  },
+  userId: string
+) {
+  try {
+    const session = await requirePermission("financeiro.write");
+    userId = session.userId; // nunca confiar no valor vindo do client
+
+    const receivable = await prisma.accountsReceivable.create({
+      data: {
+        clientId: data.clientId,
+        totalValue: data.totalValue,
+        pendingValue: data.totalValue,
+        dueDate: data.dueDate,
+        category: data.category || "RECEITA_SERVICO",
+        costCenter: data.costCenter || "GERAL",
+        notes: data.notes || null,
+        status: "PENDENTE",
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId,
+        action: "CRIACAO",
+        entity: "ContasReceber",
+        entityId: receivable.id,
+        changesJson: JSON.stringify(receivable),
+      },
+    });
+
+    revalidatePath("/financeiro");
+    return { success: true, receivable };
+  } catch (error: any) {
+    logger.error("Erro ao criar conta a receber:", error);
     return { success: false, error: error.message };
   }
 }

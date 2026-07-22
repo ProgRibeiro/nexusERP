@@ -1,7 +1,13 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { requireAuth, requirePermission } from "@/lib/auth";
+import { crmLeadCreateSchema } from "@/lib/schemas";
+import { calculateProposalTax } from "@/lib/tax";
+import { loadTaxProfile } from "@/lib/taxProfile";
 
 export interface LeadDTO {
   id: string;
@@ -38,6 +44,8 @@ export interface PipelineStageDTO {
  */
 export async function getCrmPipeline(): Promise<PipelineStageDTO[]> {
   try {
+    await requireAuth();
+
     const stages = await prisma.crmStage.findMany({
       orderBy: { order: "asc" },
       include: {
@@ -80,7 +88,7 @@ export async function getCrmPipeline(): Promise<PipelineStageDTO[]> {
       })),
     }));
   } catch (error) {
-    console.error("Erro ao obter pipeline CRM:", error);
+    logger.error("Erro ao obter pipeline CRM:", error);
     return [];
   }
 }
@@ -99,6 +107,9 @@ export async function createLead(data: {
   notes?: string;
 }) {
   try {
+    const session = await requirePermission("crm.write");
+    crmLeadCreateSchema.parse(data);
+
     // Busca o primeiro estágio (geralmente "Novo lead")
     const firstStage = await prisma.crmStage.findFirst({
       orderBy: { order: "asc" },
@@ -126,7 +137,7 @@ export async function createLead(data: {
     // Registrar histórico na auditoria
     await prisma.auditLog.create({
       data: {
-        userId: data.ownerId || null,
+        userId: session.userId,
         action: "CRIACAO",
         entity: "Lead",
         entityId: lead.id,
@@ -137,7 +148,7 @@ export async function createLead(data: {
     revalidatePath("/crm");
     return { success: true, lead };
   } catch (error: any) {
-    console.error("Erro ao criar lead:", error);
+    logger.error("Erro ao criar lead:", error);
     return { success: false, error: error.message };
   }
 }
@@ -145,8 +156,10 @@ export async function createLead(data: {
 /**
  * Move um lead de estágio no Kanban
  */
-export async function moveLead(leadId: string, targetStageId: string, userId?: string) {
+export async function moveLead(leadId: string, targetStageId: string) {
   try {
+    const session = await requirePermission("crm.write");
+
     const oldLead = await prisma.lead.findUnique({
       where: { id: leadId },
       include: { pipelineStage: true },
@@ -169,34 +182,51 @@ export async function moveLead(leadId: string, targetStageId: string, userId?: s
       updatedStatus = "EM_ANDAMENTO";
     }
 
-    const lead = await prisma.lead.update({
-      where: { id: leadId },
-      data: {
-        pipelineStageId: targetStageId,
-        status: updatedStatus,
-      },
-    });
+    if (oldLead.pipelineStageId === targetStageId) {
+      return { success: true, lead: oldLead, direction: "same" as const };
+    }
 
-    // Log de auditoria
-    await prisma.auditLog.create({
-      data: {
-        userId: userId || null,
-        action: "EDICAO",
-        entity: "Lead",
-        entityId: leadId,
-        changesJson: JSON.stringify({
-          oldStage: oldLead.pipelineStage?.name,
-          newStage: targetStage.name,
-          oldStatus: oldLead.status,
-          newStatus: updatedStatus,
-        }),
-      },
-    });
+    const oldOrder = oldLead.pipelineStage?.order ?? 0;
+    const direction = targetStage.order < oldOrder ? "backward" as const : "forward" as const;
+    const changes = {
+      oldStage: oldLead.pipelineStage?.name || "Sem etapa",
+      newStage: targetStage.name,
+      oldStatus: oldLead.status,
+      newStatus: updatedStatus,
+      direction,
+    };
+
+    // A mudança, o histórico visível no CRM e a auditoria são atômicos.
+    const [lead] = await prisma.$transaction([
+      prisma.lead.update({
+        where: { id: leadId },
+        data: { pipelineStageId: targetStageId, status: updatedStatus },
+      }),
+      prisma.crmActivity.create({
+        data: {
+          leadId,
+          userId: session.userId,
+          type: "ETAPA",
+          description: `Etapa alterada de "${changes.oldStage}" para "${changes.newStage}".`,
+          date: new Date(),
+          done: true,
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          userId: session.userId,
+          action: "EDICAO",
+          entity: "Lead",
+          entityId: leadId,
+          changesJson: JSON.stringify(changes),
+        },
+      }),
+    ]);
 
     revalidatePath("/crm");
-    return { success: true, lead };
+    return { success: true, lead, direction, oldStage: changes.oldStage, newStage: changes.newStage };
   } catch (error: any) {
-    console.error("Erro ao mover lead:", error);
+    logger.error("Erro ao mover lead:", error);
     return { success: false, error: error.message };
   }
 }
@@ -214,10 +244,12 @@ export async function addCrmActivity(data: {
   notes?: string;
 }) {
   try {
+    const session = await requirePermission("crm.write");
+
     const activity = await prisma.crmActivity.create({
       data: {
         leadId: data.leadId,
-        userId: data.userId,
+        userId: session.userId,
         type: data.type,
         description: data.description,
         date: data.date,
@@ -229,7 +261,7 @@ export async function addCrmActivity(data: {
     revalidatePath("/crm");
     return { success: true, activity };
   } catch (error: any) {
-    console.error("Erro ao adicionar atividade:", error);
+    logger.error("Erro ao adicionar atividade:", error);
     return { success: false, error: error.message };
   }
 }
@@ -237,8 +269,10 @@ export async function addCrmActivity(data: {
 /**
  * Converte um Lead em Cliente e gera um Orçamento automático
  */
-export async function convertLeadToQuote(leadId: string, userId: string) {
+export async function convertLeadToQuote(leadId: string) {
   try {
+    const session = await requirePermission("crm.write");
+
     const lead = await prisma.lead.findUnique({
       where: { id: leadId },
     });
@@ -250,29 +284,35 @@ export async function convertLeadToQuote(leadId: string, userId: string) {
     const cleanPhone = lead.phone.replace(/\D/g, "");
     const fakeCpf = `LEAD-${lead.id.slice(0, 8)}`; // Código único do lead
 
-    const client = await prisma.client.create({
-      data: {
-        name: lead.name,
-        fancyName: lead.company || lead.name,
-        cpfCnpj: fakeCpf, // Usar id único para evitar erro de duplicidade
-        email: lead.email || "contato@lead.com.br",
-        phone: lead.phone,
-        status: "ATIVO",
-        origin: lead.source || "CRM",
-        notes: `Cliente convertido automaticamente a partir do Lead CRM. Notas originais: ${lead.notes || ""}`,
-      },
+    let client = await prisma.client.findUnique({
+      where: { cpfCnpj: fakeCpf },
     });
 
-    // Criar um contato padrão
-    await prisma.clientContact.create({
-      data: {
-        clientId: client.id,
-        name: lead.name,
-        email: lead.email || "contato@lead.com.br",
-        phone: lead.phone,
-        isApproval: true,
-      },
-    });
+    if (!client) {
+      client = await prisma.client.create({
+        data: {
+          name: lead.name,
+          fancyName: lead.company || lead.name,
+          cpfCnpj: fakeCpf, // Usar id único para evitar erro de duplicidade
+          email: lead.email || "contato@lead.com.br",
+          phone: lead.phone,
+          status: "ATIVO",
+          origin: lead.source || "CRM",
+          notes: `Cliente convertido automaticamente a partir do Lead CRM. Notas originais: ${lead.notes || ""}`,
+        },
+      });
+
+      // Criar um contato padrão
+      await prisma.clientContact.create({
+        data: {
+          clientId: client.id,
+          name: lead.name,
+          email: lead.email || "contato@lead.com.br",
+          phone: lead.phone,
+          isApproval: true,
+        },
+      });
+    }
 
     // 2. Mover o lead para a coluna "Orçamento em criação" e marcar como CONVERTIDO
     const quoteStage = await prisma.crmStage.findFirst({
@@ -292,6 +332,8 @@ export async function convertLeadToQuote(leadId: string, userId: string) {
     const code = `Q-2026-${String(count + 1).padStart(4, "0")}`;
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + 15); // Validade 15 dias
+    const taxProfile = await loadTaxProfile();
+    const taxCalculation = calculateProposalTax(lead.value, 0, taxProfile.rate);
 
     const quote = await prisma.quote.create({
       data: {
@@ -299,8 +341,9 @@ export async function convertLeadToQuote(leadId: string, userId: string) {
         clientId: client.id,
         status: "RASCUNHO",
         validUntil,
-        total: lead.value, // assume valor previsto do lead
+        total: taxCalculation.total,
         subtotal: lead.value,
+        tax: taxCalculation.tax,
         notes: `Orçamento gerado a partir da conversão do lead: ${lead.name}.`,
       },
     });
@@ -320,7 +363,7 @@ export async function convertLeadToQuote(leadId: string, userId: string) {
     // Log de auditoria
     await prisma.auditLog.create({
       data: {
-        userId,
+        userId: session.userId,
         action: "APROVACAO",
         entity: "Lead",
         entityId: leadId,
@@ -328,6 +371,7 @@ export async function convertLeadToQuote(leadId: string, userId: string) {
           message: "Convertido para cliente e gerado orçamento",
           clientId: client.id,
           quoteId: quote.id,
+          taxProfile,
         }),
       },
     });
@@ -338,7 +382,7 @@ export async function convertLeadToQuote(leadId: string, userId: string) {
 
     return { success: true, client, quote };
   } catch (error: any) {
-    console.error("Erro ao converter lead:", error);
+    logger.error("Erro ao converter lead:", error);
     return { success: false, error: error.message };
   }
 }

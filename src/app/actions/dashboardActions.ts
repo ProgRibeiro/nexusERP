@@ -1,6 +1,9 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export interface CashFlowPoint {
   date: string;
@@ -21,6 +24,7 @@ export interface DashboardData {
   cards: {
     orcamentosAbertoCount: number;
     orcamentosAbertoTotal: number;
+    orcamentosAprovadosCount: number;
     taxaAprovacao: number;
     osAndamentoCount: number;
     osAtrasadasCount: number;
@@ -31,38 +35,74 @@ export interface DashboardData {
     faturamentoPendenteCount: number;
     nfseAEmitirCount: number;
     receberAbertoCount: number;
+    receberHojeTotal: number;
+    pagosHojeCount: number;
+    contasPagarCount: number;
+    contasPagarTotal: number;
+    notasRejeitadasCount: number;
+    relatoriosPendentesCount: number;
+    estoqueCriticoCount: number;
+    contratosVencendoCount: number;
+    osAbertasCount: number;
+    osConcluidasCount: number;
+    leadsNovosCount: number;
+    leadsNegociacaoCount: number;
+    orcamentosRecusadosCount: number;
   };
   financeiro: {
     receitaMes: number;
     despesaMes: number;
     saldoPrevisto: number;
+    saldoCaixa: number;
+    lucroEstimado: number;
+    receberAbertoTotal: number;
+    pagarAbertoTotal: number;
+    inadimplencia: number;
+    variacaoReceita: number;
+    variacaoDespesa: number;
   };
   acoesUrgentes: UrgentAction[];
   alertas: {
     id: string;
     title: string;
     message: string;
-    type: "ESTOQUE" | "FINANCEIRO" | "OPERACIONAL" | "COMERCIAL" | "FISCAL";
+    type: "ESTOQUE" | "FINANCEIRO" | "OPERACIONAL" | "COMERCIAL" | "FISCAL" | "CONTRATOS";
     link?: string;
   }[];
   fluxoCaixa: CashFlowPoint[];
+  tabelas: {
+    ultimasOS: { id: string; code: string; client: string; status: string; date: Date }[];
+    contasVencidas: { id: string; client: string; value: number; dueDate: Date }[];
+    orcamentosNegociacao: { id: string; code: string; client: string; value: number; validUntil: Date }[];
+    notasComErro: { id: string; code: string; client: string; value: number }[];
+  };
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
+export type DashboardPeriod = "today" | "week" | "month" | "30days";
+
+export async function getDashboardData(period: DashboardPeriod = "month"): Promise<DashboardData> {
   try {
+    await requireAuth();
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+    const endOfMonth = new Date();
+    const startOfMonth = new Date(today);
+    if (period === "week") startOfMonth.setDate(today.getDate() - today.getDay());
+    else if (period === "month") startOfMonth.setDate(1);
+    else if (period === "30days") startOfMonth.setDate(today.getDate() - 29);
+    const periodDuration = Math.max(86_400_000, endOfMonth.getTime() - startOfMonth.getTime());
+    const previousStart = new Date(startOfMonth.getTime() - periodDuration);
+    const previousEnd = new Date(startOfMonth.getTime() - 1);
 
     // 1. Buscar Orçamentos
-    const allQuotes = await prisma.quote.findMany();
+    const allQuotes = await prisma.quote.findMany({ include: { client: true } });
     const orcamentosAberto = allQuotes.filter(
       (q) => q.status === "ENVIADO" || q.status === "NEGOCIACAO"
     );
     const orcamentosAbertoCount = orcamentosAberto.length;
-    const orcamentosAbertoTotal = orcamentosAberto.reduce((sum, q) => sum + q.total, 0);
+    const orcamentosAbertoTotal = orcamentosAberto.reduce((sum, q) => sum + Number(q.total), 0);
 
     // Calcular Taxa de Aprovação
     const approvedQuotes = allQuotes.filter((q) => q.status === "APROVADO" || q.status === "CONVERTIDO").length;
@@ -76,10 +116,11 @@ export async function getDashboardData(): Promise<DashboardData> {
         client: true,
         items: true,
         materials: true,
+        completionReport: true,
       },
     });
     const osAndamento = allOS.filter(
-      (os) => os.status === "AGENDADA" || os.status === "DESLOCAMENTO" || os.status === "EXECUCAO"
+      (os) => ["AGENDADA", "DESLOCAMENTO", "EXECUCAO", "PAUSADA", "AGUARDANDO_PECA", "AGUARDANDO_CLIENTE", "RETORNO"].includes(os.status)
     );
     const osAndamentoCount = osAndamento.length;
 
@@ -95,7 +136,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     // OS Aguardando Faturamento
     const osAguardandoFaturamento = allOS.filter(
-      (os) => os.status === "CONCLUIDA" || os.status === "FATURAMENTO"
+      (os) => os.status === "RELATORIO_ENVIADO" || os.status === "FATURAMENTO"
     );
     const osAguardandoFaturamentoCount = osAguardandoFaturamento.length;
 
@@ -114,8 +155,18 @@ export async function getDashboardData(): Promise<DashboardData> {
       (r) => r.status !== "PAGO" && r.status !== "CANCELADA" && new Date(r.dueDate).getTime() < today.getTime()
     );
     const contasVencidasCount = contasVencidas.length;
-    const contasVencidasTotal = contasVencidas.reduce((sum, r) => sum + r.pendingValue, 0);
+    const contasVencidasTotal = contasVencidas.reduce((sum, r) => sum + Number(r.pendingValue), 0);
     const receberAbertoCount = allReceivables.filter((r) => r.status !== "PAGO" && r.status !== "CANCELADA").length;
+
+    // Valor a receber com vencimento hoje
+    const receberHojeTotal = allReceivables
+      .filter((r) => {
+        if (r.status === "PAGO" || r.status === "CANCELADA") return false;
+        const d = new Date(r.dueDate);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime() === today.getTime();
+      })
+      .reduce((sum, r) => sum + Number(r.pendingValue), 0);
 
     // Receita do mês
     const receitaMes = allReceivables
@@ -124,17 +175,36 @@ export async function getDashboardData(): Promise<DashboardData> {
         const pDate = new Date(r.paymentDate);
         return pDate >= startOfMonth && pDate <= endOfMonth && r.status === "PAGO";
       })
-      .reduce((sum, r) => sum + r.receivedValue, 0);
+      .reduce((sum, r) => sum + Number(r.receivedValue), 0);
 
     // 4. Buscar Contas a Pagar
     const allPayables = await prisma.accountsPayable.findMany();
+    const contasPagar = allPayables.filter((p) => p.status !== "PAGO" && p.status !== "CANCELADO" && p.status !== "CANCELADA");
+    const contasPagarTotal = contasPagar.reduce((sum, p) => sum + Number(p.value), 0);
+
+    // Contas pagas hoje
+    const pagosHojeCount = allPayables.filter((p) => {
+      if (p.status !== "PAGO" || !p.paymentDate) return false;
+      const d = new Date(p.paymentDate);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime() === today.getTime();
+    }).length;
+
     const despesaMes = allPayables
       .filter((p) => {
         if (!p.paymentDate) return false;
         const pDate = new Date(p.paymentDate);
         return pDate >= startOfMonth && pDate <= endOfMonth && p.status === "PAGO";
       })
-      .reduce((sum, p) => sum + p.value, 0);
+      .reduce((sum, p) => sum + Number(p.value), 0);
+
+    const receitaAnterior = allReceivables
+      .filter((r) => r.paymentDate && new Date(r.paymentDate) >= previousStart && new Date(r.paymentDate) <= previousEnd && r.status === "PAGO")
+      .reduce((sum, r) => sum + Number(r.receivedValue), 0);
+    const despesaAnterior = allPayables
+      .filter((p) => p.paymentDate && new Date(p.paymentDate) >= previousStart && new Date(p.paymentDate) <= previousEnd && p.status === "PAGO")
+      .reduce((sum, p) => sum + Number(p.value), 0);
+    const percentChange = (current: number, previous: number) => previous > 0 ? ((current - previous) / previous) * 100 : current > 0 ? 100 : 0;
 
     // Saldo Previsto
     const receivablesMonth = allReceivables
@@ -142,16 +212,18 @@ export async function getDashboardData(): Promise<DashboardData> {
         const dDate = new Date(r.dueDate);
         return dDate >= startOfMonth && dDate <= endOfMonth && r.status !== "CANCELADO" && r.status !== "PAGO";
       })
-      .reduce((sum, r) => sum + r.pendingValue, 0);
+      .reduce((sum, r) => sum + Number(r.pendingValue), 0);
 
     const payablesMonth = allPayables
       .filter((p) => {
         const dDate = new Date(p.dueDate);
         return dDate >= startOfMonth && dDate <= endOfMonth && p.status !== "CANCELADO" && p.status !== "PAGO";
       })
-      .reduce((sum, p) => sum + p.value, 0);
+      .reduce((sum, p) => sum + Number(p.value), 0);
 
-    const saldoPrevisto = 14850.0 + receitaMes - despesaMes + receivablesMonth - payablesMonth;
+    const bankAccounts = await prisma.bankAccount.findMany({ select: { balance: true } });
+    const saldoCaixa = bankAccounts.reduce((sum, account) => sum + Number(account.balance), 0);
+    const saldoPrevisto = saldoCaixa + receivablesMonth - payablesMonth;
 
     // 5. Notas Fiscais (NFS-e) e Faturamento
     const allInvoices = await prisma.invoice.findMany({
@@ -163,38 +235,39 @@ export async function getDashboardData(): Promise<DashboardData> {
         },
       },
     });
-    const nfseAEmitirCount = allInvoices.filter((i) => i.status === "PENDENTE" || i.status === "RASCUNHO").length;
+    const nfseAEmitirCount = allOS.filter((os) => os.status === "FATURAMENTO").length;
+    const notasRejeitadas = allInvoices.filter((i) => i.status === "REJEITADA");
     const faturamentoPendenteCount = osAguardandoFaturamentoCount;
 
     // 6. Montar Ações Urgentes de Hoje
     const acoesUrgentes: UrgentAction[] = [];
 
     // NFS-e a Emitir
-    allInvoices
-      .filter((i) => i.status === "PENDENTE")
+    allOS
+      .filter((os) => os.status === "FATURAMENTO")
       .slice(0, 2)
-      .forEach((invoice) => {
+      .forEach((os) => {
         acoesUrgentes.push({
-          id: `nfse-emit-${invoice.id}`,
-          title: `Emitir NFS-e da OS #${invoice.serviceOrder.code}`,
-          description: `Faturamento conferido para o cliente ${invoice.serviceOrder.client.name}.`,
-          buttonLabel: "Emitir agora",
-          link: `/faturamento?id=${invoice.id}`,
+          id: `nfse-emit-${os.id}`,
+          title: `Registrar NFS-e da ${os.code}`,
+          description: `Relatório aprovado e faturamento liberado para ${os.client.name}.`,
+          buttonLabel: "Registrar nota",
+          link: `/faturamento?id=${os.id}`,
           color: "violet",
         });
       });
 
-    // OS Concluídas a Faturar
+    // Relatórios aprovados que ainda precisam ser liberados ao fiscal
     allOS
-      .filter((os) => os.status === "CONCLUIDA")
+      .filter((os) => os.status === "RELATORIO_ENVIADO")
       .slice(0, 2)
       .forEach((os) => {
         acoesUrgentes.push({
           id: `os-bill-${os.id}`,
-          title: `Faturar OS #${os.code} concluída`,
-          description: `Serviço finalizado pelo técnico. Pronto para faturar para ${os.client.name}.`,
-          buttonLabel: "Faturar",
-          link: `/faturamento?id=${os.id}`,
+          title: `Liberar ${os.code} para faturamento`,
+          description: `Relatório aprovado. Falta encaminhar a OS de ${os.client.name} para o controle fiscal.`,
+          buttonLabel: "Abrir OS",
+          link: `/ordens-servico?id=${os.id}`,
           color: "emerald",
         });
       });
@@ -213,7 +286,7 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     // OSs Criadas precisando de Agendamento
     allOS
-      .filter((os) => os.status === "CRIADA")
+      .filter((os) => os.status === "CRIADA" || os.status === "AGUARDANDO_AGENDAMENTO")
       .slice(0, 2)
       .forEach((os) => {
         acoesUrgentes.push({
@@ -264,9 +337,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     allOS
       .filter((os) => (os.status === "CONCLUIDA" || os.status === "FATURADA") && os.marginReal > 0)
       .forEach((os) => {
-        const totalItemsValue = os.items.reduce((sum, item) => sum + item.total, 0);
+        const totalItemsValue = os.items.reduce((sum, item) => sum + Number(item.total), 0);
         const usedMaterials = os.materials.filter((m) => m.status === "UTILIZADO");
-        const totalMaterialsSale = usedMaterials.reduce((sum, m) => sum + m.usedQuantity * m.salePrice, 0);
+        const totalMaterialsSale = usedMaterials.reduce((sum, m) => sum + m.usedQuantity * Number(m.salePrice), 0);
         const totalOSRevenue = totalItemsValue + totalMaterialsSale;
 
         const targetMarginPercent = 18;
@@ -294,6 +367,38 @@ export async function getDashboardData(): Promise<DashboardData> {
         link: "/financeiro?tab=receber",
       });
     });
+
+    // Contratos vencendo nos próximos 30 dias
+    const in30Days = new Date(today);
+    in30Days.setDate(today.getDate() + 30);
+    const expiringContracts = await prisma.contract.findMany({
+      where: {
+        status: "ATIVO",
+        endDate: { gte: today, lte: in30Days },
+      },
+      include: { client: true },
+    });
+    expiringContracts.slice(0, 2).forEach((c) => {
+      alertas.push({
+        id: `contract-expiring-${c.id}`,
+        title: "Contrato Vencendo em Breve",
+        message: `O contrato ${c.code} do cliente ${c.client.name} vence em ${new Date(c.endDate).toLocaleDateString("pt-BR")}.`,
+        type: "CONTRATOS",
+        link: "/contratos",
+      });
+    });
+
+    const leads = await prisma.lead.findMany();
+    const leadsNovosCount = leads.filter((lead) => lead.status === "NOVO" && lead.createdAt >= startOfMonth).length;
+    const leadsNegociacaoCount = leads.filter((lead) => lead.status === "EM_ANDAMENTO").length;
+    const osConcluidasCount = allOS.filter((os) => os.completedAt && os.completedAt >= startOfMonth && os.completedAt <= endOfMonth).length;
+    const osAbertasCount = allOS.filter((os) => !["CONCLUIDA", "FATURADA", "CANCELADA"].includes(os.status)).length;
+    const relatoriosPendentesCount = allOS.filter((os) => ["CONCLUIDA", "REVISAO"].includes(os.status) && !os.completionReport?.approvedByClient).length;
+    const receberAbertoTotal = allReceivables
+      .filter((r) => r.status !== "PAGO" && r.status !== "CANCELADO" && r.status !== "CANCELADA")
+      .reduce((sum, r) => sum + Number(r.pendingValue), 0);
+    const totalReceberBase = allReceivables.reduce((sum, r) => sum + Number(r.totalValue), 0);
+    const inadimplencia = totalReceberBase > 0 ? (contasVencidasTotal / totalReceberBase) * 100 : 0;
 
     // OS Atrasadas adicionais no alerta
     osAtrasadas.slice(0, 2).forEach((os) => {
@@ -330,11 +435,11 @@ export async function getDashboardData(): Promise<DashboardData> {
 
       const receitas = dayTransactions
         .filter((t) => t.type === "RECEITA")
-        .reduce((sum, t) => sum + t.value, 0);
+        .reduce((sum, t) => sum + Number(t.value), 0);
 
       const despesas = dayTransactions
         .filter((t) => t.type === "DESPESA")
-        .reduce((sum, t) => sum + t.value, 0);
+        .reduce((sum, t) => sum + Number(t.value), 0);
 
       last7Days.push({
         date: dStr,
@@ -347,6 +452,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       cards: {
         orcamentosAbertoCount,
         orcamentosAbertoTotal,
+        orcamentosAprovadosCount: approvedQuotes,
         taxaAprovacao,
         osAndamentoCount,
         osAtrasadasCount,
@@ -357,22 +463,49 @@ export async function getDashboardData(): Promise<DashboardData> {
         faturamentoPendenteCount,
         nfseAEmitirCount,
         receberAbertoCount,
+        receberHojeTotal,
+        pagosHojeCount,
+        contasPagarCount: contasPagar.length,
+        contasPagarTotal,
+        notasRejeitadasCount: notasRejeitadas.length,
+        relatoriosPendentesCount,
+        estoqueCriticoCount: lowStockProducts.length,
+        contratosVencendoCount: expiringContracts.length,
+        osAbertasCount,
+        osConcluidasCount,
+        leadsNovosCount,
+        leadsNegociacaoCount,
+        orcamentosRecusadosCount: rejectedQuotes,
       },
       financeiro: {
         receitaMes,
         despesaMes,
         saldoPrevisto,
+        saldoCaixa,
+        lucroEstimado: receitaMes - despesaMes,
+        receberAbertoTotal,
+        pagarAbertoTotal: contasPagarTotal,
+        inadimplencia,
+        variacaoReceita: percentChange(receitaMes, receitaAnterior),
+        variacaoDespesa: percentChange(despesaMes, despesaAnterior),
       },
       acoesUrgentes,
       alertas,
       fluxoCaixa: last7Days,
+      tabelas: {
+        ultimasOS: [...allOS].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 6).map((os) => ({ id: os.id, code: os.code, client: os.client.name, status: os.status, date: os.createdAt })),
+        contasVencidas: contasVencidas.slice(0, 6).map((item) => ({ id: item.id, client: item.client.name, value: Number(item.pendingValue), dueDate: item.dueDate })),
+        orcamentosNegociacao: orcamentosAberto.slice(0, 6).map((quote) => ({ id: quote.id, code: quote.code, client: quote.client.name, value: Number(quote.total), validUntil: quote.validUntil })),
+        notasComErro: notasRejeitadas.slice(0, 6).map((invoice) => ({ id: invoice.id, code: invoice.code, client: invoice.serviceOrder.client.name, value: invoice.value })),
+      },
     };
   } catch (error) {
-    console.error("Erro no getDashboardData:", error);
+    logger.error("Erro no getDashboardData:", error);
     return {
       cards: {
         orcamentosAbertoCount: 0,
         orcamentosAbertoTotal: 0,
+        orcamentosAprovadosCount: 0,
         taxaAprovacao: 0,
         osAndamentoCount: 0,
         osAtrasadasCount: 0,
@@ -383,15 +516,36 @@ export async function getDashboardData(): Promise<DashboardData> {
         faturamentoPendenteCount: 0,
         nfseAEmitirCount: 0,
         receberAbertoCount: 0,
+        receberHojeTotal: 0,
+        pagosHojeCount: 0,
+        contasPagarCount: 0,
+        contasPagarTotal: 0,
+        notasRejeitadasCount: 0,
+        relatoriosPendentesCount: 0,
+        estoqueCriticoCount: 0,
+        contratosVencendoCount: 0,
+        osAbertasCount: 0,
+        osConcluidasCount: 0,
+        leadsNovosCount: 0,
+        leadsNegociacaoCount: 0,
+        orcamentosRecusadosCount: 0,
       },
       financeiro: {
         receitaMes: 0,
         despesaMes: 0,
         saldoPrevisto: 0,
+        saldoCaixa: 0,
+        lucroEstimado: 0,
+        receberAbertoTotal: 0,
+        pagarAbertoTotal: 0,
+        inadimplencia: 0,
+        variacaoReceita: 0,
+        variacaoDespesa: 0,
       },
       acoesUrgentes: [],
       alertas: [],
       fluxoCaixa: [],
+      tabelas: { ultimasOS: [], contasVencidas: [], orcamentosNegociacao: [], notasComErro: [] },
     };
   }
 }

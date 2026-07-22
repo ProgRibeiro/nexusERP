@@ -1,7 +1,11 @@
 "use server";
 
+import { logger } from "@/lib/logger";
+
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { requireAuth } from "@/lib/auth";
+import { saveBase64Asset } from "@/lib/storage";
 
 export interface PhotoInput {
   step: "ANTES" | "DEPOS" | "EVIDENCIA";
@@ -9,13 +13,28 @@ export interface PhotoInput {
   caption: string;
 }
 
+async function assertTechnicianAccess(osId: string, userId: string, roleName: string, permissions: string[]) {
+  const privileged = roleName === "Administrador" || roleName === "Gestor" || permissions.includes("admin.all");
+  if (privileged) return;
+  const assignment = await prisma.serviceOrderTechnician.findFirst({
+    where: { serviceOrderId: osId, userId },
+  });
+  if (!assignment) throw new Error("Esta OS não está atribuída ao técnico conectado.");
+}
+
 /**
  * Obtém as OSs atribuídas a um técnico específico
  */
 export async function getTechnicianOS(techUserId: string) {
   try {
+    const session = await requireAuth();
+    // Um técnico só pode ver a própria fila. Administrador/Gestor podem
+    // continuar consultando a fila de qualquer técnico (uso no painel admin).
+    const isPrivileged = session.roleName === "Administrador" || session.roleName === "Gestor" || session.permissions.includes("admin.all");
+    const effectiveTechId = isPrivileged ? techUserId : session.userId;
+
     const assignments = await prisma.serviceOrderTechnician.findMany({
-      where: { userId: techUserId },
+      where: { userId: effectiveTechId },
       include: {
         serviceOrder: {
           include: {
@@ -41,7 +60,7 @@ export async function getTechnicianOS(techUserId: string) {
         : "Endereço não disponível",
     }));
   } catch (error) {
-    console.error("Erro ao obter OS do técnico:", error);
+    logger.error("Erro ao obter OS do técnico:", error);
     return [];
   }
 }
@@ -51,28 +70,32 @@ export async function getTechnicianOS(techUserId: string) {
  */
 export async function makeOSCheckin(osId: string, userId: string) {
   try {
-    const updatedOS = await prisma.serviceOrder.update({
-      where: { id: osId },
-      data: {
-        status: "DESLOCAMENTO", // Técnico em deslocamento
-      },
-    });
+    const session = await requireAuth();
+    userId = session.userId; // nunca confiar no valor vindo do client
+    await assertTechnicianAccess(osId, userId, session.roleName, session.permissions);
+    const os = await prisma.serviceOrder.findUnique({ where: { id: osId } });
+    if (!os) throw new Error("Ordem de serviço não encontrada.");
+    if (os.status !== "AGENDADA") throw new Error("Apenas uma OS agendada pode iniciar deslocamento.");
 
-    await prisma.serviceOrderStatusHistory.create({
-      data: {
-        serviceOrderId: osId,
-        oldStatus: "AGENDADA",
-        newStatus: "DESLOCAMENTO",
-        changedById: userId,
-        justification: "Técnico iniciou deslocamento para o local do cliente.",
-      },
+    const updatedOS = await prisma.$transaction(async (tx) => {
+      const updated = await tx.serviceOrder.update({ where: { id: osId }, data: { status: "DESLOCAMENTO" } });
+      await tx.serviceOrderStatusHistory.create({
+        data: {
+          serviceOrderId: osId,
+          oldStatus: os.status,
+          newStatus: "DESLOCAMENTO",
+          changedById: userId,
+          justification: "Técnico iniciou deslocamento para o local do cliente.",
+        },
+      });
+      return updated;
     });
 
     revalidatePath("/execucao");
     revalidatePath("/ordens-servico");
     return { success: true, os: updatedOS };
   } catch (error: any) {
-    console.error("Erro no checkin da OS:", error);
+    logger.error("Erro no checkin da OS:", error);
     return { success: false, error: error.message };
   }
 }
@@ -82,28 +105,34 @@ export async function makeOSCheckin(osId: string, userId: string) {
  */
 export async function makeOSStartExecution(osId: string, userId: string) {
   try {
-    const updatedOS = await prisma.serviceOrder.update({
-      where: { id: osId },
-      data: {
-        status: "EXECUCAO", // Em execução
-      },
-    });
+    const session = await requireAuth();
+    userId = session.userId; // nunca confiar no valor vindo do client
+    await assertTechnicianAccess(osId, userId, session.roleName, session.permissions);
+    const os = await prisma.serviceOrder.findUnique({ where: { id: osId } });
+    if (!os) throw new Error("Ordem de serviço não encontrada.");
+    if (!["DESLOCAMENTO", "AGENDADA"].includes(os.status)) {
+      throw new Error("A OS precisa estar agendada ou em deslocamento para iniciar a execução.");
+    }
 
-    await prisma.serviceOrderStatusHistory.create({
-      data: {
-        serviceOrderId: osId,
-        oldStatus: "DESLOCAMENTO",
-        newStatus: "EXECUCAO",
-        changedById: userId,
-        justification: "Técnico chegou ao local e iniciou os serviços (Check-in concluído).",
-      },
+    const updatedOS = await prisma.$transaction(async (tx) => {
+      const updated = await tx.serviceOrder.update({ where: { id: osId }, data: { status: "EXECUCAO" } });
+      await tx.serviceOrderStatusHistory.create({
+        data: {
+          serviceOrderId: osId,
+          oldStatus: os.status,
+          newStatus: "EXECUCAO",
+          changedById: userId,
+          justification: "Técnico chegou ao local e iniciou os serviços.",
+        },
+      });
+      return updated;
     });
 
     revalidatePath("/execucao");
     revalidatePath("/ordens-servico");
     return { success: true, os: updatedOS };
   } catch (error: any) {
-    console.error("Erro no início da execução da OS:", error);
+    logger.error("Erro no início da execução da OS:", error);
     return { success: false, error: error.message };
   }
 }
@@ -125,64 +154,101 @@ export async function submitTechnicalExecution(
   }
 ) {
   try {
+    const session = await requireAuth();
+    data.userId = session.userId; // nunca confiar no valor vindo do client
+    await assertTechnicianAccess(osId, data.userId, session.roleName, session.permissions);
+    const currentOS = await prisma.serviceOrder.findUnique({ where: { id: osId } });
+    if (!currentOS) throw new Error("Ordem de serviço não encontrada.");
+    if (currentOS.status !== "EXECUCAO") throw new Error("A OS precisa estar em execução para ser concluída.");
+    if (!data.technicalDiagnosis.trim()) throw new Error("Preencha o diagnóstico técnico.");
+    if (!data.signatureBase64 || !data.signatureName.trim()) throw new Error("Colete a assinatura e informe o nome do cliente.");
+    let submittedChecklist: Array<{ checked?: boolean }> = [];
+    try { submittedChecklist = JSON.parse(data.checklistJson || "[]"); } catch {
+      throw new Error("Checklist técnico inválido.");
+    }
+    if (submittedChecklist.length > 0 && submittedChecklist.some((item) => !item.checked)) {
+      throw new Error("Conclua todos os itens do checklist antes de finalizar.");
+    }
+
     // 1. Atualizar OS com laudo, checklist e assinatura
     const notesJson = JSON.stringify({
       medicoes: data.measurementsJson,
       checklist: JSON.parse(data.checklistJson),
     });
 
-    const updatedOS = await prisma.serviceOrder.update({
-      where: { id: osId },
-      data: {
-        status: "CONCLUIDA",
-        technicalDiagnosis: data.technicalDiagnosis,
-        checklistJson: data.checklistJson,
-        signatureBase64: data.signatureBase64,
-        signatureName: data.signatureName,
-        completedAt: new Date(),
-        notes: `Medições técnicas: ${data.measurementsJson}.`,
-      },
-    });
+    // Assinatura chega como data URL base64 do canvas — grava em disco e
+    // salva só a URL pública na coluna (o nome da coluna ficou legado, mas
+    // qualquer <img src> aceita tanto data: URL quanto URL relativa).
+    const storedSignatureUrl = await saveBase64Asset(data.signatureBase64, `os-${osId}-assinatura`);
 
-    // 2. Salvar as fotos de evidência técnica
+    // Salva os arquivos antes da transação; os registros relacionais são gravados juntos.
+    let photoRelations: Array<{ serviceOrderId: string; step: string; url: string; caption: string | null }> = [];
     if (data.photos && data.photos.length > 0) {
-      await prisma.serviceOrderPhoto.deleteMany({ where: { serviceOrderId: osId } }); // limpa antigas se houver
-      
-      const photoRelations = data.photos.map((p) => ({
-        serviceOrderId: osId,
-        step: p.step,
-        url: p.url,
-        caption: p.caption || null,
-      }));
+      photoRelations = await Promise.all(
+        data.photos.map(async (p) => ({
+          serviceOrderId: osId,
+          step: p.step,
+          url: await saveBase64Asset(p.url, `os-${osId}`),
+          caption: p.caption || null,
+        }))
+      );
 
-      await prisma.serviceOrderPhoto.createMany({
-        data: photoRelations,
-      });
     }
 
-    // 3. Gerar o Relatório de Conclusão vinculado de forma 1:1
-    await prisma.completionReport.deleteMany({ where: { serviceOrderId: osId } }); // garante integridade 1:1
-    
-    const report = await prisma.completionReport.create({
-      data: {
-        serviceOrderId: osId,
-        clientFeedback: data.clientFeedback || "Serviço aprovado sem observações.",
-        technicalObservations: `Executado diagnóstico técnico. Equipamento testado e entregue operacional. Medições registradas: ${data.measurementsJson}.`,
-        warrantyTerms: "Garantia de 90 dias nos serviços prestados, a contar desta data.",
-        approvedByClient: true,
-        approvedAt: new Date(),
-      },
-    });
-
-    // 4. Salvar histórico de auditoria
-    await prisma.serviceOrderStatusHistory.create({
-      data: {
-        serviceOrderId: osId,
-        oldStatus: "EXECUCAO",
-        newStatus: "CONCLUIDA",
-        changedById: data.userId,
-        justification: `Técnico finalizou execução, preencheu checklist, coletou assinatura e emitiu relatório de conclusão. Assinado por: ${data.signatureName}.`,
-      },
+    const { updatedOS, report } = await prisma.$transaction(async (tx) => {
+      const updatedOS = await tx.serviceOrder.update({
+        where: { id: osId },
+        data: {
+          status: "RELATORIO_ENVIADO",
+          technicalDiagnosis: data.technicalDiagnosis,
+          checklistJson: data.checklistJson,
+          signatureBase64: storedSignatureUrl,
+          signatureName: data.signatureName,
+          completedAt: new Date(),
+          notes: `Medições técnicas: ${data.measurementsJson}.`,
+        },
+      });
+      if (photoRelations.length > 0) {
+        await tx.serviceOrderPhoto.deleteMany({ where: { serviceOrderId: osId } });
+        await tx.serviceOrderPhoto.createMany({ data: photoRelations });
+      }
+      const report = await tx.completionReport.upsert({
+        where: { serviceOrderId: osId },
+        update: {
+          clientFeedback: data.clientFeedback || "Serviço aprovado sem observações.",
+          technicalObservations: `Executado diagnóstico técnico. Equipamento testado e entregue operacional. Medições registradas: ${data.measurementsJson}.`,
+          warrantyTerms: "Garantia de 90 dias nos serviços prestados, a contar desta data.",
+          approvedByClient: true,
+          approvedAt: new Date(),
+        },
+        create: {
+          serviceOrderId: osId,
+          clientFeedback: data.clientFeedback || "Serviço aprovado sem observações.",
+          technicalObservations: `Executado diagnóstico técnico. Equipamento testado e entregue operacional. Medições registradas: ${data.measurementsJson}.`,
+          warrantyTerms: "Garantia de 90 dias nos serviços prestados, a contar desta data.",
+          approvedByClient: true,
+          approvedAt: new Date(),
+        },
+      });
+      await tx.serviceOrderStatusHistory.createMany({
+        data: [
+          {
+            serviceOrderId: osId,
+            oldStatus: "EXECUCAO",
+            newStatus: "CONCLUIDA",
+            changedById: data.userId,
+            justification: `Execução finalizada e assinada por ${data.signatureName}.`,
+          },
+          {
+            serviceOrderId: osId,
+            oldStatus: "CONCLUIDA",
+            newStatus: "RELATORIO_ENVIADO",
+            changedById: data.userId,
+            justification: "Relatório técnico aprovado com assinatura do cliente.",
+          },
+        ],
+      });
+      return { updatedOS, report };
     });
 
     // 5. Enviar Notificação para o Faturamento
@@ -218,7 +284,7 @@ export async function submitTechnicalExecution(
     revalidatePath("/ordens-servico");
     return { success: true, os: updatedOS, report };
   } catch (error: any) {
-    console.error("Erro ao enviar finalização técnica:", error);
+    logger.error("Erro ao enviar finalização técnica:", error);
     return { success: false, error: error.message };
   }
 }

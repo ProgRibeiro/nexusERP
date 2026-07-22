@@ -79,6 +79,34 @@ export default function OrcamentosPage() {
   const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
 
+  const [companyData, setCompanyData] = useState({
+    tradeName: "NX Climatização",
+    corporateName: "NX Climatização & Elétrica Ltda.",
+    cnpj: "07.889.332/0001-00",
+    phone: "(11) 3300-4400",
+    address: "Rua do Engenho, 100 - Centro - São Paulo - SP",
+    logoUrl: "",
+  });
+
+  useEffect(() => {
+    const saved = localStorage.getItem("company_params");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setCompanyData({
+          tradeName: parsed.tradeName || "NX Climatização",
+          corporateName: parsed.corporateName || "NX Climatização & Elétrica Ltda.",
+          cnpj: parsed.cnpj || "07.889.332/0001-00",
+          phone: parsed.phone || "(11) 3300-4400",
+          address: parsed.address || "Rua do Engenho, 100 - Centro - São Paulo - SP",
+          logoUrl: parsed.logoUrl || "",
+        });
+      } catch (e) {
+        console.error("Erro ao carregar dados da empresa:", e);
+      }
+    }
+  }, []);
+
   // Carregar lista de orçamentos
   async function loadQuotes(query = "") {
     setLoadingList(true);
@@ -144,7 +172,7 @@ export default function OrcamentosPage() {
     });
     // Buscar detalhes do cliente selecionado para preencher endereços e contatos
     const response = await fetch(`/api/clients/${clientId}`).then((r) => r.json()).catch(() => null);
-    
+
     // Se a api direta falhar, podemos simplesmente usar o prontuário carregado localmente
     const dbClient = clients.find((c) => c.id === clientId) as any;
     if (dbClient) {
@@ -829,17 +857,26 @@ export default function OrcamentosPage() {
               <div className="max-w-4xl mx-auto bg-white border border-zinc-200/80 shadow-md p-8 rounded-xl font-serif text-zinc-800 space-y-8 print:border-0 print:shadow-none print:p-0">
                 {/* Cabeçalho Proposta */}
                 <div className="flex justify-between items-start border-b-2 border-zinc-800 pb-5">
-                  <div>
-                    <h2 className="text-2xl font-bold text-zinc-950 uppercase tracking-wide font-sans">
-                      Antigravity Climatização
-                    </h2>
-                    <p className="text-xs text-zinc-500 font-sans font-medium mt-1 leading-normal">
-                      Antigravity Climatização & Elétrica Ltda.
-                      <br />
-                      CNPJ: 07.889.332/0001-00 • Telefone: (11) 3300-4400
-                      <br />
-                      Rua do Engenho, 100 - Centro - São Paulo - SP
-                    </p>
+                  <div className="flex gap-4 items-center">
+                    {companyData.logoUrl && (
+                      <img
+                        src={companyData.logoUrl}
+                        alt="Logo"
+                        className="max-h-16 max-w-[120px] object-contain rounded border border-zinc-150 p-1 print:max-h-12"
+                      />
+                    )}
+                    <div>
+                      <h2 className="text-2xl font-bold text-zinc-950 uppercase tracking-wide font-sans">
+                        {companyData.tradeName}
+                      </h2>
+                      <p className="text-xs text-zinc-500 font-sans font-medium mt-1 leading-normal">
+                        {companyData.corporateName}
+                        <br />
+                        CNPJ: {companyData.cnpj} • Telefone: {companyData.phone}
+                        <br />
+                        {companyData.address}
+                      </p>
+                    </div>
                   </div>
                   <div className="text-right font-sans">
                     <p className="text-xs text-zinc-400 uppercase font-bold tracking-wider">Proposta Comercial</p>
@@ -955,7 +992,7 @@ export default function OrcamentosPage() {
                 {/* Assinaturas */}
                 <div className="pt-12 grid grid-cols-2 gap-8 text-center text-xs font-sans font-semibold text-zinc-500">
                   <div className="border-t border-zinc-300 pt-3">
-                    <p>Representante Antigravity</p>
+                    <p>Representante NX Climatização</p>
                     <p className="text-[10px] font-medium text-zinc-400 mt-0.5">Lucas Souza (Admin)</p>
                   </div>
                   <div className="border-t border-zinc-300 pt-3">
