@@ -10,6 +10,7 @@ import {
 } from "@/app/actions/userActions";
 import LoginView from "@/components/LoginView";
 import { Loader2 } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 interface AuthContextType {
   user: UserSession | null;
@@ -23,13 +24,16 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isPublicStorePortal = pathname.startsWith("/portal/loja/");
   const [user, setUser] = useState<UserSession | null>(null);
   const [users, setUsers] = useState<UserSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isPublicStorePortal);
 
   // A sessão agora vive num cookie httpOnly lido no servidor — não há mais
   // nenhuma fonte de verdade de autenticação no localStorage.
   useEffect(() => {
+    if (isPublicStorePortal) return;
     async function initAuth() {
       try {
         const sessionUser = await getSessionUserAction();
@@ -47,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     initAuth();
-  }, []);
+  }, [isPublicStorePortal]);
 
   const switchUser = useCallback(async (email: string) => {
     const res = await switchUserAction(email);
@@ -81,6 +85,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     return user.permissions.includes(permissionCode);
   };
+
+  if (isPublicStorePortal) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (

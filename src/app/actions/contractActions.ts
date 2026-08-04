@@ -5,6 +5,8 @@ import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAuth, requirePermission } from "@/lib/auth";
+import { nextServiceOrderCode } from "@/lib/sequences";
+import { createInitialVisit } from "@/lib/visits";
 import { contractCreateSchema } from "@/lib/schemas";
 
 export interface ContractDTO {
@@ -237,8 +239,7 @@ export async function triggerRecurrencyBilling(contractId: string, userId: strin
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Gerar Ordem de Serviço Preventiva Automática
-      const osCount = await tx.serviceOrder.count();
-      const osCode = `OS-PREV-${String(osCount + 1).padStart(4, "0")}`;
+      const osCode = await nextServiceOrderCode(tx);
 
       const scheduledDate = new Date();
       scheduledDate.setDate(scheduledDate.getDate() + 5); // Agenda para 5 dias após disparo
@@ -260,6 +261,14 @@ export async function triggerRecurrencyBilling(contractId: string, userId: strin
           scheduledDate,
           scheduledTime: "09:00",
         },
+      });
+      await createInitialVisit(tx, {
+        serviceOrderId: os.id,
+        status: os.status,
+        kind: "VISTORIA",
+        scheduledStart: scheduledDate,
+        scheduledTime: "09:00",
+        changedById: userId,
       });
 
       // Copiar itens do contrato como ServiceOrderItems

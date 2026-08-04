@@ -4,7 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { requireAuth, requirePermission } from "@/lib/auth";
+import { requireAnyPermission, requireAuth, requirePermission } from "@/lib/auth";
 import { clientCreateSchema } from "@/lib/schemas";
 
 export interface ClientDTO {
@@ -12,7 +12,7 @@ export interface ClientDTO {
   name: string;
   socialName: string | null;
   fancyName: string | null;
-  cpfCnpj: string;
+  cpfCnpj: string | null;
   stateRegistration: string | null;
   municipalRegistration: string | null;
   email: string;
@@ -54,6 +54,7 @@ export interface ClientDetailsDTO extends ClientDTO {
   contacts: ClientContactDTO[];
   addresses: ClientAddressDTO[];
   equipments: any[];
+  contracts: any[];
   quotes: any[];
   serviceOrders: any[];
   invoices: any[];
@@ -100,11 +101,31 @@ export async function getClientDetails(id: string): Promise<ClientDetailsDTO | n
         contacts: true,
         addresses: true,
         equipments: true,
+        contracts: {
+          orderBy: { createdAt: "desc" },
+        },
         quotes: {
           orderBy: { createdAt: "desc" },
         },
         serviceOrders: {
           orderBy: { createdAt: "desc" },
+          include: {
+            address: true,
+            contract: {
+              select: { code: true },
+            },
+            technicians: {
+              include: {
+                user: {
+                  select: { name: true },
+                },
+              },
+            },
+            completionReport: true,
+            _count: {
+              select: { photos: true },
+            },
+          },
         },
         invoices: {
           orderBy: { issueDate: "desc" },
@@ -134,7 +155,7 @@ export async function createClient(data: {
   name: string;
   socialName?: string;
   fancyName?: string;
-  cpfCnpj: string;
+  cpfCnpj?: string;
   stateRegistration?: string;
   municipalRegistration?: string;
   email: string;
@@ -149,16 +170,18 @@ export async function createClient(data: {
     const session = await requirePermission("clients.write");
     const parsed = clientCreateSchema.parse(data);
 
-    // Documento é sempre persistido sem máscara. Também reconhece registros
-    // legados enviados com a mesma máscara para evitar duplicidade.
-    const existing = await prisma.client.findFirst({
-      where: {
-        OR: [
-          { cpfCnpj: parsed.cpfCnpj },
-          { cpfCnpj: data.cpfCnpj.trim() },
-        ],
-      },
-    });
+    // Documento é opcional. Quando informado, é persistido sem máscara e
+    // validado contra registros normalizados e legados.
+    const existing = parsed.cpfCnpj
+      ? await prisma.client.findFirst({
+          where: {
+            OR: [
+              { cpfCnpj: parsed.cpfCnpj },
+              { cpfCnpj: data.cpfCnpj?.trim() || parsed.cpfCnpj },
+            ],
+          },
+        })
+      : null;
 
     if (existing) {
       throw new Error("Já existe um cliente cadastrado com este CPF/CNPJ.");
@@ -169,7 +192,7 @@ export async function createClient(data: {
         name: parsed.name,
         socialName: parsed.socialName || null,
         fancyName: parsed.fancyName || null,
-        cpfCnpj: parsed.cpfCnpj,
+        cpfCnpj: parsed.cpfCnpj || null,
         stateRegistration: parsed.stateRegistration || null,
         municipalRegistration: parsed.municipalRegistration || null,
         email: parsed.email,
@@ -202,6 +225,83 @@ export async function createClient(data: {
 }
 
 /**
+ * Atualiza o cadastro principal do cliente. O CPF/CNPJ pode ser incluído
+ * posteriormente ou removido enquanto o cadastro ainda for provisório.
+ */
+export async function updateClient(data: {
+  id: string;
+  name: string;
+  socialName?: string;
+  fancyName?: string;
+  cpfCnpj?: string;
+  stateRegistration?: string;
+  municipalRegistration?: string;
+  email: string;
+  phone: string;
+  whatsapp?: string;
+  segment?: string;
+  origin?: string;
+  notes?: string;
+}) {
+  try {
+    const session = await requirePermission("clients.write");
+    const parsed = clientCreateSchema.parse(data);
+    const current = await prisma.client.findUnique({ where: { id: data.id } });
+    if (!current) throw new Error("Cliente não encontrado.");
+
+    if (parsed.cpfCnpj) {
+      const duplicate = await prisma.client.findFirst({
+        where: {
+          id: { not: data.id },
+          OR: [
+            { cpfCnpj: parsed.cpfCnpj },
+            { cpfCnpj: data.cpfCnpj?.trim() || parsed.cpfCnpj },
+          ],
+        },
+        select: { id: true },
+      });
+      if (duplicate) throw new Error("Já existe outro cliente cadastrado com este CPF/CNPJ.");
+    }
+
+    const client = await prisma.client.update({
+      where: { id: data.id },
+      data: {
+        name: parsed.name,
+        socialName: parsed.socialName || null,
+        fancyName: parsed.fancyName || null,
+        cpfCnpj: parsed.cpfCnpj || null,
+        stateRegistration: parsed.stateRegistration || null,
+        municipalRegistration: parsed.municipalRegistration || null,
+        email: parsed.email,
+        phone: parsed.phone,
+        whatsapp: parsed.whatsapp || null,
+        segment: parsed.segment || null,
+        origin: parsed.origin || null,
+        notes: parsed.notes || null,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ATUALIZACAO",
+        entity: "Cliente",
+        entityId: client.id,
+        changesJson: JSON.stringify({ before: current, after: client }),
+      },
+    });
+
+    revalidatePath("/clientes");
+    revalidatePath("/orcamentos");
+    revalidatePath("/preventivas");
+    return { success: true, client };
+  } catch (error: any) {
+    logger.error("Erro ao atualizar cliente:", error);
+    return { success: false, error: error.issues?.[0]?.message || error.message };
+  }
+}
+
+/**
  * Cria cliente e endereço principal na mesma transação. Usado nos fluxos que
  * precisam gerar OS imediatamente, evitando cadastro parcial sem endereço.
  */
@@ -210,7 +310,7 @@ export async function createClientWithAddress(data: {
     name: string;
     socialName?: string;
     fancyName?: string;
-    cpfCnpj: string;
+    cpfCnpj?: string;
     email: string;
     phone: string;
     whatsapp?: string;
@@ -250,14 +350,16 @@ export async function createClientWithAddress(data: {
     }
 
     const created = await prisma.$transaction(async (tx) => {
-      const existing = await tx.client.findFirst({
-        where: {
-          OR: [
-            { cpfCnpj: client.cpfCnpj },
-            { cpfCnpj: data.client.cpfCnpj.trim() },
-          ],
-        },
-      });
+      const existing = client.cpfCnpj
+        ? await tx.client.findFirst({
+            where: {
+              OR: [
+                { cpfCnpj: client.cpfCnpj },
+                { cpfCnpj: data.client.cpfCnpj?.trim() || client.cpfCnpj },
+              ],
+            },
+          })
+        : null;
       if (existing) throw new Error("Já existe um cliente cadastrado com este CPF/CNPJ.");
 
       const newClient = await tx.client.create({
@@ -265,7 +367,7 @@ export async function createClientWithAddress(data: {
           name: client.name,
           socialName: client.socialName || null,
           fancyName: client.fancyName || null,
-          cpfCnpj: client.cpfCnpj,
+          cpfCnpj: client.cpfCnpj || null,
           email: client.email,
           phone: client.phone,
           whatsapp: client.whatsapp || null,
@@ -506,14 +608,14 @@ export async function consultarCNPJAction(cnpj: string) {
  */
 export async function syncClientFromCNPJ(clientId: string) {
   try {
-    const session = await requirePermission("clients.write");
+    const session = await requireAnyPermission(["clients.write", "quotes.write"]);
     const current = await prisma.client.findUnique({
       where: { id: clientId },
       include: { addresses: true },
     });
     if (!current) return { success: false, error: "Cliente não encontrado." };
 
-    const document = current.cpfCnpj.replace(/\D/g, "");
+    const document = current.cpfCnpj?.replace(/\D/g, "") || "";
     if (document.length !== 14) {
       return { success: false, error: "A atualização automática está disponível apenas para clientes com CNPJ." };
     }

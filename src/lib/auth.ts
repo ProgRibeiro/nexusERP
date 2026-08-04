@@ -90,3 +90,21 @@ export async function requirePermission(code: string): Promise<SessionPayload> {
   }
   return session;
 }
+
+/**
+ * Autoriza fluxos compartilhados por mais de um módulo. Administradores e
+ * usuários com qualquer uma das permissões informadas podem prosseguir.
+ */
+export async function requireAnyPermission(codes: string[]): Promise<SessionPayload> {
+  const session = await requireAuth();
+  const isAdmin =
+    session.roleName === "Administrador" || session.permissions.includes("admin.all");
+  if (!isAdmin && !codes.some((code) => session.permissions.includes(code))) {
+    logger.warn("permission_denied", { userId: session.userId, email: session.email, codes });
+    throw new AuthError(
+      "SEM_PERMISSAO",
+      `Você não tem permissão para executar esta ação (${codes.join(" ou ")}).`
+    );
+  }
+  return session;
+}

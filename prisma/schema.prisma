@@ -27,8 +27,17 @@ model User {
   activities          CrmActivity[]
   statusHistory       ServiceOrderStatusHistory[]
   serviceOrdersAsTech ServiceOrderTechnician[]
+  visitAssignments    VisitTechnician[]
+  visitStatusChanges  VisitStatusHistory[]
+  timeEntries         TimeEntry[]
+  locationEvents      LocationEvent[]
+  evidences           Evidence[]
+  measurementReadings MeasurementReading[]
+  formSubmissions     FormSubmission[]
   auditLogs           AuditLog[]
   importBatches       ImportBatch[]
+  emailIntegrations   EmailIntegration[]          @relation("EmailIntegrationConnector")
+  proposalEmails      ProposalEmail[]             @relation("ProposalEmailSender")
 }
 
 model Role {
@@ -51,7 +60,7 @@ model Client {
   name                  String
   socialName            String? // Razão Social
   fancyName             String? // Nome Fantasia
-  cpfCnpj               String               @unique
+  cpfCnpj               String?              @unique
   stateRegistration     String? // Inscrição Estadual
   municipalRegistration String? // Inscrição Municipal
   email                 String
@@ -71,6 +80,7 @@ model Client {
   invoices              Invoice[]
   accountsReceivable    AccountsReceivable[]
   contracts             Contract[]
+  storeProjects         ClientStoreProject[]
 }
 
 model ClientContact {
@@ -89,42 +99,126 @@ model ClientContact {
   updatedAt     DateTime       @updatedAt
   quotes        Quote[]
   serviceOrders ServiceOrder[]
+  contracts     Contract[]
 }
 
 model ClientAddress {
-  id            String         @id @default(uuid())
-  clientId      String
-  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  label         String // Principal, Cobrança, Execução, etc.
-  street        String
-  number        String
-  complement    String?
-  neighborhood  String
-  city          String
-  state         String
-  cep           String
-  reference     String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  quotes        Quote[]
-  serviceOrders ServiceOrder[]
+  id                  String               @id @default(uuid())
+  clientId            String
+  client              Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label               String // Principal, Cobrança, Execução, etc.
+  street              String
+  number              String
+  complement          String?
+  neighborhood        String
+  city                String
+  state               String
+  cep                 String
+  reference           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  quotes              Quote[]
+  serviceOrders       ServiceOrder[]
+  clientStoreProjects ClientStoreProject[]
+  contracts           Contract[]
 }
 
 model ClientEquipment {
-  id           String    @id @default(uuid())
-  clientId     String
-  client       Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  type         String // Ar Condicionado, Painel Elétrico, etc.
-  brand        String
-  model        String
-  serialNumber String
-  capacity     String? // e.g. 12000 BTU, 220V
-  tag          String? // Tag identificador interno
-  location     String? // Onde está instalado
-  installDate  DateTime?
-  notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                  String               @id @default(uuid())
+  clientId            String
+  client              Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type                String // Ar Condicionado, Painel Elétrico, etc.
+  brand               String
+  model               String
+  serialNumber        String
+  capacity            String? // e.g. 12000 BTU, 220V
+  tag                 String? // Tag identificador interno
+  location            String? // Onde está instalado
+  installDate         DateTime?
+  notes               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  serviceOrderLinks   ServiceOrderAsset[]
+  evidences           Evidence[]
+  measurementReadings MeasurementReading[]
+}
+
+// Projetos físicos das unidades atendidas. A planta é armazenada como uma
+// representação visual e cada ativo usa coordenadas percentuais, permanecendo
+// responsivo em computadores e tablets.
+model ClientStoreProject {
+  id                String         @id @default(uuid())
+  clientId          String
+  client            Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  addressId         String?
+  address           ClientAddress? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  contractId        String?
+  contract          Contract?      @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  name              String
+  description       String?
+  floorPlanData     String?
+  floorPlanFileName String?
+  floorPlanMimeType String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  assets            StoreAsset[]
+  serviceOrders     ServiceOrder[]
+
+  @@index([clientId, updatedAt])
+  @@index([contractId])
+}
+
+// Patrimônio genérico por projeto: climatização, iluminação, elétrica,
+// refrigeração, segurança e qualquer outro item mapeável na planta.
+model StoreAsset {
+  id                  String               @id @default(uuid())
+  projectId           String
+  project             ClientStoreProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  category            String
+  assetType           String?
+  name                String
+  brand               String?
+  model               String?
+  manufacturerCode    String?
+  serialNumber        String?
+  tag                 String?
+  quantity            Int                  @default(1)
+  unit                String               @default("UN")
+  criticality         String               @default("NORMAL")
+  status              String               @default("ATIVO")
+  location            String?
+  specificationsJson  String               @default("{}")
+  notes               String?
+  positionX           Float                @default(50)
+  positionY           Float                @default(50)
+  parentAssetId       String?
+  parentAsset         StoreAsset?          @relation("StoreAssetHierarchy", fields: [parentAssetId], references: [id], onDelete: Cascade)
+  components          StoreAsset[]         @relation("StoreAssetHierarchy")
+  photos              StoreAssetPhoto[]
+  serviceOrders       ServiceOrder[]
+  serviceOrderLinks   ServiceOrderAsset[]
+  evidences           Evidence[]
+  measurementReadings MeasurementReading[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([projectId, category])
+  @@index([projectId, assetType])
+  @@index([parentAssetId])
+}
+
+model StoreAssetPhoto {
+  id        String     @id @default(uuid())
+  assetId   String
+  asset     StoreAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  dataUrl   String
+  fileName  String?
+  mimeType  String?
+  caption   String?
+  isPrimary Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  @@index([assetId, createdAt])
 }
 
 // 3. CRM & Funil Comercial
@@ -213,6 +307,58 @@ model Quote {
   approvals          QuoteApproval[]
   serviceOrders      ServiceOrder[]
   accountsReceivable AccountsReceivable[]
+  emailDeliveries    ProposalEmail[]
+}
+
+// Integração de envio corporativo. Os tokens são sempre persistidos
+// criptografados pela aplicação; nunca ficam disponíveis para o navegador.
+model EmailIntegration {
+  id                    String          @id @default(uuid())
+  provider              String          @unique // GMAIL
+  email                 String
+  displayName           String?
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String?
+  tokenExpiresAt        DateTime?
+  scope                 String
+  tokenType             String          @default("Bearer")
+  active                Boolean         @default(true)
+  lastError             String?
+  connectedById         String
+  connectedBy           User            @relation("EmailIntegrationConnector", fields: [connectedById], references: [id])
+  deliveries            ProposalEmail[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@index([active, updatedAt])
+}
+
+model ProposalEmail {
+  id               String            @id @default(uuid())
+  quoteId          String
+  quote            Quote             @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  integrationId    String?
+  integration      EmailIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  senderEmail      String
+  recipientEmail   String
+  ccEmails         String?
+  subject          String
+  body             String
+  attachmentName   String?
+  attachmentSha256 String?
+  status           String            @default("PREPARANDO") // PREPARANDO, ENVIANDO, ENVIADO, FALHA
+  gmailMessageId   String?
+  gmailThreadId    String?
+  errorMessage     String?
+  sentById         String
+  sentBy           User              @relation("ProposalEmailSender", fields: [sentById], references: [id])
+  sentAt           DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([quoteId, createdAt])
+  @@index([status, createdAt])
+  @@index([sentById, createdAt])
 }
 
 model QuoteItem {
@@ -252,45 +398,63 @@ model QuoteApproval {
 
 // 5. Operacional & Ordem de Serviço (OS)
 model ServiceOrder {
-  id                 String                      @id @default(uuid())
-  code               String                      @unique // OS-2026-0001
-  quoteId            String?
-  quote              Quote?                      @relation(fields: [quoteId], references: [id])
-  clientId           String
-  client             Client                      @relation(fields: [clientId], references: [id])
-  addressId          String?
-  address            ClientAddress?              @relation(fields: [addressId], references: [id])
-  contactId          String?
-  contact            ClientContact?              @relation(fields: [contactId], references: [id])
-  status             String                      @default("CRIADA") // CRIADA, AGUARDANDO_AGENDAMENTO, AGENDADA, DESLOCAMENTO, EXECUCAO, PAUSADA, AGUARDANDO_PECA, AGUARDANDO_CLIENTE, RETORNO, CONCLUIDA, REVISAO, RELATORIO_ENVIADO, FATURAMENTO, FATURADA, CANCELADA
-  priority           String                      @default("MEDIA") // BAIXA, MEDIA, ALTA, URGENTE
-  type               String // INSTALACAO, PREVENTIVA, CORRETIVA, CONTRATO, VISITA_TECNICA, GARANTIA, RETORNO, EMERGENCIA, LAUDO_TECNICO, ORCAMENTO_TECNICO
-  scheduledDate      DateTime?
-  scheduledTime      String?
-  problemReported    String?
-  technicalDiagnosis String?
-  checklistJson      String                      @default("[]") // Saved checklist answers
-  signatureBase64    String? // Client signature
-  signatureName      String? // Person who signed
-  marginReal         Float                       @default(0.0)
-  faturamentoStatus  String                      @default("AGUARDANDO_FATURAMENTO") // AGUARDANDO_FATURAMENTO, CONFERENCIA, EMISSAO_NF, NF_EMITIDA, NF_ENVIADA
-  invoiceId          String?
-  notes              String?
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
-  completedAt        DateTime?
-  items              ServiceOrderItem[]
-  materials          ServiceOrderMaterial[]
-  photos             ServiceOrderPhoto[]
-  statusHistory      ServiceOrderStatusHistory[]
-  technicians        ServiceOrderTechnician[]
-  completionReport   CompletionReport?
-  invoices           Invoice[]
-  accountsReceivable AccountsReceivable[]
-  accountsPayable    AccountsPayable[]
-  stockMovements     StockMovement[]
-  contractId         String?
-  contract           Contract?                   @relation(fields: [contractId], references: [id])
+  id                  String                      @id @default(uuid())
+  code                String                      @unique // OS-2026-0001
+  quoteId             String?
+  quote               Quote?                      @relation(fields: [quoteId], references: [id])
+  clientId            String
+  client              Client                      @relation(fields: [clientId], references: [id])
+  addressId           String?
+  address             ClientAddress?              @relation(fields: [addressId], references: [id])
+  contactId           String?
+  contact             ClientContact?              @relation(fields: [contactId], references: [id])
+  status              String                      @default("CRIADA") // CRIADA, AGUARDANDO_AGENDAMENTO, AGENDADA, DESLOCAMENTO, EXECUCAO, PAUSADA, AGUARDANDO_PECA, AGUARDANDO_CLIENTE, RETORNO, CONCLUIDA, REVISAO, RELATORIO_ENVIADO, FATURAMENTO, FATURADA, CANCELADA
+  priority            String                      @default("MEDIA") // BAIXA, MEDIA, ALTA, URGENTE
+  type                String // INSTALACAO, PREVENTIVA, CORRETIVA, CONTRATO, VISITA_TECNICA, GARANTIA, RETORNO, EMERGENCIA, LAUDO_TECNICO, ORCAMENTO_TECNICO
+  scheduledDate       DateTime?
+  scheduledTime       String?
+  problemReported     String?
+  technicalDiagnosis  String?
+  checklistJson       String                      @default("[]") // Saved checklist answers
+  signatureBase64     String? // Client signature
+  signatureName       String? // Person who signed
+  marginReal          Float                       @default(0.0)
+  faturamentoStatus   String                      @default("AGUARDANDO_FATURAMENTO") // AGUARDANDO_FATURAMENTO, CONFERENCIA, EMISSAO_NF, NF_EMITIDA, NF_ENVIADA
+  invoiceId           String?
+  notes               String?
+  purchaseOrder       String?
+  billingMirrorJson   Json?
+  storeProjectId      String?
+  storeProject        ClientStoreProject?         @relation(fields: [storeProjectId], references: [id], onDelete: SetNull)
+  storeAssetId        String?
+  storeAsset          StoreAsset?                 @relation(fields: [storeAssetId], references: [id], onDelete: SetNull)
+  requestSource       String                      @default("INTERNO")
+  requesterName       String?
+  requesterEmail      String?
+  requesterPhone      String?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  completedAt         DateTime?
+  items               ServiceOrderItem[]
+  materials           ServiceOrderMaterial[]
+  photos              ServiceOrderPhoto[]
+  statusHistory       ServiceOrderStatusHistory[]
+  technicians         ServiceOrderTechnician[]
+  visits              ServiceVisit[]
+  serviceOrderAssets  ServiceOrderAsset[]
+  evidences           Evidence[]
+  measurementReadings MeasurementReading[]
+  completionReport    CompletionReport?
+  invoices            Invoice[]
+  accountsReceivable  AccountsReceivable[]
+  accountsPayable     AccountsPayable[]
+  stockMovements      StockMovement[]
+  contractId          String?
+  contract            Contract?                   @relation(fields: [contractId], references: [id])
+  formSubmissions     FormSubmission[]
+
+  @@index([storeProjectId])
+  @@index([storeAssetId])
 }
 
 model ServiceOrderItem {
@@ -346,6 +510,316 @@ model ServiceOrderTechnician {
   serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id])
+}
+
+// Uma OS representa o processo completo. Cada deslocamento/atendimento em
+// campo é uma visita independente, preservando equipe, agenda, tempos e
+// resultado mesmo quando existe retorno ao cliente.
+model ServiceVisit {
+  id                       String               @id @default(uuid())
+  serviceOrderId           String
+  serviceOrder             ServiceOrder         @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  number                   Int
+  kind                     String               @default("ATENDIMENTO") // ATENDIMENTO, DIAGNOSTICO, RETORNO, VISTORIA
+  status                   String               @default("NAO_AGENDADA") // NAO_AGENDADA, AGENDADA, ACEITA, EM_DESLOCAMENTO, NO_LOCAL, EM_EXECUCAO, PAUSADA, IMPEDIDA, CONCLUIDA, CANCELADA
+  scheduledStart           DateTime?
+  scheduledEnd             DateTime?
+  windowStart              DateTime?
+  windowEnd                DateTime?
+  estimatedDurationMinutes Int                  @default(60)
+  acceptedAt               DateTime?
+  travelStartedAt          DateTime?
+  arrivedAt                DateTime?
+  startedAt                DateTime?
+  pausedAt                 DateTime?
+  completedAt              DateTime?
+  cancelledAt              DateTime?
+  result                   String? // RESOLVIDO, RETORNO_NECESSARIO, IMPEDIMENTO, SEM_ACESSO
+  returnReason             String?
+  notes                    String?
+  checkinLatitude          Float?
+  checkinLongitude         Float?
+  checkoutLatitude         Float?
+  checkoutLongitude        Float?
+  sourceVisitId            String?
+  sourceVisit              ServiceVisit?        @relation("VisitReturnChain", fields: [sourceVisitId], references: [id], onDelete: SetNull)
+  returnVisits             ServiceVisit[]       @relation("VisitReturnChain")
+  technicians              VisitTechnician[]
+  statusHistory            VisitStatusHistory[]
+  timeEntries              TimeEntry[]
+  locationEvents           LocationEvent[]
+  evidences                Evidence[]
+  measurementReadings      MeasurementReading[]
+  formSubmissions          FormSubmission[]
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  @@unique([serviceOrderId, number])
+  @@index([status, scheduledStart])
+  @@index([sourceVisitId])
+}
+
+model VisitTechnician {
+  id         String       @id @default(uuid())
+  visitId    String
+  visit      ServiceVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       String       @default("TECNICO") // RESPONSAVEL, TECNICO, AUXILIAR
+  acceptedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  @@unique([visitId, userId])
+  @@index([userId, createdAt])
+}
+
+model VisitStatusHistory {
+  id            String       @id @default(uuid())
+  visitId       String
+  visit         ServiceVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  oldStatus     String
+  newStatus     String
+  changedById   String?
+  changedBy     User?        @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  justification String?
+  latitude      Float?
+  longitude     Float?
+  changedAt     DateTime     @default(now())
+
+  @@index([visitId, changedAt])
+}
+
+model TimeEntry {
+  id          String       @id @default(uuid())
+  visitId     String
+  visit       ServiceVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String // DESLOCAMENTO, EXECUCAO, PAUSA
+  startedAt   DateTime
+  endedAt     DateTime?
+  durationMin Int?
+  notes       String?
+  createdAt   DateTime     @default(now())
+
+  @@index([visitId, startedAt])
+  @@index([userId, startedAt])
+}
+
+model LocationEvent {
+  id        String       @id @default(uuid())
+  visitId   String
+  visit     ServiceVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // DESLOCAMENTO_INICIADO, CHECKIN, CHECKOUT, POSICAO
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  createdAt DateTime     @default(now())
+
+  @@index([visitId, createdAt])
+}
+
+// Liga uma OS a todos os ativos envolvidos. Durante a convergência, aceita
+// tanto o cadastro simples legado quanto o patrimônio técnico da loja.
+model ServiceOrderAsset {
+  id                String           @id @default(uuid())
+  serviceOrderId    String
+  serviceOrder      ServiceOrder     @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  storeAssetId      String?
+  storeAsset        StoreAsset?      @relation(fields: [storeAssetId], references: [id], onDelete: SetNull)
+  clientEquipmentId String?
+  clientEquipment   ClientEquipment? @relation(fields: [clientEquipmentId], references: [id], onDelete: SetNull)
+  isPrimary         Boolean          @default(false)
+  problem           String?
+  createdAt         DateTime         @default(now())
+
+  @@unique([serviceOrderId, storeAssetId])
+  @@unique([serviceOrderId, clientEquipmentId])
+  @@index([storeAssetId])
+  @@index([clientEquipmentId])
+}
+
+model Evidence {
+  id                String           @id @default(uuid())
+  serviceOrderId    String
+  serviceOrder      ServiceOrder     @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  visitId           String?
+  visit             ServiceVisit?    @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  storeAssetId      String?
+  storeAsset        StoreAsset?      @relation(fields: [storeAssetId], references: [id], onDelete: SetNull)
+  clientEquipmentId String?
+  clientEquipment   ClientEquipment? @relation(fields: [clientEquipmentId], references: [id], onDelete: SetNull)
+  authorId          String?
+  author            User?            @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  kind              String           @default("FOTO") // FOTO, ASSINATURA, DOCUMENTO, AUDIO
+  stage             String? // ANTES, DURANTE, DEPOIS, CHECKLIST, DIAGNOSTICO
+  fileUrl           String
+  fileName          String?
+  mimeType          String?
+  sizeBytes         Int?
+  sha256            String?
+  caption           String?
+  latitude          Float?
+  longitude         Float?
+  capturedAt        DateTime?
+  createdAt         DateTime         @default(now())
+
+  @@index([serviceOrderId, createdAt])
+  @@index([visitId, createdAt])
+  @@index([storeAssetId])
+  @@index([clientEquipmentId])
+}
+
+model MeasurementDefinition {
+  id        String               @id @default(uuid())
+  code      String               @unique
+  name      String
+  category  String
+  unit      String
+  minValue  Float?
+  maxValue  Float?
+  decimals  Int                  @default(2)
+  active    Boolean              @default(true)
+  readings  MeasurementReading[]
+  questions FormQuestion[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+// Formulários de campo são versionados para que mudanças futuras não alterem
+// o conteúdo nem a auditoria de visitas já executadas.
+model FormTemplate {
+  id            String        @id @default(uuid())
+  code          String        @unique
+  name          String
+  description   String?
+  category      String        @default("GERAL") // HVAC, ELETRICA, CIVIL, HIDRAULICA, GERAL
+  serviceType   String?
+  assetCategory String?
+  active        Boolean       @default(true)
+  versions      FormVersion[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model FormVersion {
+  id          String           @id @default(uuid())
+  templateId  String
+  template    FormTemplate     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  version     Int
+  status      String           @default("RASCUNHO") // RASCUNHO, PUBLICADO, ARQUIVADO
+  publishedAt DateTime?
+  sections    FormSection[]
+  submissions FormSubmission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([templateId, version])
+  @@index([status, publishedAt])
+}
+
+model FormSection {
+  id          String         @id @default(uuid())
+  versionId   String
+  version     FormVersion    @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  position    Int            @default(0)
+  questions   FormQuestion[]
+
+  @@index([versionId, position])
+}
+
+model FormQuestion {
+  id                      String                 @id @default(uuid())
+  sectionId               String
+  section                 FormSection            @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  code                    String
+  label                   String
+  helpText                String?
+  type                    String                 @default("CHECKBOX") // CHECKBOX, TEXT, LONG_TEXT, NUMBER, SELECT, MEASUREMENT
+  required                Boolean                @default(false)
+  position                Int                    @default(0)
+  optionsJson             String                 @default("[]")
+  measurementDefinitionId String?
+  measurementDefinition   MeasurementDefinition? @relation(fields: [measurementDefinitionId], references: [id], onDelete: SetNull)
+  answers                 FormAnswer[]
+
+  @@unique([sectionId, code])
+  @@index([sectionId, position])
+  @@index([measurementDefinitionId])
+}
+
+model FormSubmission {
+  id             String       @id @default(uuid())
+  versionId      String
+  version        FormVersion  @relation(fields: [versionId], references: [id])
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  visitId        String
+  visit          ServiceVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  submittedById  String?
+  submittedBy    User?        @relation(fields: [submittedById], references: [id], onDelete: SetNull)
+  status         String       @default("RASCUNHO") // RASCUNHO, ENVIADO
+  startedAt      DateTime     @default(now())
+  submittedAt    DateTime?
+  answers        FormAnswer[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([visitId, versionId])
+  @@index([serviceOrderId, status])
+  @@index([submittedById, updatedAt])
+}
+
+model FormAnswer {
+  id            String         @id @default(uuid())
+  submissionId  String
+  submission    FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      FormQuestion   @relation(fields: [questionId], references: [id])
+  valueText     String?
+  valueNumber   Float?
+  valueBoolean  Boolean?
+  valueJson     String?
+  notApplicable Boolean        @default(false)
+  answeredAt    DateTime       @default(now())
+
+  @@unique([submissionId, questionId])
+  @@index([questionId])
+}
+
+model MeasurementReading {
+  id                String                @id @default(uuid())
+  definitionId      String
+  definition        MeasurementDefinition @relation(fields: [definitionId], references: [id])
+  serviceOrderId    String
+  serviceOrder      ServiceOrder          @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  visitId           String?
+  visit             ServiceVisit?         @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  storeAssetId      String?
+  storeAsset        StoreAsset?           @relation(fields: [storeAssetId], references: [id], onDelete: SetNull)
+  clientEquipmentId String?
+  clientEquipment   ClientEquipment?      @relation(fields: [clientEquipmentId], references: [id], onDelete: SetNull)
+  recordedById      String?
+  recordedBy        User?                 @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  value             Float
+  rawValue          String?
+  status            String                @default("NORMAL") // NORMAL, ABAIXO, ACIMA, INVALIDO
+  recordedAt        DateTime              @default(now())
+
+  @@index([serviceOrderId, recordedAt])
+  @@index([visitId, recordedAt])
+  @@index([storeAssetId, recordedAt])
+  @@index([clientEquipmentId, recordedAt])
+}
+
+model SequenceCounter {
+  key       String   @id
+  value     Int
+  updatedAt DateTime @updatedAt
 }
 
 model CompletionReport {
@@ -475,6 +949,7 @@ model Product {
   id            String                 @id @default(uuid())
   code          String                 @unique // P-0001
   name          String
+  description   String?
   type          String                 @default("PECA") // PECA, MATERIAL, EQUIPAMENTO
   costPrice     Decimal                @default(0.0) @db.Decimal(10, 2)
   salePrice     Decimal                @default(0.0) @db.Decimal(10, 2)
@@ -531,20 +1006,41 @@ model Supplier {
 
 // 9. Contratos Recorrentes
 model Contract {
-  id            String         @id @default(uuid())
+  id            String               @id @default(uuid())
   clientId      String
-  client        Client         @relation(fields: [clientId], references: [id])
-  code          String         @unique // C-2026-0001
-  value         Decimal        @db.Decimal(10, 2)
-  billingPeriod String         @default("MENSAL") // MENSAL, TRIMESTRAL, ANUAL
+  client        Client               @relation(fields: [clientId], references: [id])
+  addressId     String?
+  address       ClientAddress?       @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  contactId     String?
+  contact       ClientContact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  code          String               @unique // C-2026-0001
+  value         Decimal              @db.Decimal(10, 2)
+  billingPeriod String               @default("MENSAL") // MENSAL, TRIMESTRAL, ANUAL
   startDate     DateTime
   endDate       DateTime
-  status        String         @default("ATIVO") // ATIVO, SUSPENSO, CANCELADO, VENCIDO
+  status        String               @default("ATIVO") // ATIVO, SUSPENSO, CANCELADO, VENCIDO
   notes         String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
   items         ContractItem[]
   serviceOrders ServiceOrder[]
+  storeProjects ClientStoreProject[]
+  portal        StorePortal?
+
+  @@index([addressId])
+  @@index([contactId])
+}
+
+model StorePortal {
+  id                  String    @id @default(uuid())
+  contractId          String    @unique
+  contract            Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  token               String    @unique @default(uuid())
+  enabled             Boolean   @default(true)
+  allowTicketCreation Boolean   @default(true)
+  lastAccessAt        DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 model ContractItem {

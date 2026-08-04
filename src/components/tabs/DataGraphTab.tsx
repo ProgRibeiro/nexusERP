@@ -5,7 +5,7 @@ import { getDataGraphAction, getImportBatchDetailsAction, getImportGraphHistoryA
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { AlertCircle, Boxes, ChevronRight, CircleDollarSign, FileCheck2, FileText, GitBranch, Loader2, Minus, Package, Plus, Receipt, RefreshCw, Search, UserRound, Users, Wrench } from "lucide-react";
 
-type ClientOption = { id: string; name: string; cpfCnpj: string; status: string };
+type ClientOption = { id: string; name: string; cpfCnpj: string | null; status: string };
 type ImportHistory = { id: string; type: string; status: string; total: number; created: number; updated: number; skipped: number; errors: number; createdAt: string; user: string };
 type ImportDetail = { id: string; rowNumber: number; status: string; entityType: string; entityId: string | null; label: string; error: string | null };
 

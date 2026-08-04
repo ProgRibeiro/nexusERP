@@ -8,7 +8,7 @@ import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Table, TableRow, TableCell } from "../ui/Table";
-import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw } from "lucide-react";
+import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, BookOpen, KeyRound, Server, Unplug } from "lucide-react";
 import { consultarCNPJAction } from "@/app/actions/clientActions";
 import { importClientsAction, importServicesAction, importProductsAction, parseImportFileAction, previewImportAction } from "@/app/actions/importActions";
 import { getBackupStatusAction, triggerBackupAction } from "@/app/actions/backupActions";
@@ -16,12 +16,26 @@ import type { BackupMetadata } from "@/lib/backup";
 import { parseDelimitedText } from "@/lib/tabularImport";
 import { getCompanyTaxProfile, saveCompanyTaxProfile } from "@/app/actions/settingsActions";
 import { defaultTaxRate, normalizeTaxRegime } from "@/lib/tax";
+import { disconnectGmail, getGmailIntegrationSettings } from "@/app/actions/gmailActions";
+
+type GmailSettings = Awaited<ReturnType<typeof getGmailIntegrationSettings>>;
 
 export default function ConfiguracoesTab() {
   const { user: currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
 
-  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "matrix" | "importador" | "security">("system");
+  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "matrix" | "importador" | "integrations" | "security">("system");
+
+  const [gmailSettings, setGmailSettings] = useState<GmailSettings | null>(null);
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [gmailDisconnecting, setGmailDisconnecting] = useState(false);
+
+  const loadGmailSettings = async () => {
+    setGmailLoading(true);
+    const result = await getGmailIntegrationSettings();
+    setGmailSettings(result);
+    setGmailLoading(false);
+  };
 
   // 2FA simulation state
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(() => {
@@ -46,8 +60,53 @@ export default function ConfiguracoesTab() {
   };
 
   useEffect(() => {
-    if (currentUser?.roleName === "Administrador") void loadBackupHistory();
+    if (currentUser?.roleName !== "Administrador") return;
+    const timer = window.setTimeout(() => {
+      void loadBackupHistory();
+      void loadGmailSettings();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [currentUser?.roleName]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmailResult = params.get("gmail");
+    if (!gmailResult) return;
+    const timer = window.setTimeout(() => {
+      setActiveSubTab("integrations");
+      if (gmailResult === "connected") toast("Conta Gmail conectada com sucesso.", "success");
+      else if (gmailResult === "not_configured") toast("Configure as credenciais OAuth antes de conectar.", "warning");
+      else toast(params.get("reason") || "Não foi possível conectar o Gmail.", "error");
+      void loadGmailSettings();
+      params.delete("gmail");
+      params.delete("reason");
+      const query = params.toString();
+      window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const handleCopyGmailValue = async (value: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast(`${label} copiada.`, "success");
+    } catch {
+      toast(`Não foi possível copiar ${label.toLowerCase()}.`, "warning");
+    }
+  };
+
+  const handleDisconnectGmail = async () => {
+    if (!window.confirm("Desconectar a conta Gmail do ERP? O histórico de envios continuará salvo.")) return;
+    setGmailDisconnecting(true);
+    const result = await disconnectGmail();
+    setGmailDisconnecting(false);
+    if (!result.success) {
+      toast(result.error, "error");
+      return;
+    }
+    toast("Conta Gmail desconectada. O histórico foi preservado.", "success");
+    await loadGmailSettings();
+  };
 
   const handleRunBackup = async () => {
     setBackupLoading(true);
@@ -448,6 +507,14 @@ export default function ConfiguracoesTab() {
             }`}
           >
             <FileSpreadsheet size={13} className="inline mr-1" /> Importar Planilhas
+          </button>
+          <button
+            onClick={() => setActiveSubTab("integrations")}
+            className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === "integrations" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
+            }`}
+          >
+            <Mail size={13} className="inline mr-1" /> Gmail & Integrações
           </button>
           <button
             onClick={() => setActiveSubTab("security")}
@@ -860,7 +927,119 @@ export default function ConfiguracoesTab() {
             </div>
           )}
 
-          {/* 5. Segurança & Autenticação (2FA) */}
+          {/* 5. Gmail e integrações externas */}
+          {activeSubTab === "integrations" && (
+            <div className="space-y-6">
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-blue-900 px-5 py-6 text-white sm:px-7">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-4">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15"><Mail size={22} /></span>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-black">Envio de propostas pelo Gmail</h3>
+                          {gmailSettings?.success && gmailSettings.connected ? (
+                            <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-300/25">Conectado</span>
+                          ) : gmailSettings?.success && gmailSettings.configured ? (
+                            <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-amber-200 ring-1 ring-amber-300/25">Aguardando autorização</span>
+                          ) : (
+                            <span className="rounded-full bg-slate-400/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-slate-300 ring-1 ring-white/15">Configuração pendente</span>
+                          )}
+                        </div>
+                        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-blue-100/80">Conecte a conta comercial para enviar a proposta com o PDF A4 anexado e manter o histórico completo dentro do orçamento.</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" loading={gmailLoading} onClick={() => void loadGmailSettings()}><RefreshCw size={14} /> Atualizar status</Button>
+                      {gmailSettings?.success && gmailSettings.configured && !gmailSettings.connected && (
+                        <Button onClick={() => window.location.assign("/api/integrations/gmail/connect?returnTo=%2Fconfiguracoes")}><Link2 size={14} /> Conectar Google</Button>
+                      )}
+                      {gmailSettings?.success && gmailSettings.connected && (
+                        <Button variant="danger" loading={gmailDisconnecting} onClick={() => void handleDisconnectGmail()}><Unplug size={14} /> Desconectar</Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 p-5 sm:grid-cols-3 sm:p-7">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/30">
+                    <p className="text-[9px] font-black uppercase tracking-wider text-zinc-400">Conta remetente</p>
+                    <p className="mt-2 truncate text-sm font-black text-zinc-900 dark:text-white">{gmailSettings?.success && gmailSettings.integration?.email ? gmailSettings.integration.email : "Nenhuma conta conectada"}</p>
+                    <p className="mt-1 text-[10px] text-zinc-500">{gmailSettings?.success && gmailSettings.integration?.displayName ? gmailSettings.integration.displayName : "Será definida na autorização Google"}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/30">
+                    <p className="text-[9px] font-black uppercase tracking-wider text-zinc-400">Propostas enviadas</p>
+                    <p className="mt-2 text-2xl font-black text-zinc-900 dark:text-white">{gmailSettings?.success ? gmailSettings.sentCount : 0}</p>
+                    <p className="mt-1 text-[10px] text-zinc-500">Envios confirmados e auditados</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/30">
+                    <p className="text-[9px] font-black uppercase tracking-wider text-zinc-400">Proteção</p>
+                    <p className="mt-2 flex items-center gap-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300"><ShieldCheck size={15} /> OAuth 2.0</p>
+                    <p className="mt-1 text-[10px] text-zinc-500">Sem guardar senha do Gmail</p>
+                  </div>
+                </div>
+
+                {gmailSettings?.success && gmailSettings.integration?.lastError && (
+                  <div className="mx-5 mb-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 sm:mx-7 sm:mb-7"><AlertCircle size={15} className="mt-0.5 shrink-0" /> <span><strong>Último aviso:</strong> {gmailSettings.integration.lastError}</span></div>
+                )}
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+                  <div className="flex items-start gap-3 border-b border-zinc-100 pb-4 dark:border-zinc-800">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"><BookOpen size={18} /></span>
+                    <div><h4 className="text-sm font-black text-zinc-900 dark:text-white">Manual rápido de configuração</h4><p className="mt-1 text-[11px] leading-relaxed text-zinc-500">Execute os passos na ordem. Os segredos ficam somente no servidor.</p></div>
+                  </div>
+
+                  <ol className="mt-5 space-y-4">
+                    {[
+                      { icon: ExternalLink, title: "Criar ou selecionar o projeto Google Cloud", text: "Abra o Google Cloud Console com a conta responsável pela empresa." },
+                      { icon: Send, title: "Ativar a Gmail API", text: "Em APIs e serviços, pesquise Gmail API e clique em Ativar." },
+                      { icon: ShieldCheck, title: "Configurar a tela de consentimento OAuth", text: "Informe o nome NX ERP, e-mail de suporte e adicione a conta remetente como usuário de teste enquanto o app estiver em teste." },
+                      { icon: KeyRound, title: "Criar credencial OAuth 2.0", text: "Escolha Aplicativo da Web e cadastre exatamente a URI de redirecionamento exibida abaixo." },
+                      { icon: Server, title: "Salvar as variáveis no servidor", text: "Preencha APP_BASE_URL, INTEGRATION_ENCRYPTION_KEY, GOOGLE_GMAIL_CLIENT_ID e GOOGLE_GMAIL_CLIENT_SECRET no arquivo .env e reinicie o ERP." },
+                      { icon: Link2, title: "Conectar e autorizar", text: "Volte nesta tela, clique em Conectar Google e aceite somente a permissão de envio de e-mail." },
+                    ].map((step, index) => (
+                      <li key={step.title} className="flex gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-950 text-[11px] font-black text-white dark:bg-blue-600">{index + 1}</span>
+                        <div className="min-w-0 pt-0.5"><p className="flex items-center gap-1.5 text-xs font-black text-zinc-850 dark:text-zinc-100"><step.icon size={13} className="text-blue-600" /> {step.title}</p><p className="mt-1 text-[11px] leading-relaxed text-zinc-500">{step.text}</p></div>
+                      </li>
+                    ))}
+                  </ol>
+
+                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="mt-5 inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-bold text-white transition hover:bg-blue-700"><ExternalLink size={14} /> Abrir credenciais do Google Cloud</a>
+                </section>
+
+                <div className="space-y-5">
+                  <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-zinc-800 dark:text-zinc-200">URI autorizada</h4>
+                    <p className="mt-1 text-[10px] leading-relaxed text-zinc-500">Cole este endereço no campo “URIs de redirecionamento autorizados” da credencial Google.</p>
+                    <div className="mt-3 flex items-start gap-2 rounded-xl bg-zinc-950 p-3">
+                      <code className="min-w-0 flex-1 break-all text-[11px] leading-relaxed text-sky-300">{gmailSettings?.success ? gmailSettings.redirectUri : "Carregando..."}</code>
+                      {gmailSettings?.success && <button type="button" onClick={() => void handleCopyGmailValue(gmailSettings.redirectUri, "URI")} className="rounded-lg p-2 text-zinc-400 hover:bg-white/10 hover:text-white" aria-label="Copiar URI"><Copy size={14} /></button>}
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-zinc-800 dark:text-zinc-200">Variáveis necessárias</h4>
+                    <div className="mt-3 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+                      {(gmailSettings?.success ? gmailSettings.requiredVariables : ["APP_BASE_URL", "INTEGRATION_ENCRYPTION_KEY", "GOOGLE_GMAIL_CLIENT_ID", "GOOGLE_GMAIL_CLIENT_SECRET"]).map((variable) => (
+                        <div key={variable} className="flex items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2.5 last:border-0 dark:border-zinc-800"><code className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300">{variable}</code><button type="button" onClick={() => void handleCopyGmailValue(variable, "Nome da variável")} className="text-zinc-400 hover:text-blue-600" aria-label={`Copiar ${variable}`}><Copy size={13} /></button></div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-[10px] leading-relaxed text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300"><ShieldCheck size={14} className="mt-0.5 shrink-0" /> Nunca envie o Client Secret por WhatsApp ou e-mail. Grave-o diretamente no servidor.</div>
+                  </section>
+
+                  <section className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 dark:border-blue-950 dark:bg-blue-950/20">
+                    <h4 className="text-xs font-black text-blue-900 dark:text-blue-200">Como testar depois de conectar</h4>
+                    <p className="mt-2 text-[11px] leading-relaxed text-blue-800/80 dark:text-blue-300/80">Abra <strong>Orçamentos</strong>, selecione uma proposta, clique em <strong>Enviar por Gmail</strong>, confira o destinatário e envie. O ERP anexará o PDF A4 e mostrará o resultado no histórico da própria proposta.</p>
+                  </section>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. Segurança & Autenticação (2FA) */}
           {activeSubTab === "security" && (
             <div className="space-y-6 max-w-lg select-none">
               <div>

@@ -12,7 +12,8 @@ import {
   payBill,
   createPayable,
   createReceivable,
-  estornoTransaction,
+  updatePayable,
+  updateReceivable,
   ReceivableDTO,
   PayableDTO
 } from "@/app/actions/financialActions";
@@ -28,7 +29,7 @@ import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Modal } from "../ui/Modal";
 import { InsightBar, Insight } from "../ui/InsightBar";
-import { DollarSign, Loader2, Plus, CheckCircle, TrendingUp, TrendingDown, Clock, Activity, Building, CreditCard, AlertTriangle } from "lucide-react";
+import { DollarSign, Loader2, Plus, TrendingUp, TrendingDown, Clock, Activity, Building, CreditCard, AlertTriangle, Edit } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 
 interface FinanceiroTabProps {
@@ -63,8 +64,8 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
   // Modals
   const [isLaunchOpen, setIsLaunchOpen] = useState(newRecord);
   const [selectedReceivable, setSelectedReceivable] = useState<ReceivableDTO | null>(null);
-  const [selectedPayable, setSelectedPayable] = useState<PayableDTO | null>(null);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
+  const [editingLaunch, setEditingLaunch] = useState<{ id: string; status: string; type: "RECEITA" | "DESPESA"; receivedValue?: number } | null>(null);
 
   // Unified Launch Form
   const [launchForm, setLaunchForm] = useState({
@@ -85,7 +86,10 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
   });
 
   useEffect(() => {
-    if (!newRecord) return;
+    if (!newRecord) {
+      setIsLaunchOpen(false);
+      return;
+    }
     const type = newType === "RECEITA" ? "RECEITA" : "DESPESA";
     setActiveSubTab(type === "RECEITA" ? "receber" : "pagar");
     setLaunchForm((current) => ({ ...current, type, clientId: clientId || current.clientId }));
@@ -149,20 +153,21 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
           setActionLoading(false);
           return;
         }
-        const res = await createPayable(
-          {
+        const payload = {
             providerName: launchForm.providerName,
             description: launchForm.description,
             category: launchForm.category,
             costCenter: launchForm.costCenter,
             value: parseFloat(launchForm.value) || 0,
             dueDate: new Date(launchForm.dueDate),
-          },
-          currentUser?.id || ""
-        );
+        };
+        const res = editingLaunch
+          ? await updatePayable(editingLaunch.id, payload)
+          : await createPayable(payload, currentUser?.id || "");
         if (res.success) {
-          toast("Despesa a pagar lançada com sucesso!", "success");
+          toast(editingLaunch ? "Conta a pagar atualizada com sucesso!" : "Despesa a pagar lançada com sucesso!", "success");
           setIsLaunchOpen(false);
+          setEditingLaunch(null);
           loadFinancialData();
         } else {
           toast(res.error || "Erro ao lançar despesa", "error");
@@ -173,20 +178,21 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
           setActionLoading(false);
           return;
         }
-        const res = await createReceivable(
-          {
+        const payload = {
             clientId: launchForm.clientId,
             totalValue: parseFloat(launchForm.value) || 0,
             dueDate: new Date(launchForm.dueDate),
             category: launchForm.category,
             costCenter: launchForm.costCenter,
             notes: launchForm.description,
-          },
-          currentUser?.id || ""
-        );
+        };
+        const res = editingLaunch
+          ? await updateReceivable(editingLaunch.id, payload)
+          : await createReceivable(payload, currentUser?.id || "");
         if (res.success) {
-          toast("Receita a receber lançada com sucesso!", "success");
+          toast(editingLaunch ? "Conta a receber atualizada com sucesso!" : "Receita a receber lançada com sucesso!", "success");
           setIsLaunchOpen(false);
+          setEditingLaunch(null);
           loadFinancialData();
         } else {
           toast(res.error || "Erro ao lançar receita", "error");
@@ -197,6 +203,42 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const dateForInput = (value: Date | string) => {
+    const date = new Date(value);
+    const offset = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+  };
+
+  const openReceivableEdit = (receivable: ReceivableDTO) => {
+    setEditingLaunch({ id: receivable.id, status: receivable.status, type: "RECEITA", receivedValue: receivable.receivedValue });
+    setLaunchForm({
+      type: "RECEITA",
+      providerName: "",
+      clientId: receivable.clientId,
+      description: receivable.notes || "",
+      category: receivable.category,
+      costCenter: receivable.costCenter,
+      value: String(receivable.totalValue),
+      dueDate: dateForInput(receivable.dueDate),
+    });
+    setIsLaunchOpen(true);
+  };
+
+  const openPayableEdit = (payable: PayableDTO) => {
+    setEditingLaunch({ id: payable.id, status: payable.status, type: "DESPESA" });
+    setLaunchForm({
+      type: "DESPESA",
+      providerName: payable.providerName,
+      clientId: "",
+      description: payable.description || "",
+      category: payable.category,
+      costCenter: payable.costCenter,
+      value: String(payable.value),
+      dueDate: dateForInput(payable.dueDate),
+    });
+    setIsLaunchOpen(true);
   };
 
   const handleReceive = async (e: React.FormEvent) => {
@@ -254,8 +296,8 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
 
   // Metrics
   const totalCash = bankAccounts.reduce((acc, b) => acc + b.balance, 0);
-  const totalReceivables = receivables.filter((r) => r.status === "PENDENTE" || r.status === "VENCIDO").reduce((acc, r) => acc + r.pendingValue, 0);
-  const totalPayables = payables.filter((p) => p.status === "PENDENTE" || p.status === "VENCIDO").reduce((acc, p) => acc + p.value, 0);
+  const totalReceivables = receivables.filter((r) => ["ABERTO", "PENDENTE", "VENCIDO", "PARCIAL"].includes(r.status)).reduce((acc, r) => acc + r.pendingValue, 0);
+  const totalPayables = payables.filter((p) => ["ABERTO", "PENDENTE", "VENCIDO"].includes(p.status)).reduce((acc, p) => acc + p.value, 0);
   const overdueCount = receivables.filter((r) => r.status === "VENCIDO").length;
 
   return (
@@ -269,6 +311,7 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
         </div>
         {hasPermission("financeiro.write") && (
           <Button variant="primary" onClick={() => {
+            setEditingLaunch(null);
             setLaunchForm({
               type: "DESPESA",
               providerName: "",
@@ -426,7 +469,7 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
                   {receivables.length === 0 ? (
                     <p className="text-xs text-zinc-400 text-center py-6">Nenhuma parcela a receber cadastrada.</p>
                   ) : (
-                    <Table headers={["Cliente", "Código OS", "Vencimento", "Valor da Parcela", "Status", "Faturamento"]}>
+                    <Table headers={["Cliente", "Código OS", "Vencimento", "Valor da Parcela", "Status", "Ações"]}>
                       {receivables.map((r) => (
                         <TableRow key={r.id}>
                           <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">{r.clientName}</TableCell>
@@ -435,23 +478,24 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
                           <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">{formatCurrency(r.totalValue)}</TableCell>
                           <TableCell><StatusBadge status={r.status} /></TableCell>
                           <TableCell>
-                            {r.status === "PENDENTE" || r.status === "VENCIDO" ? (
-                              <Button
-                                variant="success"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedReceivable(r);
-                                  setReceiveForm((prev) => ({ ...prev, receivedValue: r.pendingValue }));
-                                  setIsReceiveOpen(true);
-                                }}
-                              >
-                                Liquidar Parcela
-                              </Button>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold text-[9px] uppercase tracking-wider">
-                                Recebido
-                              </span>
-                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {hasPermission("financeiro.write") && <Button variant="secondary" size="sm" onClick={() => openReceivableEdit(r)}><Edit size={13} /> Editar</Button>}
+                              {["ABERTO", "PENDENTE", "VENCIDO", "PARCIAL"].includes(r.status) ? (
+                                <Button
+                                  variant="success"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedReceivable(r);
+                                    setReceiveForm((prev) => ({ ...prev, receivedValue: r.pendingValue }));
+                                    setIsReceiveOpen(true);
+                                  }}
+                                >
+                                  Liquidar Parcela
+                                </Button>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-bold text-[9px] uppercase tracking-wider">Recebido</span>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -481,15 +525,14 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
                           <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">{formatCurrency(p.value)}</TableCell>
                           <TableCell><StatusBadge status={p.status} /></TableCell>
                           <TableCell>
-                            {p.status === "PENDENTE" || p.status === "VENCIDO" ? (
-                              <Button variant="danger" size="sm" onClick={() => handlePay(p.id)} loading={actionLoading}>
-                                Baixar / Pagar
-                              </Button>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold text-[9px] uppercase tracking-wider">
-                                Pago / Baixado
-                              </span>
-                            )}
+                            <div className="flex flex-wrap gap-2">
+                              {hasPermission("financeiro.write") && <Button variant="secondary" size="sm" onClick={() => openPayableEdit(p)}><Edit size={13} /> Editar</Button>}
+                              {["ABERTO", "PENDENTE", "VENCIDO"].includes(p.status) ? (
+                                <Button variant="danger" size="sm" onClick={() => handlePay(p.id)} loading={actionLoading}>Baixar / Pagar</Button>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 font-bold text-[9px] uppercase tracking-wider">Pago / Baixado</span>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -616,13 +659,14 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
       </Card>
 
       {/* Unified Launch Modal */}
-      <Modal isOpen={isLaunchOpen} onClose={() => setIsLaunchOpen(false)} title="Novo Lançamento Financeiro">
+      <Modal isOpen={isLaunchOpen} onClose={() => { setIsLaunchOpen(false); setEditingLaunch(null); }} title={editingLaunch ? `Editar conta a ${editingLaunch.type === "RECEITA" ? "receber" : "pagar"}` : "Novo Lançamento Financeiro"}>
         <form onSubmit={handleLaunchSubmit} className="space-y-4">
 
           {/* Type Selector Toggle */}
           <div className="grid grid-cols-2 gap-2 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
             <button
               type="button"
+              disabled={Boolean(editingLaunch)}
               onClick={() => setLaunchForm((prev) => ({ ...prev, type: "RECEITA", category: "RECEITA_SERVICO" }))}
               className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 launchForm.type === "RECEITA"
@@ -634,6 +678,7 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
             </button>
             <button
               type="button"
+              disabled={Boolean(editingLaunch)}
               onClick={() => setLaunchForm((prev) => ({ ...prev, type: "DESPESA", category: "PECA" }))}
               className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 launchForm.type === "DESPESA"
@@ -675,6 +720,9 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
             <Input
               label="Valor (R$) *"
               type="number"
+              min={editingLaunch?.type === "RECEITA" ? Math.max(0.01, editingLaunch.receivedValue || 0) : 0.01}
+              step="0.01"
+              disabled={Boolean(editingLaunch && editingLaunch.type === "DESPESA" && ["PAGO", "ESTORNADO"].includes(editingLaunch.status))}
               required
               placeholder="0.00"
               value={launchForm.value}
@@ -730,8 +778,8 @@ export default function FinanceiroTab({ defaultTab = "visao", newRecord = false,
           </div>
 
           <div className="pt-4 flex justify-end gap-3">
-            <Button variant="secondary" type="button" onClick={() => setIsLaunchOpen(false)}>Cancelar</Button>
-            <Button variant="primary" type="submit" loading={actionLoading}>Salvar Lançamento</Button>
+            <Button variant="secondary" type="button" onClick={() => { setIsLaunchOpen(false); setEditingLaunch(null); }}>Cancelar</Button>
+            <Button variant="primary" type="submit" loading={actionLoading}>{editingLaunch ? "Salvar alterações" : "Salvar lançamento"}</Button>
           </div>
         </form>
       </Modal>

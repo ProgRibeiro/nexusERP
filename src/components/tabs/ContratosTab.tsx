@@ -65,7 +65,7 @@ export default function ContratosTab({ newRecord = false, requestId }: { newReco
   ]);
 
   useEffect(() => {
-    if (newRecord) setIsAddOpen(true);
+    setIsAddOpen(newRecord);
   }, [newRecord, requestId]);
 
   // Form State
@@ -119,7 +119,7 @@ export default function ContratosTab({ newRecord = false, requestId }: { newReco
       client.name.toLocaleLowerCase("pt-BR").includes(text) ||
       (client.fancyName || "").toLocaleLowerCase("pt-BR").includes(text) ||
       (client.socialName || "").toLocaleLowerCase("pt-BR").includes(text) ||
-      Boolean(document && client.cpfCnpj.replace(/\D/g, "").includes(document))
+      Boolean(document && client.cpfCnpj?.replace(/\D/g, "").includes(document))
     ).slice(0, 8);
   }, [clientQuery, clients]);
 
@@ -226,8 +226,8 @@ export default function ContratosTab({ newRecord = false, requestId }: { newReco
     e.preventDefault();
     const document = clientForm.cpfCnpj.replace(/\D/g, "");
     const address = clientForm.address;
-    if (![11, 14].includes(document.length)) {
-      toast("Informe um CPF com 11 ou CNPJ com 14 dígitos.", "warning");
+    if (document && ![11, 14].includes(document.length)) {
+      toast("Deixe o documento vazio ou informe um CPF com 11 ou CNPJ com 14 dígitos.", "warning");
       return;
     }
     if (!address.cep.trim() || !address.street.trim() || !address.number.trim() || !address.neighborhood.trim() || !address.city.trim() || address.state.trim().length !== 2) {
@@ -493,7 +493,7 @@ export default function ContratosTab({ newRecord = false, requestId }: { newReco
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{client.name}</span>
                           <span className="block truncate text-[11px] text-zinc-500">
-                            {client.cpfCnpj} {client.fancyName ? `· ${client.fancyName}` : ""}
+                            {client.cpfCnpj || "Documento não informado"} {client.fancyName ? `· ${client.fancyName}` : ""}
                           </span>
                         </span>
                         {contractForm.clientId === client.id && <Check size={16} className="shrink-0 text-primary" />}
@@ -519,7 +519,7 @@ export default function ContratosTab({ newRecord = false, requestId }: { newReco
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold text-zinc-900 dark:text-zinc-100">{selectedClient.name}</p>
-                    <p className="truncate text-[11px] text-zinc-500">{selectedClient.cpfCnpj} · {selectedClient.email}</p>
+                    <p className="truncate text-[11px] text-zinc-500">{selectedClient.cpfCnpj || "Documento não informado"} · {selectedClient.email}</p>
                   </div>
                   <span className="hidden rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 sm:block">Selecionado</span>
                 </div>
@@ -671,7 +671,7 @@ export default function ContratosTab({ newRecord = false, requestId }: { newReco
               </div>
               <div className="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
                 <div className="md:col-span-8">
-                  <Input label="CPF ou CNPJ *" required placeholder="Somente números ou formatado" value={clientForm.cpfCnpj} onChange={(e) => setClientForm((prev) => ({ ...prev, cpfCnpj: e.target.value }))} />
+                  <Input label="CPF ou CNPJ (opcional)" placeholder="Pode ser preenchido depois" value={clientForm.cpfCnpj} onChange={(e) => setClientForm((prev) => ({ ...prev, cpfCnpj: e.target.value }))} />
                 </div>
                 <div className="md:col-span-4">
                   <Button type="button" variant="secondary" className="w-full" loading={cnpjLoading} onClick={handleCnpjLookup}>

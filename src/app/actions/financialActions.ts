@@ -9,6 +9,7 @@ import { receivePaymentSchema, payBillSchema } from "@/lib/schemas";
 
 export interface ReceivableDTO {
   id: string;
+  clientId: string;
   clientName: string;
   osCode: string | null;
   totalValue: number;
@@ -20,6 +21,7 @@ export interface ReceivableDTO {
   paymentMethod: string | null;
   category: string;
   costCenter: string;
+  notes: string | null;
 }
 
 export interface PayableDTO {
@@ -51,6 +53,7 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
 
     return list.map((r) => ({
       id: r.id,
+      clientId: r.clientId,
       clientName: r.client.name,
       osCode: r.serviceOrder?.code || null,
       totalValue: Number(r.totalValue),
@@ -62,6 +65,7 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
       paymentMethod: r.paymentMethod,
       category: r.category,
       costCenter: r.costCenter,
+      notes: r.notes,
     }));
   } catch (error) {
     logger.error("Erro ao obter contas a receber:", error);
@@ -356,6 +360,58 @@ export async function createPayable(
   }
 }
 
+export async function updatePayable(
+  id: string,
+  data: {
+    providerName: string;
+    description: string;
+    category: string;
+    costCenter: string;
+    value: number;
+    dueDate: Date;
+  }
+) {
+  try {
+    const session = await requirePermission("financeiro.write");
+    const current = await prisma.accountsPayable.findUnique({ where: { id } });
+    if (!current) throw new Error("Conta a pagar não encontrada.");
+    if (!data.providerName.trim()) throw new Error("Informe o credor ou fornecedor.");
+    if (!Number.isFinite(data.value) || data.value <= 0) throw new Error("O valor deve ser maior que zero.");
+    if (Number.isNaN(data.dueDate.getTime())) throw new Error("Informe uma data de vencimento válida.");
+    if (["PAGO", "ESTORNADO"].includes(current.status) && Math.abs(Number(current.value) - data.value) > 0.001) {
+      throw new Error("O valor de uma conta já liquidada não pode ser alterado. Estorne o pagamento antes de corrigir o valor.");
+    }
+
+    const updated = await prisma.accountsPayable.update({
+      where: { id },
+      data: {
+        providerName: data.providerName.trim(),
+        description: data.description.trim(),
+        category: data.category,
+        costCenter: data.costCenter,
+        value: data.value,
+        dueDate: data.dueDate,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "EDICAO",
+        entity: "ContasPagar",
+        entityId: id,
+        changesJson: JSON.stringify({ before: current, after: updated }),
+      },
+    });
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+    return { success: true, payable: updated };
+  } catch (error: any) {
+    logger.error("Erro ao editar conta a pagar:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 /**
  * Estorna uma transação financeira (Cancelamento/Reversão de pagamento)
  * REGRAS DE NEGÓCIO EXIGIDAS:
@@ -508,6 +564,64 @@ export async function createReceivable(
     return { success: true, receivable };
   } catch (error: any) {
     logger.error("Erro ao criar conta a receber:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateReceivable(
+  id: string,
+  data: {
+    clientId: string;
+    totalValue: number;
+    dueDate: Date;
+    category: string;
+    costCenter: string;
+    notes?: string;
+  }
+) {
+  try {
+    const session = await requirePermission("financeiro.write");
+    const current = await prisma.accountsReceivable.findUnique({ where: { id } });
+    if (!current) throw new Error("Conta a receber não encontrada.");
+    if (!data.clientId) throw new Error("Selecione o cliente.");
+    if (!Number.isFinite(data.totalValue) || data.totalValue <= 0) throw new Error("O valor deve ser maior que zero.");
+    if (Number.isNaN(data.dueDate.getTime())) throw new Error("Informe uma data de vencimento válida.");
+
+    const receivedValue = Number(current.receivedValue);
+    if (data.totalValue + 0.001 < receivedValue) {
+      throw new Error(`O valor total não pode ser menor que o valor já recebido (R$ ${receivedValue.toFixed(2)}).`);
+    }
+    const pendingValue = Math.max(0, data.totalValue - receivedValue);
+    const status = pendingValue <= 0.01 ? "PAGO" : receivedValue > 0 ? "PARCIAL" : current.status === "VENCIDO" ? "VENCIDO" : "PENDENTE";
+
+    const updated = await prisma.accountsReceivable.update({
+      where: { id },
+      data: {
+        clientId: data.clientId,
+        totalValue: data.totalValue,
+        pendingValue,
+        dueDate: data.dueDate,
+        category: data.category,
+        costCenter: data.costCenter,
+        notes: data.notes?.trim() || null,
+        status,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "EDICAO",
+        entity: "ContasReceber",
+        entityId: id,
+        changesJson: JSON.stringify({ before: current, after: updated }),
+      },
+    });
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+    return { success: true, receivable: updated };
+  } catch (error: any) {
+    logger.error("Erro ao editar conta a receber:", error);
     return { success: false, error: error.message };
   }
 }

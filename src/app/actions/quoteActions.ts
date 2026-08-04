@@ -9,6 +9,8 @@ import { quoteCreateSchema, quoteItemSchema } from "@/lib/schemas";
 import { z } from "zod";
 import { calculateProposalTax } from "@/lib/tax";
 import { loadTaxProfile } from "@/lib/taxProfile";
+import { nextServiceOrderCode } from "@/lib/sequences";
+import { createInitialVisit } from "@/lib/visits";
 
 export interface QuoteItemInput {
   type: string; // SERVICO, PRODUTO, MAO_DE_OBRA, DESLOCAMENTO, IMPOSTO
@@ -18,6 +20,36 @@ export interface QuoteItemInput {
   unitPrice: number;
   costPrice: number;
   discount: number;
+}
+
+async function resolveClientRelations(clientId: string, addressId?: string, contactId?: string) {
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      addresses: { orderBy: { createdAt: "asc" } },
+      contacts: { orderBy: { createdAt: "asc" } },
+    },
+  });
+  if (!client) throw new Error("Cliente não encontrado.");
+
+  const addressPriorities = ["principal", "execução", "execucao", "sede", "cadastral"];
+  const preferredAddress = client.addresses.find((address) => {
+    const label = address.label.toLowerCase();
+    return addressPriorities.some((priority) => label.includes(priority));
+  }) || client.addresses[0] || null;
+  const preferredContact = client.contacts.find((contact) => contact.isApproval)
+    || client.contacts.find((contact) => contact.isTechnical)
+    || client.contacts[0]
+    || null;
+
+  return {
+    addressId: client.addresses.some((address) => address.id === addressId)
+      ? addressId!
+      : preferredAddress?.id,
+    contactId: client.contacts.some((contact) => contact.id === contactId)
+      ? contactId!
+      : preferredContact?.id,
+  };
 }
 
 /**
@@ -116,6 +148,7 @@ export async function createQuote(
     userId = session.userId; // nunca confiar no valor vindo do client
     quoteCreateSchema.parse(data);
     z.array(quoteItemSchema).min(1, "O orçamento precisa de ao menos um item.").parse(items);
+    const relations = await resolveClientRelations(data.clientId, data.addressId, data.contactId);
 
     const count = await prisma.quote.count();
     const code = `Q-2026-${String(count + 1).padStart(4, "0")}`;
@@ -196,8 +229,8 @@ export async function createQuote(
       data: {
         code,
         clientId: data.clientId,
-        addressId: data.addressId || null,
-        contactId: data.contactId || null,
+        addressId: relations.addressId || null,
+        contactId: relations.contactId || null,
         status: "RASCUNHO",
         validUntil,
         warrantyDays: data.warrantyDays || 90,
@@ -333,13 +366,20 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
       throw new Error(`Este orçamento já está convertido na OS ativa: ${activeOS.code}. Operação bloqueada.`);
     }
 
-    // Validações obrigatórias
-    if (!quote.addressId) throw new Error("O orçamento precisa de um endereço de execução vinculado para gerar a OS.");
-    if (quote.items.length === 0) throw new Error("O orçamento precisa conter pelo menos um item faturável.");
+    const relations = await resolveClientRelations(quote.clientId, quote.addressId || undefined, quote.contactId || undefined);
+    if (relations.addressId !== quote.addressId || relations.contactId !== quote.contactId) {
+      await prisma.quote.update({
+        where: { id: quote.id },
+        data: {
+          addressId: relations.addressId || null,
+          contactId: relations.contactId || null,
+        },
+      });
+    }
 
-    // 2. Criar a Ordem de Serviço
-    const count = await prisma.serviceOrder.count();
-    const osCode = `OS-2026-${String(count + 1).padStart(4, "0")}`;
+    // Validações obrigatórias
+    if (!relations.addressId) throw new Error("O cliente precisa possuir um endereço cadastrado para gerar a OS.");
+    if (quote.items.length === 0) throw new Error("O orçamento precisa conter pelo menos um item faturável.");
 
     // Determinar o tipo de OS com base no tipo de serviço mais frequente ou padrão
     const services = quote.items.filter((item) => item.type === "SERVICO");
@@ -357,24 +397,35 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
       }
     }
 
-    // Criar a OS no banco
-    const os = await prisma.serviceOrder.create({
-      data: {
-        code: osCode,
-        quoteId: quote.id,
-        clientId: quote.clientId,
-        addressId: quote.addressId,
-        contactId: quote.contactId || null,
-        status: "CRIADA", // Status inicial padrão
-        priority: "MEDIA",
-        type: osType,
-        checklistJson: JSON.stringify(preventiveChecklist),
-        problemReported: `Serviço gerado a partir do Orçamento ${quote.code}.\n\nItens vendidos:\n${quote.items
-          .map((i) => `- ${i.description} (${i.quantity}x)`)
-          .join("\n")}\n\nObservações gerais: ${quote.notes || "Sem observações."}`,
-        notes: `Condições de pagamento: ${quote.paymentTerms || "Padrão"}. Garantia acordada: ${quote.warrantyDays} dias.`,
-      },
+    // O código e a OS nascem na mesma transação para impedir colisões.
+    const os = await prisma.$transaction(async (tx) => {
+      const osCode = await nextServiceOrderCode(tx);
+      const created = await tx.serviceOrder.create({
+        data: {
+          code: osCode,
+          quoteId: quote.id,
+          clientId: quote.clientId,
+          addressId: relations.addressId,
+          contactId: relations.contactId || null,
+          status: "CRIADA",
+          priority: "MEDIA",
+          type: osType,
+          checklistJson: JSON.stringify(preventiveChecklist),
+          problemReported: `Serviço gerado a partir do Orçamento ${quote.code}.\n\nItens vendidos:\n${quote.items
+            .map((i) => `- ${i.description} (${i.quantity}x)`)
+            .join("\n")}\n\nObservações gerais: ${quote.notes || "Sem observações."}`,
+          notes: `Condições de pagamento: ${quote.paymentTerms || "Padrão"}. Garantia acordada: ${quote.warrantyDays} dias.`,
+        },
+      });
+      await createInitialVisit(tx, {
+        serviceOrderId: created.id,
+        status: created.status,
+        kind: osType === "PREVENTIVA" ? "VISTORIA" : "ATENDIMENTO",
+        changedById: userId,
+      });
+      return created;
     });
+    const osCode = os.code;
 
     // 3. Clona itens de serviço do orçamento como ServiceOrderItems
     const osItems = services.map((s) => ({
@@ -497,14 +548,24 @@ export async function getQuoteCatalog() {
     await requireAuth();
 
     const products = await prisma.product.findMany({
-      select: { name: true, salePrice: true, costPrice: true, unit: true },
+      select: { id: true, code: true, name: true, description: true, type: true, salePrice: true, costPrice: true, unit: true, stockQuantity: true, minStock: true },
       orderBy: { name: "asc" }
     });
     const services = await prisma.service.findMany({
-      select: { name: true, defaultPrice: true },
+      select: { id: true, name: true, description: true, category: true, maintenanceType: true, billingUnit: true, estimatedHours: true, defaultPrice: true },
       orderBy: { name: "asc" }
     });
-    return { products, services };
+    return {
+      products: products.map((product) => ({
+        ...product,
+        salePrice: Number(product.salePrice),
+        costPrice: Number(product.costPrice),
+      })),
+      services: services.map((service) => ({
+        ...service,
+        defaultPrice: Number(service.defaultPrice),
+      })),
+    };
   } catch (error) {
     logger.error("Erro ao obter catálogo:", error);
     return { products: [], services: [] };
@@ -583,43 +644,81 @@ export async function registerCatalogItem(data: {
   price: number;
   cost?: number;
   unit?: string;
+  description?: string;
+  category?: string;
+  maintenanceType?: string;
+  estimatedHours?: number;
+  productType?: string;
+  stockQuantity?: number;
+  minStock?: number;
 }) {
   try {
-    await requirePermission("quotes.write");
+    const session = await requirePermission("quotes.write");
+    const name = data.name.trim();
+    if (name.length < 2) return { success: false, error: "Informe um nome válido para o item." };
+    if (!Number.isFinite(data.price) || data.price < 0) return { success: false, error: "Informe um preço de venda válido." };
 
     if (data.type === "SERVICO") {
       const exists = await prisma.service.findFirst({
-        where: { name: { equals: data.name } }
+        where: { name: { equals: name, mode: "insensitive" } }
       });
       if (exists) {
         return { success: false, error: "Serviço já cadastrado com este nome." };
       }
       const service = await prisma.service.create({
         data: {
-          name: data.name,
+          name,
+          description: data.description?.trim() || null,
+          category: data.category?.trim() || null,
+          maintenanceType: data.maintenanceType?.trim() || null,
+          billingUnit: data.unit?.trim().toUpperCase() || "SERVIÇO",
+          estimatedHours: data.estimatedHours && data.estimatedHours > 0 ? data.estimatedHours : null,
           defaultPrice: data.price,
         }
       });
-      return { success: true, item: { name: service.name, price: service.defaultPrice, type: "SERVICO" } };
+      await prisma.auditLog.create({
+        data: { userId: session.userId, action: "CRIACAO", entity: "Servico", entityId: service.id, changesJson: JSON.stringify(service) },
+      });
+      revalidatePath("/orcamentos");
+      revalidatePath("/servicos");
+      return { success: true, item: { name: service.name, price: Number(service.defaultPrice), type: "SERVICO", unit: service.billingUnit || "SERVIÇO", costPrice: 0 } };
     } else {
       const exists = await prisma.product.findFirst({
-        where: { name: { equals: data.name } }
+        where: { name: { equals: name, mode: "insensitive" } }
       });
       if (exists) {
         return { success: false, error: "Peça já cadastrada com este nome." };
       }
-      const prodCount = await prisma.product.count();
-      const product = await prisma.product.create({
-        data: {
-          code: `P-${String(prodCount + 1).padStart(4, "0")}`,
-          name: data.name,
-          type: "PECA",
-          salePrice: data.price,
-          costPrice: data.cost || (data.price * 0.6),
-          unit: data.unit || "UN",
-          stockQuantity: 0,
+      const productCodes = await prisma.product.findMany({ where: { code: { startsWith: "P-" } }, select: { code: true } });
+      const lastNumber = Math.max(0, ...productCodes.map((product) => Number(product.code.match(/(\d+)$/)?.[1] || 0)));
+      const code = `P-${String(lastNumber + 1).padStart(4, "0")}`;
+      const initialStock = Math.max(0, data.stockQuantity || 0);
+      const product = await prisma.$transaction(async (tx) => {
+        const created = await tx.product.create({
+          data: {
+            code,
+            name,
+            description: data.description?.trim() || null,
+            type: data.productType || "MATERIAL",
+            salePrice: data.price,
+            costPrice: data.cost ?? 0,
+            unit: data.unit?.trim().toUpperCase() || "UN",
+            stockQuantity: initialStock,
+            minStock: Math.max(0, data.minStock || 0),
+          }
+        });
+        if (initialStock > 0) {
+          await tx.stockMovement.create({
+            data: { productId: created.id, type: "ENTRADA", quantity: initialStock, reason: "AJUSTE", cost: data.cost ?? 0, date: new Date() },
+          });
         }
+        await tx.auditLog.create({
+          data: { userId: session.userId, action: "CRIACAO", entity: "Produto", entityId: created.id, changesJson: JSON.stringify(created) },
+        });
+        return created;
       });
+      revalidatePath("/orcamentos");
+      revalidatePath("/estoque");
       return {
         success: true,
         item: {
@@ -660,6 +759,7 @@ export async function updateQuote(
   try {
     const session = await requirePermission("quotes.write");
     userId = session.userId; // nunca confiar no valor vindo do client
+    const relations = await resolveClientRelations(data.clientId, data.addressId, data.contactId);
 
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + (data.validityDays || 15));
@@ -706,8 +806,8 @@ export async function updateQuote(
         where: { id: quoteId },
         data: {
           clientId: data.clientId,
-          addressId: data.addressId || null,
-          contactId: data.contactId || null,
+          addressId: relations.addressId || null,
+          contactId: relations.contactId || null,
           validUntil,
           warrantyDays: data.warrantyDays || 90,
           executionTerm: data.executionTerm,

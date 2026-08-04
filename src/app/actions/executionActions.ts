@@ -8,18 +8,38 @@ import { requireAuth } from "@/lib/auth";
 import { saveBase64Asset } from "@/lib/storage";
 
 export interface PhotoInput {
-  step: "ANTES" | "DEPOS" | "EVIDENCIA";
+  step: "ANTES" | "DEPOIS" | "EVIDENCIA";
   url: string; // base64 or mocked url
   caption: string;
 }
 
-async function assertTechnicianAccess(osId: string, userId: string, roleName: string, permissions: string[]) {
-  const privileged = roleName === "Administrador" || roleName === "Gestor" || permissions.includes("admin.all");
-  if (privileged) return;
-  const assignment = await prisma.serviceOrderTechnician.findFirst({
-    where: { serviceOrderId: osId, userId },
+interface FieldFormAnswerInput {
+  questionId: string;
+  value: string | number | boolean | null;
+  notApplicable?: boolean;
+}
+
+interface LocationInput {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+}
+
+async function resolveVisit(identifier: string, userId: string, roleName: string, permissions: string[]) {
+  const visit = await prisma.serviceVisit.findUnique({
+    where: { id: identifier },
+    include: { technicians: true, serviceOrder: true },
+  }) || await prisma.serviceVisit.findFirst({
+    where: { serviceOrderId: identifier, status: { notIn: ["CONCLUIDA", "CANCELADA"] } },
+    include: { technicians: true, serviceOrder: true },
+    orderBy: { number: "desc" },
   });
-  if (!assignment) throw new Error("Esta OS não está atribuída ao técnico conectado.");
+  if (!visit) throw new Error("Visita de serviço não encontrada.");
+  const privileged = roleName === "Administrador" || roleName === "Gestor" || permissions.includes("admin.all");
+  if (!privileged && !visit.technicians.some((assignment) => assignment.userId === userId)) {
+    throw new Error("Esta visita não está atribuída ao técnico conectado.");
+  }
+  return visit;
 }
 
 /**
@@ -33,32 +53,54 @@ export async function getTechnicianOS(techUserId: string) {
     const isPrivileged = session.roleName === "Administrador" || session.roleName === "Gestor" || session.permissions.includes("admin.all");
     const effectiveTechId = isPrivileged ? techUserId : session.userId;
 
-    const assignments = await prisma.serviceOrderTechnician.findMany({
+    const assignments = await prisma.visitTechnician.findMany({
       where: { userId: effectiveTechId },
       include: {
-        serviceOrder: {
+        visit: {
           include: {
-            client: true,
-            address: true,
+            serviceOrder: {
+              include: {
+                client: true,
+                address: true,
+                serviceOrderAssets: {
+                  include: { storeAsset: true, clientEquipment: true },
+                },
+              },
+            },
           },
         },
       },
+      orderBy: { visit: { scheduledStart: "asc" } },
     });
 
-    return assignments.map((a) => ({
-      id: a.serviceOrder.id,
-      code: a.serviceOrder.code,
-      clientName: a.serviceOrder.client.name,
-      status: a.serviceOrder.status,
-      type: a.serviceOrder.type,
-      priority: a.serviceOrder.priority,
-      scheduledDate: a.serviceOrder.scheduledDate,
-      scheduledTime: a.serviceOrder.scheduledTime,
-      addressLabel: a.serviceOrder.address?.label || "Sem local",
-      addressText: a.serviceOrder.address
-        ? `${a.serviceOrder.address.street}, ${a.serviceOrder.address.number} - ${a.serviceOrder.address.city}`
+    return assignments
+      .filter((assignment) => !["CONCLUIDA", "CANCELADA"].includes(assignment.visit.status))
+      .map((assignment) => {
+      const visit = assignment.visit;
+      const order = visit.serviceOrder;
+      const primaryAsset = order.serviceOrderAssets.find((item) => item.isPrimary) || order.serviceOrderAssets[0];
+      return {
+      id: visit.id,
+      visitId: visit.id,
+      osId: order.id,
+      visitNumber: visit.number,
+      code: order.code,
+      clientName: order.client.name,
+      status: visit.status,
+      serviceOrderStatus: order.status,
+      type: order.type,
+      priority: order.priority,
+      problemReported: order.problemReported,
+      scheduledDate: visit.scheduledStart,
+      scheduledTime: visit.scheduledStart?.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false }),
+      estimatedDurationMinutes: visit.estimatedDurationMinutes,
+      addressLabel: order.address?.label || "Sem local",
+      addressText: order.address
+        ? `${order.address.street}, ${order.address.number} - ${order.address.city}`
         : "Endereço não disponível",
-    }));
+      assetName: primaryAsset?.storeAsset?.name || primaryAsset?.clientEquipment?.type || null,
+      syncStatus: "SINCRONIZADO",
+    };});
   } catch (error) {
     logger.error("Erro ao obter OS do técnico:", error);
     return [];
@@ -68,24 +110,44 @@ export async function getTechnicianOS(techUserId: string) {
 /**
  * Registra o início do deslocamento do técnico
  */
-export async function makeOSCheckin(osId: string, userId: string) {
+export async function makeOSCheckin(visitId: string, userId: string, location?: LocationInput) {
   try {
     const session = await requireAuth();
     userId = session.userId; // nunca confiar no valor vindo do client
-    await assertTechnicianAccess(osId, userId, session.roleName, session.permissions);
-    const os = await prisma.serviceOrder.findUnique({ where: { id: osId } });
-    if (!os) throw new Error("Ordem de serviço não encontrada.");
-    if (os.status !== "AGENDADA") throw new Error("Apenas uma OS agendada pode iniciar deslocamento.");
+    const visit = await resolveVisit(visitId, userId, session.roleName, session.permissions);
+    if (!["AGENDADA", "ACEITA"].includes(visit.status)) throw new Error("Apenas uma visita agendada ou aceita pode iniciar deslocamento.");
+    const now = new Date();
 
     const updatedOS = await prisma.$transaction(async (tx) => {
-      const updated = await tx.serviceOrder.update({ where: { id: osId }, data: { status: "DESLOCAMENTO" } });
+      await tx.serviceVisit.update({
+        where: { id: visit.id },
+        data: { status: "EM_DESLOCAMENTO", travelStartedAt: now },
+      });
+      await tx.visitStatusHistory.create({
+        data: {
+          visitId: visit.id,
+          oldStatus: visit.status,
+          newStatus: "EM_DESLOCAMENTO",
+          changedById: userId,
+          justification: "Técnico iniciou o deslocamento para o atendimento.",
+          latitude: location?.latitude,
+          longitude: location?.longitude,
+        },
+      });
+      await tx.timeEntry.create({ data: { visitId: visit.id, userId, type: "DESLOCAMENTO", startedAt: now } });
+      if (location) {
+        await tx.locationEvent.create({
+          data: { visitId: visit.id, userId, type: "DESLOCAMENTO_INICIADO", latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy },
+        });
+      }
+      const updated = await tx.serviceOrder.update({ where: { id: visit.serviceOrderId }, data: { status: "DESLOCAMENTO" } });
       await tx.serviceOrderStatusHistory.create({
         data: {
-          serviceOrderId: osId,
-          oldStatus: os.status,
+          serviceOrderId: visit.serviceOrderId,
+          oldStatus: visit.serviceOrder.status,
           newStatus: "DESLOCAMENTO",
           changedById: userId,
-          justification: "Técnico iniciou deslocamento para o local do cliente.",
+          justification: `Visita ${visit.number}: técnico iniciou deslocamento para o local do cliente.`,
         },
       });
       return updated;
@@ -103,26 +165,53 @@ export async function makeOSCheckin(osId: string, userId: string) {
 /**
  * Registra a chegada do técnico e o início da execução
  */
-export async function makeOSStartExecution(osId: string, userId: string) {
+export async function makeOSStartExecution(visitId: string, userId: string, location?: LocationInput) {
   try {
     const session = await requireAuth();
     userId = session.userId; // nunca confiar no valor vindo do client
-    await assertTechnicianAccess(osId, userId, session.roleName, session.permissions);
-    const os = await prisma.serviceOrder.findUnique({ where: { id: osId } });
-    if (!os) throw new Error("Ordem de serviço não encontrada.");
-    if (!["DESLOCAMENTO", "AGENDADA"].includes(os.status)) {
-      throw new Error("A OS precisa estar agendada ou em deslocamento para iniciar a execução.");
+    const visit = await resolveVisit(visitId, userId, session.roleName, session.permissions);
+    if (!["EM_DESLOCAMENTO", "AGENDADA", "ACEITA", "NO_LOCAL", "PAUSADA"].includes(visit.status)) {
+      throw new Error("A visita precisa estar agendada, no local ou pausada para iniciar a execução.");
     }
+    const now = new Date();
 
     const updatedOS = await prisma.$transaction(async (tx) => {
-      const updated = await tx.serviceOrder.update({ where: { id: osId }, data: { status: "EXECUCAO" } });
+      await tx.timeEntry.updateMany({ where: { visitId: visit.id, endedAt: null }, data: { endedAt: now } });
+      await tx.timeEntry.create({ data: { visitId: visit.id, userId, type: "EXECUCAO", startedAt: now } });
+      await tx.serviceVisit.update({
+        where: { id: visit.id },
+        data: {
+          status: "EM_EXECUCAO",
+          arrivedAt: visit.arrivedAt || now,
+          startedAt: visit.startedAt || now,
+          checkinLatitude: location?.latitude ?? visit.checkinLatitude,
+          checkinLongitude: location?.longitude ?? visit.checkinLongitude,
+        },
+      });
+      await tx.visitStatusHistory.create({
+        data: {
+          visitId: visit.id,
+          oldStatus: visit.status,
+          newStatus: "EM_EXECUCAO",
+          changedById: userId,
+          justification: visit.status === "PAUSADA" ? "Técnico retomou a execução." : "Técnico confirmou a chegada e iniciou a execução.",
+          latitude: location?.latitude,
+          longitude: location?.longitude,
+        },
+      });
+      if (location) {
+        await tx.locationEvent.create({
+          data: { visitId: visit.id, userId, type: "CHECKIN", latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy },
+        });
+      }
+      const updated = await tx.serviceOrder.update({ where: { id: visit.serviceOrderId }, data: { status: "EXECUCAO" } });
       await tx.serviceOrderStatusHistory.create({
         data: {
-          serviceOrderId: osId,
-          oldStatus: os.status,
+          serviceOrderId: visit.serviceOrderId,
+          oldStatus: visit.serviceOrder.status,
           newStatus: "EXECUCAO",
           changedById: userId,
-          justification: "Técnico chegou ao local e iniciou os serviços.",
+          justification: `Visita ${visit.number}: técnico chegou ao local e iniciou os serviços.`,
         },
       });
       return updated;
@@ -141,7 +230,7 @@ export async function makeOSStartExecution(osId: string, userId: string) {
  * Finaliza a execução técnica salvando laudos, checklists, fotos, assinatura e gerando o Relatório de Conclusão.
  */
 export async function submitTechnicalExecution(
-  osId: string,
+  visitOrOsId: string,
   data: {
     technicalDiagnosis: string;
     checklistJson: string;
@@ -151,15 +240,19 @@ export async function submitTechnicalExecution(
     signatureName: string;
     clientFeedback?: string;
     userId: string;
+    measurements?: Array<{ definitionCode: string; value: number; rawValue?: string }>;
+    formSubmissionId?: string;
+    formAnswers?: FieldFormAnswerInput[];
   }
 ) {
   try {
     const session = await requireAuth();
     data.userId = session.userId; // nunca confiar no valor vindo do client
-    await assertTechnicianAccess(osId, data.userId, session.roleName, session.permissions);
+    const visit = await resolveVisit(visitOrOsId, data.userId, session.roleName, session.permissions);
+    const osId = visit.serviceOrderId;
     const currentOS = await prisma.serviceOrder.findUnique({ where: { id: osId } });
     if (!currentOS) throw new Error("Ordem de serviço não encontrada.");
-    if (currentOS.status !== "EXECUCAO") throw new Error("A OS precisa estar em execução para ser concluída.");
+    if (visit.status !== "EM_EXECUCAO") throw new Error("A visita precisa estar em execução para ser concluída.");
     if (!data.technicalDiagnosis.trim()) throw new Error("Preencha o diagnóstico técnico.");
     if (!data.signatureBase64 || !data.signatureName.trim()) throw new Error("Colete a assinatura e informe o nome do cliente.");
     let submittedChecklist: Array<{ checked?: boolean }> = [];
@@ -170,11 +263,27 @@ export async function submitTechnicalExecution(
       throw new Error("Conclua todos os itens do checklist antes de finalizar.");
     }
 
-    // 1. Atualizar OS com laudo, checklist e assinatura
-    const notesJson = JSON.stringify({
-      medicoes: data.measurementsJson,
-      checklist: JSON.parse(data.checklistJson),
+    const formSubmission = data.formSubmissionId
+      ? await prisma.formSubmission.findUnique({
+          where: { id: data.formSubmissionId },
+          include: { version: { include: { sections: { include: { questions: true } } } } },
+        })
+      : null;
+    if (data.formSubmissionId && (!formSubmission || formSubmission.visitId !== visit.id)) {
+      throw new Error("O formulário informado não pertence a esta visita.");
+    }
+    if (formSubmission?.status === "ENVIADO") throw new Error("O formulário desta visita já foi enviado.");
+    const formQuestions = formSubmission?.version.sections.flatMap((section) => section.questions) || [];
+    const formAnswerByQuestion = new Map((data.formAnswers || []).map((answer) => [answer.questionId, answer]));
+    const missingRequired = formQuestions.find((question) => {
+      if (!question.required) return false;
+      const answer = formAnswerByQuestion.get(question.id);
+      if (answer?.notApplicable) return false;
+      if (!answer) return true;
+      if (question.type === "CHECKBOX") return answer.value !== true;
+      return answer.value == null || (typeof answer.value === "string" && !answer.value.trim());
     });
+    if (missingRequired) throw new Error(`Responda o campo obrigatório: ${missingRequired.label}.`);
 
     // Assinatura chega como data URL base64 do canvas — grava em disco e
     // salva só a URL pública na coluna (o nome da coluna ficou legado, mas
@@ -188,18 +297,29 @@ export async function submitTechnicalExecution(
         data.photos.map(async (p) => ({
           serviceOrderId: osId,
           step: p.step,
-          url: await saveBase64Asset(p.url, `os-${osId}`),
+          url: await saveBase64Asset(p.url, `visita-${visit.id}`),
           caption: p.caption || null,
         }))
       );
-
     }
+
+    const submittedMeasurements = (data.measurements || []).filter((item) => item.definitionCode && Number.isFinite(item.value));
+    const measurementDefinitions = submittedMeasurements.length
+      ? await prisma.measurementDefinition.findMany({ where: { code: { in: submittedMeasurements.map((item) => item.definitionCode) }, active: true } })
+      : [];
+    const definitionByCode = new Map(measurementDefinitions.map((definition) => [definition.code, definition]));
+    const primaryAsset = await prisma.serviceOrderAsset.findFirst({
+      where: { serviceOrderId: osId },
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      select: { storeAssetId: true, clientEquipmentId: true },
+    });
+    const now = new Date();
 
     const { updatedOS, report } = await prisma.$transaction(async (tx) => {
       const updatedOS = await tx.serviceOrder.update({
         where: { id: osId },
         data: {
-          status: "RELATORIO_ENVIADO",
+          status: "REVISAO",
           technicalDiagnosis: data.technicalDiagnosis,
           checklistJson: data.checklistJson,
           signatureBase64: storedSignatureUrl,
@@ -209,8 +329,88 @@ export async function submitTechnicalExecution(
         },
       });
       if (photoRelations.length > 0) {
-        await tx.serviceOrderPhoto.deleteMany({ where: { serviceOrderId: osId } });
         await tx.serviceOrderPhoto.createMany({ data: photoRelations });
+        await tx.evidence.createMany({
+          data: photoRelations.map((photo) => ({
+            serviceOrderId: osId,
+            visitId: visit.id,
+            storeAssetId: primaryAsset?.storeAssetId,
+            clientEquipmentId: primaryAsset?.clientEquipmentId,
+            authorId: data.userId,
+            kind: "FOTO",
+            stage: photo.step === "EVIDENCIA" ? "DIAGNOSTICO" : photo.step,
+            fileUrl: photo.url,
+            caption: photo.caption,
+            capturedAt: now,
+          })),
+        });
+      }
+      await tx.evidence.create({
+        data: {
+          serviceOrderId: osId,
+          visitId: visit.id,
+          storeAssetId: primaryAsset?.storeAssetId,
+          clientEquipmentId: primaryAsset?.clientEquipmentId,
+          authorId: data.userId,
+          kind: "ASSINATURA",
+          stage: "DEPOIS",
+          fileUrl: storedSignatureUrl,
+          caption: `Assinatura de ${data.signatureName}`,
+          capturedAt: now,
+        },
+      });
+      if (submittedMeasurements.length > 0) {
+        await tx.measurementReading.createMany({
+          data: submittedMeasurements.flatMap((measurement) => {
+            const definition = definitionByCode.get(measurement.definitionCode);
+            if (!definition) return [];
+            const status = definition.minValue != null && measurement.value < definition.minValue
+              ? "ABAIXO"
+              : definition.maxValue != null && measurement.value > definition.maxValue
+                ? "ACIMA"
+                : "NORMAL";
+            return [{
+              definitionId: definition.id,
+              serviceOrderId: osId,
+              visitId: visit.id,
+              storeAssetId: primaryAsset?.storeAssetId,
+              clientEquipmentId: primaryAsset?.clientEquipmentId,
+              recordedById: data.userId,
+              value: measurement.value,
+              rawValue: measurement.rawValue || String(measurement.value),
+              status,
+            }];
+          }),
+        });
+      }
+      if (formSubmission) {
+        const allowedQuestionIds = new Set(formQuestions.map((question) => question.id));
+        for (const answer of (data.formAnswers || []).filter((item) => allowedQuestionIds.has(item.questionId))) {
+          const value = answer.value;
+          await tx.formAnswer.upsert({
+            where: { submissionId_questionId: { submissionId: formSubmission.id, questionId: answer.questionId } },
+            update: {
+              valueText: typeof value === "string" ? value : null,
+              valueNumber: typeof value === "number" && Number.isFinite(value) ? value : null,
+              valueBoolean: typeof value === "boolean" ? value : null,
+              notApplicable: Boolean(answer.notApplicable),
+              answeredAt: now,
+            },
+            create: {
+              submissionId: formSubmission.id,
+              questionId: answer.questionId,
+              valueText: typeof value === "string" ? value : null,
+              valueNumber: typeof value === "number" && Number.isFinite(value) ? value : null,
+              valueBoolean: typeof value === "boolean" ? value : null,
+              notApplicable: Boolean(answer.notApplicable),
+              answeredAt: now,
+            },
+          });
+        }
+        await tx.formSubmission.update({
+          where: { id: formSubmission.id },
+          data: { status: "ENVIADO", submittedById: data.userId, submittedAt: now },
+        });
       }
       const report = await tx.completionReport.upsert({
         where: { serviceOrderId: osId },
@@ -230,23 +430,28 @@ export async function submitTechnicalExecution(
           approvedAt: new Date(),
         },
       });
-      await tx.serviceOrderStatusHistory.createMany({
-        data: [
-          {
-            serviceOrderId: osId,
-            oldStatus: "EXECUCAO",
-            newStatus: "CONCLUIDA",
-            changedById: data.userId,
-            justification: `Execução finalizada e assinada por ${data.signatureName}.`,
-          },
-          {
-            serviceOrderId: osId,
-            oldStatus: "CONCLUIDA",
-            newStatus: "RELATORIO_ENVIADO",
-            changedById: data.userId,
-            justification: "Relatório técnico aprovado com assinatura do cliente.",
-          },
-        ],
+      await tx.timeEntry.updateMany({ where: { visitId: visit.id, endedAt: null }, data: { endedAt: now } });
+      await tx.serviceVisit.update({
+        where: { id: visit.id },
+        data: { status: "CONCLUIDA", result: "RESOLVIDO", completedAt: now },
+      });
+      await tx.visitStatusHistory.create({
+        data: {
+          visitId: visit.id,
+          oldStatus: visit.status,
+          newStatus: "CONCLUIDA",
+          changedById: data.userId,
+          justification: `Visita concluída e assinada por ${data.signatureName}.`,
+        },
+      });
+      await tx.serviceOrderStatusHistory.create({
+        data: {
+          serviceOrderId: osId,
+          oldStatus: currentOS.status,
+          newStatus: "REVISAO",
+          changedById: data.userId,
+          justification: `Visita ${visit.number} concluída; documentação encaminhada para revisão técnica.`,
+        },
       });
       return { updatedOS, report };
     });
@@ -258,8 +463,8 @@ export async function submitTechnicalExecution(
 
     await prisma.notification.create({
       data: {
-        title: "Revisão e Faturamento Pendente",
-        message: `A OS ${updatedOS.code} (${client?.name}) está concluída. Favor revisar o relatório técnico e processar faturamento.`,
+        title: "Revisão técnica pendente",
+        message: `A visita ${visit.number} da OS ${updatedOS.code} (${client?.name}) foi concluída. Revise as evidências antes de liberar o relatório e o faturamento.`,
         type: "OPERACIONAL",
         link: "/ordens-servico",
       },
@@ -274,6 +479,7 @@ export async function submitTechnicalExecution(
         entityId: osId,
         changesJson: JSON.stringify({
           action: "Finalização Técnica de OS",
+          visitId: visit.id,
           reportId: report.id,
           signatureName: data.signatureName,
         }),

@@ -13,10 +13,12 @@ import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Modal } from "../ui/Modal";
-import { Search, Loader2, FileText, Plus, CheckCircle, XCircle, Printer, PlusCircle, Trash2, Award, ArrowLeft, Save, Sparkles, Edit, UserPlus, Building2, MapPin, ContactRound } from "lucide-react";
+import { CatalogSearchOption, CatalogSearchPicker } from "../ui/CatalogSearchPicker";
+import { Search, Loader2, FileText, Plus, CheckCircle, XCircle, Printer, PlusCircle, Trash2, Award, ArrowLeft, Save, Sparkles, Edit, UserPlus, Building2, MapPin, ContactRound, Wrench, Package, BookOpen, BadgeDollarSign, Clock3, TrendingUp, Send, Mail, CircleDollarSign, ChevronRight, CalendarDays, SlidersHorizontal, BriefcaseBusiness } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { getCompanyTaxProfile } from "@/app/actions/settingsActions";
 import { calculateProposalTax, TaxProfile } from "@/lib/tax";
+import { SendQuoteEmailModal } from "@/components/quotes/SendQuoteEmailModal";
 
 interface OrcamentosTabProps {
   newRecord?: boolean;
@@ -24,6 +26,22 @@ interface OrcamentosTabProps {
   clientId?: string;
   quoteId?: string;
 }
+
+const preferredAddress = (details: ClientDetailsDTO) => {
+  const priorities = ["principal", "execução", "execucao", "sede", "cadastral"];
+  return details.addresses.find((address) => {
+    const label = (address.label || "").toLowerCase();
+    return priorities.some((priority) => label.includes(priority));
+  }) || details.addresses[0] || null;
+};
+
+const preferredContact = (details: ClientDetailsDTO) =>
+  details.contacts.find((contact) => contact.isApproval)
+  || details.contacts.find((contact) => contact.isTechnical)
+  || details.contacts[0]
+  || null;
+
+const QUOTE_REFERENCE_TIME = Date.now();
 
 export default function OrcamentosTab({ newRecord = false, requestId, clientId, quoteId }: OrcamentosTabProps) {
   const pathname = usePathname();
@@ -34,6 +52,8 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
   const [quotes, setQuotes] = useState<any[]>([]);
   const [clients, setClients] = useState<ClientDTO[]>([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("TODOS");
+  const [sortMode, setSortMode] = useState("RECENTES");
   const [loading, setLoading] = useState(true);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -45,9 +65,10 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(quoteId || null);
   const [quoteDetails, setQuoteDetails] = useState<any | null>(null);
   const [quotePendingApproval, setQuotePendingApproval] = useState<any | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   useEffect(() => {
-    if (newRecord) setView("create");
+    setView(newRecord ? "create" : "list");
   }, [newRecord, requestId]);
 
   // Loaded Catalog of items (Products & Services)
@@ -102,9 +123,16 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
   const [adhocForm, setAdhocForm] = useState({
     type: "SERVICO",
     name: "",
+    description: "",
+    category: "MANUTENCAO",
+    maintenanceType: "CORRETIVA",
     price: "",
     cost: "",
-    unit: "UN",
+    unit: "SERVIÇO",
+    estimatedHours: "",
+    productType: "MATERIAL",
+    stockQuantity: "0",
+    minStock: "0",
   });
   const [adhocActiveRowIdx, setAdhocActiveRowIdx] = useState<number | null>(null);
 
@@ -158,7 +186,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
   });
 
   const [quoteItems, setQuoteItems] = useState<QuoteItemInput[]>([
-    { type: "SERVICO", description: "", quantity: 1, unit: "UN", unitPrice: 0, costPrice: 0, discount: 0 },
+    { type: "SERVICO", description: "", quantity: 1, unit: "SERVIÇO", unitPrice: 0, costPrice: 0, discount: 0 },
   ]);
 
   async function loadQuotes() {
@@ -202,6 +230,20 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
   }, [pathname]);
 
   useEffect(() => {
+    if (pathname !== "/orcamentos") return;
+    const params = new URLSearchParams(window.location.search);
+    const gmailResult = params.get("gmail");
+    if (!gmailResult) return;
+    if (gmailResult === "connected") toast("Gmail conectado ao ERP com sucesso.", "success");
+    else if (gmailResult === "not_configured") toast("Informe as credenciais OAuth do Google no servidor.", "warning");
+    else toast(params.get("reason") || "Não foi possível conectar o Gmail.", "error");
+    params.delete("gmail");
+    params.delete("reason");
+    const query = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+  }, [pathname, toast]);
+
+  useEffect(() => {
     if (selectedQuoteId) {
       fetchDetails(selectedQuoteId);
     } else {
@@ -209,7 +251,9 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
     }
   }, [selectedQuoteId]);
 
-  // Formulário adaptativo: carrega histórico, contatos e endereços sem sair do orçamento.
+  // Ao selecionar o cliente, endereço e contato principal são resolvidos sem
+  // uma segunda etapa manual. Cadastros com CNPJ e sem endereço são
+  // enriquecidos automaticamente antes de continuar.
   useEffect(() => {
     if (!newQuoteForm.clientId || (view !== "create" && view !== "edit")) {
       setClientItemHistory([]);
@@ -217,27 +261,55 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
       return;
     }
     let cancelled = false;
-    Promise.all([
-      getClientItemHistory(newQuoteForm.clientId),
-      getClientDetails(newQuoteForm.clientId),
-    ]).then(([history, details]) => {
-      if (cancelled) return;
-      setClientItemHistory(history);
-      setSelectedClientDetails(details);
-      if (details) {
-        setClientSearch((current) => current || details.name);
-        setNewQuoteForm((prev) => ({
-          ...prev,
-          addressId: prev.addressId || (details.addresses.length === 1 ? details.addresses[0].id : ""),
-          contactId: prev.contactId || (details.contacts.length === 1 ? details.contacts[0].id : ""),
-        }));
+    const resolveClient = async () => {
+      try {
+        const [history, initialDetails] = await Promise.all([
+          getClientItemHistory(newQuoteForm.clientId),
+          getClientDetails(newQuoteForm.clientId),
+        ]);
+        let details = initialDetails;
+        const document = details?.cpfCnpj?.replace(/\D/g, "") || "";
+
+        if (details && !details.addresses.length && document.length === 14) {
+          setCnpjSyncLoading(true);
+          const synced = await syncClientFromCNPJ(details.id);
+          if (synced.success) {
+            const [refreshedDetails, refreshedClients] = await Promise.all([
+              getClientDetails(details.id),
+              getClients(),
+            ]);
+            details = refreshedDetails;
+            if (!cancelled) setClients(refreshedClients);
+          }
+        }
+
+        if (cancelled) return;
+        setClientItemHistory(history);
+        setSelectedClientDetails(details);
+        if (details) {
+          const address = preferredAddress(details);
+          const contact = preferredContact(details);
+          setClientSearch(details.name);
+          setNewQuoteForm((prev) => ({
+            ...prev,
+            addressId: details!.addresses.some((item) => item.id === prev.addressId)
+              ? prev.addressId
+              : address?.id || "",
+            contactId: details!.contacts.some((item) => item.id === prev.contactId)
+              ? prev.contactId
+              : contact?.id || "",
+          }));
+        }
+      } catch {
+        if (!cancelled) {
+          setClientItemHistory([]);
+          setSelectedClientDetails(null);
+        }
+      } finally {
+        if (!cancelled) setCnpjSyncLoading(false);
       }
-    }).catch(() => {
-      if (!cancelled) {
-        setClientItemHistory([]);
-        setSelectedClientDetails(null);
-      }
-    });
+    };
+    void resolveClient();
     return () => { cancelled = true; };
   }, [newQuoteForm.clientId, view]);
 
@@ -249,7 +321,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
       client.name.toLowerCase().includes(textTerm) ||
       (client.fancyName || "").toLowerCase().includes(textTerm) ||
       (client.socialName || "").toLowerCase().includes(textTerm) ||
-      (!!term && client.cpfCnpj.replace(/\D/g, "").includes(term))
+      (!!term && Boolean(client.cpfCnpj?.replace(/\D/g, "").includes(term)))
     );
   }, [clients, clientSearch]);
 
@@ -290,32 +362,6 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
       toast("Dados do CNPJ preenchidos. Confira antes de salvar.", "success");
     } finally {
       setCnpjLoading(false);
-    }
-  };
-
-  const handleSyncSelectedClient = async () => {
-    if (!newQuoteForm.clientId) return;
-    setCnpjSyncLoading(true);
-    try {
-      const result = await syncClientFromCNPJ(newQuoteForm.clientId);
-      if (!result.success) {
-        toast(result.error || "Não foi possível consultar este CNPJ.", "warning");
-        return;
-      }
-      const [refreshedClients, details] = await Promise.all([
-        getClients(),
-        getClientDetails(newQuoteForm.clientId),
-      ]);
-      setClients(refreshedClients);
-      setSelectedClientDetails(details);
-      setClientSearch(details?.name || "");
-      setNewQuoteForm((prev) => ({
-        ...prev,
-        addressId: prev.addressId || details?.addresses[0]?.id || "",
-      }));
-      toast("Cadastro atualizado com os dados públicos do CNPJ.", "success");
-    } finally {
-      setCnpjSyncLoading(false);
     }
   };
 
@@ -373,25 +419,43 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
     }
   };
 
-  const handleAddItem = () => {
-    setQuoteItems([
-      ...quoteItems,
-      { type: "SERVICO", description: "", quantity: 1, unit: "UN", unitPrice: 0, costPrice: 0, discount: 0 },
+  const handleAddItem = (type: "SERVICO" | "PECAS" = "SERVICO") => {
+    setQuoteItems((currentItems) => [
+      ...currentItems,
+      { type, description: "", quantity: 1, unit: type === "SERVICO" ? "SERVIÇO" : "UN", unitPrice: 0, costPrice: 0, discount: 0 },
     ]);
   };
 
   const handleRemoveItem = (idx: number) => {
     if (quoteItems.length === 1) return;
-    setQuoteItems(quoteItems.filter((_, i) => i !== idx));
+    setQuoteItems((currentItems) => currentItems.filter((_, i) => i !== idx));
   };
 
   const handleItemChange = (idx: number, field: keyof QuoteItemInput, value: any) => {
-    setQuoteItems(
-      quoteItems.map((item, i) => {
+    setQuoteItems((currentItems) =>
+      currentItems.map((item, i) => {
         if (i !== idx) return item;
         return {
           ...item,
           [field]: field === "type" || field === "unit" || field === "description" ? value : parseFloat(value) || 0,
+        };
+      })
+    );
+  };
+
+  const handleItemTypeChange = (idx: number, type: "SERVICO" | "PECAS") => {
+    setQuoteItems((currentItems) =>
+      currentItems.map((item, i) => {
+        if (i !== idx || item.type === type) return item;
+
+        return {
+          ...item,
+          type,
+          description: "",
+          unit: type === "SERVICO" ? "SERVIÇO" : "UN",
+          unitPrice: 0,
+          costPrice: 0,
+          discount: 0,
         };
       })
     );
@@ -407,7 +471,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
             description: "",
             unitPrice: 0,
             costPrice: 0,
-            unit: "UN",
+            unit: type === "SERVICO" ? "SERVIÇO" : "UN",
           };
         })
       );
@@ -429,7 +493,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
               description: match.name,
               unitPrice: history?.lastUnitPrice ?? match.defaultPrice,
               quantity: history ? Math.max(1, Math.round(history.avgQuantity)) : item.quantity,
-              unit: "UN",
+              unit: (match.billingUnit || "SERVIÇO").toUpperCase(),
             };
           })
         );
@@ -454,14 +518,22 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
     }
   };
 
-  const openAdhocModal = (idx: number, type: string) => {
+  const openAdhocModal = (idx: number, type: string, suggestedName = "") => {
     setAdhocActiveRowIdx(idx);
+    const isMaterial = type === "PECAS";
     setAdhocForm({
-      type: type === "PECAS" ? "PECAS" : "SERVICO",
-      name: "",
+      type: isMaterial ? "PECAS" : "SERVICO",
+      name: suggestedName,
+      description: "",
+      category: isMaterial ? "INSUMO" : "MANUTENCAO",
+      maintenanceType: "CORRETIVA",
       price: "",
       cost: "",
-      unit: "UN",
+      unit: isMaterial ? "UN" : "SERVIÇO",
+      estimatedHours: "",
+      productType: "MATERIAL",
+      stockQuantity: "0",
+      minStock: "0",
     });
     setIsAdhocOpen(true);
   };
@@ -481,10 +553,17 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
         price: parseFloat(adhocForm.price) || 0,
         cost: adhocForm.cost ? parseFloat(adhocForm.cost) : undefined,
         unit: adhocForm.unit,
+        description: adhocForm.description || undefined,
+        category: adhocForm.category || undefined,
+        maintenanceType: adhocForm.type === "SERVICO" ? adhocForm.maintenanceType : undefined,
+        estimatedHours: adhocForm.estimatedHours ? parseFloat(adhocForm.estimatedHours) : undefined,
+        productType: adhocForm.type === "PECAS" ? adhocForm.productType : undefined,
+        stockQuantity: adhocForm.type === "PECAS" ? parseFloat(adhocForm.stockQuantity) || 0 : undefined,
+        minStock: adhocForm.type === "PECAS" ? parseFloat(adhocForm.minStock) || 0 : undefined,
       });
 
       if (res.success && res.item) {
-        toast(`Item '${res.item.name}' cadastrado com sucesso no catálogo!`, "success");
+        toast(`${res.item.type === "SERVICO" ? "Serviço" : "Material"} salvo individualmente no catálogo.`, "success");
 
         // Reload catalog
         const cat = await getQuoteCatalog();
@@ -547,7 +626,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
             costPrice: item.costPrice || 0,
             discount: item.discount || 0,
           }))
-        : [{ type: "SERVICO", description: "", quantity: 1, unit: "UN", unitPrice: 0, costPrice: 0, discount: 0 }]
+        : [{ type: "SERVICO", description: "", quantity: 1, unit: "SERVIÇO", unitPrice: 0, costPrice: 0, discount: 0 }]
     );
 
     setEditingQuoteId(quote.id);
@@ -592,7 +671,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
       if (res.success && res.quote) {
         toast("Proposta comercial atualizada com sucesso!", "success");
         setQuoteItems([
-          { type: "SERVICO", description: "", quantity: 1, unit: "UN", unitPrice: 0, costPrice: 0, discount: 0 }
+          { type: "SERVICO", description: "", quantity: 1, unit: "SERVIÇO", unitPrice: 0, costPrice: 0, discount: 0 }
         ]);
         setNewQuoteForm({
           clientId: clients[0]?.id || "",
@@ -657,7 +736,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
       if (res.success && res.quote) {
         toast("Proposta comercial criada com sucesso!", "success");
         setQuoteItems([
-          { type: "SERVICO", description: "", quantity: 1, unit: "UN", unitPrice: 0, costPrice: 0, discount: 0 }
+          { type: "SERVICO", description: "", quantity: 1, unit: "SERVIÇO", unitPrice: 0, costPrice: 0, discount: 0 }
         ]);
         setNewQuoteForm({
           clientId: clients[0]?.id || "",
@@ -720,14 +799,44 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const printPageSize = "A4 portrait";
+  const previewWidth = "210mm";
 
-  const filteredQuotes = quotes.filter((q) =>
-    (q.clientName || "").toLowerCase().includes(search.toLowerCase()) ||
-    (q.code || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const normalizeQuoteStatus = (status?: string) => (status || "RASCUNHO").toUpperCase().replaceAll(" ", "_");
+  const isQuoteExpired = (quote: any) => {
+    const status = normalizeQuoteStatus(quote.status);
+    if (["APROVADO", "CONVERTIDO", "REJEITADO", "REPROVADO", "CANCELADO"].includes(status)) return false;
+    return quote.validUntil ? new Date(quote.validUntil).getTime() < QUOTE_REFERENCE_TIME : false;
+  };
+  const quoteMatchesFilter = (quote: any) => {
+    const status = normalizeQuoteStatus(quote.status);
+    if (statusFilter === "TODOS") return true;
+    if (statusFilter === "RASCUNHOS") return status === "RASCUNHO";
+    if (statusFilter === "EM_ANDAMENTO") return ["ENVIADO", "PENDENTE", "NEGOCIACAO", "EM_NEGOCIACAO"].includes(status) && !isQuoteExpired(quote);
+    if (statusFilter === "APROVADOS") return ["APROVADO", "CONVERTIDO"].includes(status);
+    if (statusFilter === "EXPIRADOS") return isQuoteExpired(quote) || ["EXPIRADO", "REJEITADO", "REPROVADO", "CANCELADO"].includes(status);
+    return true;
+  };
+  const filteredQuotes = quotes
+    .filter((q) => (
+      (q.clientName || "").toLowerCase().includes(search.toLowerCase()) ||
+      (q.code || "").toLowerCase().includes(search.toLowerCase())
+    ) && quoteMatchesFilter(q))
+    .sort((a, b) => {
+      if (sortMode === "MAIOR_VALOR") return Number(b.total || 0) - Number(a.total || 0);
+      if (sortMode === "MENOR_VALOR") return Number(a.total || 0) - Number(b.total || 0);
+      if (sortMode === "VALIDADE") return new Date(a.validUntil || 0).getTime() - new Date(b.validUntil || 0).getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+  const openQuoteStatuses = ["RASCUNHO", "ENVIADO", "PENDENTE", "NEGOCIACAO", "EM_NEGOCIACAO"];
+  const openQuotes = quotes.filter((quote) => openQuoteStatuses.includes(normalizeQuoteStatus(quote.status)) && !isQuoteExpired(quote));
+  const approvedQuotes = quotes.filter((quote) => ["APROVADO", "CONVERTIDO"].includes(normalizeQuoteStatus(quote.status)));
+  const draftQuotes = quotes.filter((quote) => normalizeQuoteStatus(quote.status) === "RASCUNHO");
+  const expiredQuotes = quotes.filter((quote) => isQuoteExpired(quote) || ["EXPIRADO", "REJEITADO", "REPROVADO"].includes(normalizeQuoteStatus(quote.status)));
+  const openPipelineValue = openQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0);
+  const approvedValue = approvedQuotes.reduce((sum, quote) => sum + Number(quote.total || 0), 0);
+  const conversionRate = quotes.length ? Math.round((approvedQuotes.length / quotes.length) * 100) : 0;
 
   const canApproveQuote = (status?: string) => ["RASCUNHO", "ENVIADO", "PENDENTE", "NEGOCIACAO", "EM_NEGOCIACAO", "EM NEGOCIAÇÃO"].includes((status || "").toUpperCase());
 
@@ -776,38 +885,284 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
     }
   }
 
+  const itemLineWidth = 54;
+  const estimatedItemLines = (quoteDetails?.items || []).reduce((lines: number, item: any) => (
+    lines + Math.max(1, Math.ceil(String(item.description || "").length / itemLineWidth))
+  ), 0);
+  const estimatedTextLines = Math.ceil(String(quoteDetails?.notes || "").length / itemLineWidth)
+    + Math.ceil(clientAddressStr.length / itemLineWidth)
+    + Math.ceil(String(companyParams.merchanDesc || "").length / itemLineWidth);
+  const estimatedDocumentHeightPx = 700 + (estimatedItemLines * 31) + (estimatedTextLines * 14);
+  const availableDocumentHeightPx = 277 * 3.7795;
+  const onePageScale = Math.max(0.3, Math.min(1, (availableDocumentHeightPx / estimatedDocumentHeightPx) * 0.94));
+  const onePageWidth = 100 / onePageScale;
+
+  const handlePrint = async () => {
+    const source = document.querySelector<HTMLElement>(".print-a4-sheet");
+    if (!source) {
+      toast("Não foi possível preparar o orçamento para impressão.", "error");
+      return;
+    }
+
+    const frame = document.createElement("iframe");
+    frame.setAttribute("title", "Impressão do orçamento em folha A4");
+    frame.style.position = "fixed";
+    frame.style.left = "-10000px";
+    frame.style.top = "0";
+    frame.style.width = "210mm";
+    frame.style.height = "297mm";
+    frame.style.border = "0";
+    document.body.appendChild(frame);
+
+    try {
+      const printDocument = frame.contentDocument;
+      if (!printDocument) throw new Error("Documento de impressão indisponível.");
+      const styles = Array.from(document.head.querySelectorAll('link[rel="stylesheet"], style'))
+        .map((element) => element.outerHTML)
+        .join("\n");
+      printDocument.open();
+      printDocument.write(`<!doctype html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="utf-8" />
+            <title>Orçamento ${quoteDetails?.code || ""}</title>
+            ${styles}
+            <style>
+              @page { size: A4 portrait; margin: 0; }
+              html, body {
+                width: 210mm !important;
+                height: 296mm !important;
+                min-width: 210mm !important;
+                min-height: 296mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                background: white !important;
+              }
+              .a4-page {
+                width: 210mm;
+                height: 296mm;
+                padding: 7mm 8mm;
+                box-sizing: border-box;
+                overflow: hidden;
+                background: white;
+                break-after: avoid;
+                page-break-after: avoid;
+              }
+              .proposal-content {
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                transform: scale(var(--proposal-scale, 1));
+                transform-origin: top left;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .proposal-content .print-a4-sheet {
+                position: static !important;
+                inset: auto !important;
+                width: 100% !important;
+                max-width: none !important;
+                min-width: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: 0 !important;
+                box-shadow: none !important;
+                transform: none !important;
+                zoom: 1 !important;
+                overflow: visible !important;
+              }
+              .proposal-content .print-a4-sheet > * + * { margin-top: 2.6mm !important; }
+              .proposal-content table { table-layout: fixed !important; width: 100% !important; }
+              .proposal-content th, .proposal-content td {
+                padding: 1.15mm 1.3mm !important;
+                line-height: 1.15 !important;
+                overflow-wrap: anywhere;
+              }
+              @media print {
+                html, body, .a4-page { width: 210mm !important; height: 296mm !important; overflow: hidden !important; }
+              }
+            </style>
+          </head>
+          <body>
+            <main class="a4-page">
+              <div class="proposal-content">${source.outerHTML}</div>
+            </main>
+          </body>
+        </html>`);
+      printDocument.close();
+
+      if (printDocument.readyState !== "complete") {
+        await new Promise<void>((resolve) => frame.addEventListener("load", () => resolve(), { once: true }));
+      }
+      if (printDocument.fonts?.ready) await printDocument.fonts.ready;
+      const images = Array.from(printDocument.images);
+      await Promise.all(images.map(async (image) => {
+        if (!image.complete) {
+          await new Promise<void>((resolve) => {
+            image.addEventListener("load", () => resolve(), { once: true });
+            image.addEventListener("error", () => resolve(), { once: true });
+          });
+        }
+        try { if (image.decode && image.naturalWidth) await image.decode(); } catch {}
+      }));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+      const page = printDocument.querySelector<HTMLElement>(".a4-page");
+      const content = printDocument.querySelector<HTMLElement>(".proposal-content");
+      if (!page || !content) throw new Error("Estrutura A4 não foi criada.");
+      const pageStyle = frame.contentWindow?.getComputedStyle(page);
+      const horizontalPadding = parseFloat(pageStyle?.paddingLeft || "0") + parseFloat(pageStyle?.paddingRight || "0");
+      const verticalPadding = parseFloat(pageStyle?.paddingTop || "0") + parseFloat(pageStyle?.paddingBottom || "0");
+      const availableWidth = page.clientWidth - horizontalPadding - 2;
+      const availableHeight = page.clientHeight - verticalPadding - 2;
+      const contentWidth = Math.max(content.scrollWidth, content.getBoundingClientRect().width);
+      const contentHeight = Math.max(content.scrollHeight, content.getBoundingClientRect().height);
+      const exactScale = Math.max(0.2, Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight) * 0.985);
+      content.style.setProperty("--proposal-scale", exactScale.toFixed(5));
+
+      const cleanup = () => frame.remove();
+      frame.contentWindow?.addEventListener("afterprint", cleanup, { once: true });
+      window.setTimeout(cleanup, 120_000);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    } catch (error) {
+      frame.remove();
+      toast(error instanceof Error ? error.message : "Erro ao gerar orçamento em A4.", "error");
+    }
+  };
+
+  const automaticAddress = selectedClientDetails ? preferredAddress(selectedClientDetails) : null;
+  const automaticContact = selectedClientDetails ? preferredContact(selectedClientDetails) : null;
+
   return (
     <div className="space-y-6 select-none animate-in fade-in duration-200 print:p-0 print:m-0 print:bg-white">
 
-      {/* Dynamic CSS Injection to lock A4 Page parameters precisely */}
+      {/* Print layout follows the paper selected in the browser/printer. */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           @page {
-            size: A4 portrait;
-            margin: 8mm 10mm 8mm 10mm;
+            size: ${printPageSize};
+            margin: 10mm;
           }
+          html,
           body {
+            width: auto !important;
+            min-width: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
             background: white !important;
             color: #18181b !important;
           }
-          .print-a4-sheet {
+          main,
+          main > div,
+          .quote-print-layout,
+          .quote-print-column {
+            position: static !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+          }
+          .quote-print-layout {
+            display: block !important;
+          }
+          .quote-print-column {
+            display: block !important;
             width: 100% !important;
-            max-width: 100% !important;
+            max-width: none !important;
+            grid-column: 1 / -1 !important;
+          }
+          .print-a4-sheet {
+            width: ${onePageWidth.toFixed(3)}% !important;
+            max-width: ${onePageWidth.toFixed(3)}% !important;
+            min-width: 0 !important;
             margin: 0 !important;
             padding: 0 !important;
             border: none !important;
             box-shadow: none !important;
             box-sizing: border-box;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            position: absolute !important;
+            inset: 0 auto auto 0 !important;
+            transform: scale(${onePageScale.toFixed(4)}) !important;
+            transform-origin: top left !important;
+            zoom: 1 !important;
+            break-inside: avoid-page !important;
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+            line-height: 1.2 !important;
           }
-          h1, h2, h3, table, tr {
+          .print-a4-sheet * {
+            box-sizing: border-box;
+          }
+          .print-a4-sheet * {
+            font-size: max(7pt, 1em) !important;
+          }
+          .print-a4-sheet > * + * {
+            margin-top: 3mm !important;
+          }
+          .print-a4-sheet h1,
+          .print-a4-sheet h2,
+          .print-a4-sheet h3,
+          .print-keep-together,
+          .print-a4-sheet tr {
+            break-inside: avoid-page;
             page-break-inside: avoid;
+          }
+          .print-items-table {
+            overflow: visible !important;
+            break-inside: auto !important;
+          }
+          .print-items-table table {
+            width: 100% !important;
+            table-layout: fixed !important;
+          }
+          .print-items-table thead {
+            display: table-header-group;
+          }
+          .print-items-table tbody {
+            display: table-row-group;
+          }
+          .print-items-table th,
+          .print-items-table td {
+            overflow-wrap: anywhere;
+            word-break: normal;
+          }
+          .print-items-table th:nth-child(1) { width: 7% !important; }
+          .print-items-table th:nth-child(2) { width: 39% !important; }
+          .print-items-table th:nth-child(3) { width: 8% !important; }
+          .print-items-table th:nth-child(4) { width: 8% !important; }
+          .print-items-table th:nth-child(5),
+          .print-items-table th:nth-child(6) { width: 19% !important; }
+          .print-items-table th,
+          .print-items-table td {
+            padding: 1.35mm 1.4mm !important;
+            line-height: 1.18 !important;
+          }
+        }
+        @media print and (max-width: 170mm) {
+          @page {
+            margin: 6mm;
+          }
+          .print-items-table table {
+            font-size: 6.5pt !important;
+          }
+          .print-a4-sheet * {
+            font-size: max(6.25pt, 1em) !important;
+          }
+          .print-items-table th,
+          .print-items-table td {
+            padding: 1.4mm 1mm !important;
           }
         }
       `}} />
 
       {/* 1. DEDICATED FULL-PAGE CREATION VIEW (Non-floating page) */}
       {(view === "create" || view === "edit") && (
-        <div className="space-y-6 animate-in slide-in-from-bottom duration-200">
+        <div className="mx-auto w-full max-w-7xl space-y-6 animate-in slide-in-from-bottom duration-200">
           {/* Header row */}
           <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-800 pb-4">
             <div className="flex items-center gap-2">
@@ -888,7 +1243,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                         >
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{client.name}</p>
-                            <p className="text-xs text-zinc-500 truncate">{client.fancyName && client.fancyName !== client.name ? `${client.fancyName} · ` : ""}{client.cpfCnpj} · {client.phone}</p>
+                            <p className="text-xs text-zinc-500 truncate">{client.fancyName && client.fancyName !== client.name ? `${client.fancyName} · ` : ""}{client.cpfCnpj || "Documento não informado"} · {client.phone}</p>
                           </div>
                           {selected && <CheckCircle size={17} className="shrink-0 text-success" />}
                         </button>
@@ -911,48 +1266,43 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                       <div className="rounded-lg bg-white dark:bg-zinc-800 p-2 text-primary shadow-sm"><Building2 size={18} /></div>
                       <div>
                         <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">{selectedClientDetails.name}</p>
-                        <p className="text-xs text-zinc-500">{selectedClientDetails.cpfCnpj} · {selectedClientDetails.email} · {selectedClientDetails.phone}</p>
+                        <p className="text-xs text-zinc-500">{selectedClientDetails.cpfCnpj || "Documento não informado"} · {selectedClientDetails.email} · {selectedClientDetails.phone}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {hasPermission("clients.write") && selectedClientDetails.cpfCnpj.replace(/\D/g, "").length === 14 && (
-                        <Button type="button" size="sm" variant="secondary" loading={cnpjSyncLoading} onClick={handleSyncSelectedClient}>
-                          <Sparkles size={14} /> Atualizar pelo CNPJ
-                        </Button>
+                      {cnpjSyncLoading && (
+                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-primary">
+                          <Loader2 size={12} className="animate-spin" /> Completando cadastro
+                        </span>
                       )}
                       <span className="text-[10px] font-bold uppercase tracking-wider text-success bg-success/10 px-2.5 py-1 rounded-full">Cliente selecionado</span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select
-                      label="Endereço de execução *"
-                      value={newQuoteForm.addressId}
-                      onChange={(e) => setNewQuoteForm((prev) => ({ ...prev, addressId: e.target.value }))}
-                      options={[
-                        { value: "", label: selectedClientDetails.addresses.length ? "Selecione o endereço" : "Cliente ainda não possui endereço" },
-                        ...selectedClientDetails.addresses.map((address) => ({
-                          value: address.id,
-                          label: `${address.label || "Endereço"} · ${address.street}, ${address.number} · ${address.city}/${address.state}`,
-                        })),
-                      ]}
-                    />
-                    <Select
-                      label="Contato responsável (opcional)"
-                      value={newQuoteForm.contactId}
-                      onChange={(e) => setNewQuoteForm((prev) => ({ ...prev, contactId: e.target.value }))}
-                      options={[
-                        { value: "", label: selectedClientDetails.contacts.length ? "Selecione o contato" : "Cliente ainda não possui contato adicional" },
-                        ...selectedClientDetails.contacts.map((contact) => ({
-                          value: contact.id,
-                          label: `${contact.name}${contact.role ? ` · ${contact.role}` : ""}`,
-                        })),
-                      ]}
-                    />
-                  </div>
-                  {!selectedClientDetails.addresses.length && (
-                    <p className="flex items-center gap-2 text-xs text-warning"><MapPin size={14} /> Cadastre um endereço no cliente antes de aprovar e gerar a OS.</p>
-                  )}
+                  {automaticAddress ? (
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="flex items-start gap-2 rounded-lg border border-primary/10 bg-white/80 p-3 dark:bg-zinc-900/50">
+                        <MapPin size={15} className="mt-0.5 shrink-0 text-primary" />
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-success">Endereço aplicado automaticamente</p>
+                          <p className="mt-0.5 text-xs font-semibold text-zinc-700 dark:text-zinc-250">
+                            {automaticAddress.street}, {automaticAddress.number} · {automaticAddress.city}/{automaticAddress.state}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2 rounded-lg border border-primary/10 bg-white/80 p-3 dark:bg-zinc-900/50">
+                        <ContactRound size={15} className="mt-0.5 shrink-0 text-primary" />
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Contato aplicado automaticamente</p>
+                          <p className="mt-0.5 text-xs font-semibold text-zinc-700 dark:text-zinc-250">
+                            {automaticContact ? `${automaticContact.name}${automaticContact.role ? ` · ${automaticContact.role}` : ""}` : "Dados principais do cliente (sem contato adicional)"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : !cnpjSyncLoading ? (
+                    <p className="flex items-center gap-2 text-xs text-warning"><MapPin size={14} /> O cliente não possui endereço cadastrado e não foi possível obtê-lo automaticamente.</p>
+                  ) : null}
                 </div>
               ) : (
                 <div className="rounded-xl border border-dashed border-zinc-250 dark:border-zinc-700 p-5 text-center text-xs text-zinc-500">
@@ -980,35 +1330,60 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
             </Card>
 
             {/* Bottom Section: Items management & Pricing (Full Width) */}
-            <Card className="space-y-4 shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-6">
-                <div className="flex justify-between items-center border-b pb-2">
-                  <span className="text-[10px] font-bold text-blue-950 dark:text-zinc-100 uppercase tracking-wider block">
-                    3. Serviços, peças e valores
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleAddItem}
-                    className="text-xs font-bold text-primary flex items-center gap-1 hover:underline cursor-pointer"
-                  >
-                    <PlusCircle size={14} /> Adicionar Item
-                  </button>
+            <Card className="overflow-hidden shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-0">
+                <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-blue-50/70 px-5 py-5 text-slate-900 dark:border-zinc-800 dark:from-zinc-900 dark:via-zinc-900 dark:to-blue-950/30 sm:px-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-blue-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-blue-300">
+                        <BookOpen size={19} />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-300">Etapa 3</span>
+                          <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-bold uppercase text-slate-500 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Editor comercial</span>
+                        </div>
+                        <h3 className="mt-1 text-base font-black text-slate-900 dark:text-white">Serviços, materiais e composição de preço</h3>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-zinc-400">Monte cada linha separadamente e salve novos serviços ou materiais no catálogo individual.</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button type="button" size="sm" variant="primary" onClick={() => handleAddItem("SERVICO")} className="shadow-sm">
+                        <Wrench size={14} /> Adicionar serviço
+                      </Button>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => handleAddItem("PECAS")} className="border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-900/60 dark:text-orange-300 dark:hover:bg-orange-950/20">
+                        <Package size={14} /> Adicionar material
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50/70 dark:border-zinc-800 dark:bg-zinc-900/60 sm:grid-cols-4">
+                  <div className="border-b border-r border-slate-200 px-5 py-3 dark:border-zinc-800 sm:border-b-0"><p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Linhas</p><p className="mt-1 text-sm font-black text-slate-800 dark:text-white">{quoteItems.length}</p></div>
+                  <div className="border-b border-slate-200 bg-blue-50/40 px-5 py-3 dark:border-zinc-800 dark:bg-blue-950/10 sm:border-b-0 sm:border-r"><p className="text-[9px] font-bold uppercase tracking-wide text-blue-600 dark:text-blue-300">Serviços</p><p className="mt-1 text-sm font-black text-slate-800 dark:text-white">{quoteItems.filter((item) => item.type === "SERVICO").length}</p></div>
+                  <div className="border-r border-slate-200 bg-orange-50/40 px-5 py-3 dark:border-zinc-800 dark:bg-orange-950/10"><p className="text-[9px] font-bold uppercase tracking-wide text-orange-600 dark:text-orange-300">Materiais</p><p className="mt-1 text-sm font-black text-slate-800 dark:text-white">{quoteItems.filter((item) => item.type !== "SERVICO").length}</p></div>
+                  <div className="bg-emerald-50/40 px-5 py-3 dark:bg-emerald-950/10"><p className="text-[9px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">Subtotal</p><p className="mt-1 text-sm font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(liveTotals.subtotal)}</p></div>
                 </div>
 
                 {/* Items container */}
-                <div className="space-y-4 pr-1">
+                <div className="space-y-4 p-4 sm:p-6">
                   {quoteItems.map((item, idx) => {
                     const isService = item.type === "SERVICO";
-                    const uniqueNames = new Set();
-                    const frequentOptions: { value: string; label: string }[] = [];
-                    const otherOptions: { value: string; label: string }[] = [];
+                    const uniqueNames = new Set<string>();
+                    const frequentOptions: CatalogSearchOption[] = [];
+                    const otherOptions: CatalogSearchOption[] = [];
 
                     if (isService) {
                       catalog.services.forEach((s) => {
                         if (s.name && !uniqueNames.has(s.name)) {
                           uniqueNames.add(s.name);
                           const usedBefore = clientItemHistory.find((h) => h.description === s.name);
-                          const label = `${usedBefore ? "★ " : ""}${s.name} (R$ ${s.defaultPrice.toFixed(2)})`;
-                          (usedBefore ? frequentOptions : otherOptions).push({ value: s.name, label });
+                          (usedBefore ? frequentOptions : otherOptions).push({
+                            value: s.name,
+                            label: s.name,
+                            detail: [s.category, s.maintenanceType, s.description].filter(Boolean).join(" · "),
+                            price: Number(s.defaultPrice || 0),
+                            frequent: Boolean(usedBefore),
+                          });
                         }
                       });
                     } else {
@@ -1016,85 +1391,88 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                         if (p.name && !uniqueNames.has(p.name)) {
                           uniqueNames.add(p.name);
                           const usedBefore = clientItemHistory.find((h) => h.description === p.name);
-                          const label = `${usedBefore ? "★ " : ""}${p.name} (R$ ${p.salePrice.toFixed(2)})`;
-                          (usedBefore ? frequentOptions : otherOptions).push({ value: p.name, label });
+                          (usedBefore ? frequentOptions : otherOptions).push({
+                            value: p.name,
+                            label: p.name,
+                            detail: [p.code, p.type, p.description].filter(Boolean).join(" · "),
+                            price: Number(p.salePrice || 0),
+                            frequent: Boolean(usedBefore),
+                          });
                         }
                       });
                     }
                     // Itens já comprados por este cliente aparecem primeiro no seletor.
                     const optionsList = [...frequentOptions, ...otherOptions];
+                    const isCatalogued = isService
+                      ? catalog.services.some((service) => service.name === item.description)
+                      : catalog.products.some((product) => product.name === item.description);
+                    const gross = Number(item.quantity) * Number(item.unitPrice);
+                    const lineDiscount = Number(item.quantity) * Number(item.discount || 0);
+                    const lineTotal = Math.max(0, gross - lineDiscount);
+                    const lineCost = Number(item.quantity) * Number(item.costPrice || 0);
+                    const lineMargin = lineTotal - lineCost;
 
                     return (
-                      <div key={idx} className="bg-zinc-50/50 dark:bg-zinc-800/20 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl relative space-y-3">
-                        <div className="flex gap-2 items-center justify-between">
-                          <span className="text-[9px] font-semibold text-zinc-400 uppercase">Item #{idx + 1}</span>
-                          <button
-                            type="button"
-                            onClick={() => openAdhocModal(idx, item.type)}
-                            className="text-[9px] font-bold text-primary flex items-center gap-1 hover:underline cursor-pointer"
-                          >
-                            <Sparkles size={11} /> + Cadastrar Novo Item no Catálogo
-                          </button>
+                      <div key={idx} className="relative rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                        <div className={`absolute inset-y-0 left-0 w-0.5 rounded-l-2xl ${isService ? "bg-blue-500" : "bg-orange-400"}`} />
+                        <div className={`flex flex-col gap-3 rounded-t-2xl border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800 ${isService ? "bg-blue-50/25 dark:bg-blue-950/10" : "bg-orange-50/25 dark:bg-orange-950/10"}`}>
+                          <div className="flex items-center gap-3">
+                            <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${isService ? "bg-blue-100/70 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" : "bg-orange-100/70 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300"}`}>
+                              {isService ? <Wrench size={17} /> : <Package size={17} />}
+                            </span>
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-black text-zinc-900 dark:text-white">{isService ? "Serviço técnico" : "Material / peça"} #{idx + 1}</span>
+                                {isCatalogued && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[8px] font-black uppercase text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">Salvo no catálogo</span>}
+                              </div>
+                              <p className="mt-0.5 text-[10px] text-zinc-450">Esta linha é calculada e armazenada individualmente.</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex rounded-lg border border-zinc-200 bg-zinc-50 p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
+                              <button type="button" aria-pressed={isService} onClick={() => handleItemTypeChange(idx, "SERVICO")} className={`rounded-md px-2.5 py-1 text-[9px] font-bold transition-colors ${isService ? "bg-white text-blue-600 shadow-sm dark:bg-zinc-700" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}>Serviço</button>
+                              <button type="button" aria-pressed={!isService} onClick={() => handleItemTypeChange(idx, "PECAS")} className={`rounded-md px-2.5 py-1 text-[9px] font-bold transition-colors ${!isService ? "bg-white text-orange-700 shadow-sm dark:bg-zinc-700 dark:text-orange-300" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}>Material</button>
+                            </div>
+                            <Button type="button" size="sm" variant="secondary" onClick={() => openAdhocModal(idx, item.type)}>
+                              <PlusCircle size={13} /> Cadastrar {isService ? "serviço" : "material"}
+                            </Button>
+                            <button type="button" onClick={() => handleRemoveItem(idx)} disabled={quoteItems.length === 1} className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-30 dark:hover:bg-red-950/20" title="Remover esta linha"><Trash2 size={15} /></button>
+                          </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                          <div className="md:col-span-2">
-                            <Select
-                              label="Tipo"
-                              options={[
-                                { value: "SERVICO", label: "Serviço" },
-                                { value: "PECAS", label: "Peça" }
-                              ]}
-                              value={item.type}
-                              onChange={(e) => {
-                                handleItemChange(idx, "type", e.target.value);
-                                handleItemChange(idx, "description", "");
-                                handleItemChange(idx, "unitPrice", 0);
-                              }}
-                            />
-                          </div>
-
-                          <div className="md:col-span-6">
-                            <Select
-                              label="Selecione do Catálogo *"
+                        <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-12 md:items-end">
+                          <div className="md:col-span-5">
+                            <CatalogSearchPicker
+                              type={isService ? "SERVICO" : "PECAS"}
                               value={item.description}
-                              onChange={(e) => handleCatalogSelect(idx, e.target.value, item.type)}
-                              options={[
-                                { value: "", label: "-- Selecione um Item --" },
-                                ...optionsList
-                              ]}
+                              options={optionsList}
+                              onSelect={(value) => handleCatalogSelect(idx, value, item.type)}
+                              onCreate={(suggestedName) => openAdhocModal(idx, item.type, suggestedName)}
                             />
                           </div>
-
+                          <div className="md:col-span-1">
+                            <Input label="Qtd." type="number" min="0.01" step="0.01" required value={item.quantity} onChange={(e) => handleItemChange(idx, "quantity", e.target.value)} />
+                          </div>
                           <div className="md:col-span-2">
-                            <Input
-                              label="Qtd"
-                              type="number"
-                              required
-                              value={item.quantity}
-                              onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
-                            />
+                            <Select label="Unidade" value={item.unit} onChange={(e) => handleItemChange(idx, "unit", e.target.value)} options={[{ value: "SERVIÇO", label: "Serviço" }, { value: "UN", label: "Unidade" }, { value: "H", label: "Hora" }, { value: "DIA", label: "Diária" }, { value: "M", label: "Metro" }, { value: "M2", label: "Metro²" }, { value: "KG", label: "Quilo" }, { value: "CJ", label: "Conjunto" }]} />
                           </div>
+                          <div className="md:col-span-2">
+                            <Input label="Custo unitário" type="number" min="0" step="0.01" value={item.costPrice} onChange={(e) => handleItemChange(idx, "costPrice", e.target.value)} />
+                          </div>
+                          <div className="md:col-span-2">
+                            <Input label="Preço de venda *" type="number" min="0" step="0.01" required value={item.unitPrice} onChange={(e) => handleItemChange(idx, "unitPrice", e.target.value)} />
+                          </div>
+                        </div>
 
-                          <div className="md:col-span-2 flex gap-1 items-center">
-                            <div className="flex-1">
-                              <Input
-                                label="Preço (R$)"
-                                type="number"
-                                required
-                                value={item.unitPrice}
-                                onChange={(e) => handleItemChange(idx, "unitPrice", e.target.value)}
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(idx)}
-                              disabled={quoteItems.length === 1}
-                              className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-xl transition-all cursor-pointer disabled:opacity-50 mt-5"
-                              title="Remover Item"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                        <div className="grid grid-cols-1 gap-3 border-t border-zinc-100 bg-zinc-50/70 px-4 py-3 text-xs dark:border-zinc-800 dark:bg-zinc-950/30 sm:grid-cols-[180px_1fr_auto] sm:items-center">
+                          <Input label="Desconto unitário (R$)" type="number" min="0" step="0.01" value={item.discount} onChange={(e) => handleItemChange(idx, "discount", e.target.value)} />
+                          <div className="flex flex-wrap gap-x-5 gap-y-1 text-[10px] font-semibold text-zinc-500">
+                            <span>Custo da linha: <strong className="text-zinc-700 dark:text-zinc-250">{formatCurrency(lineCost)}</strong></span>
+                            <span>Margem estimada: <strong className={lineMargin >= 0 ? "text-emerald-600" : "text-red-500"}>{formatCurrency(lineMargin)}</strong></span>
+                          </div>
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-right shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/20">
+                            <p className="text-[8px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total da linha</p>
+                            <p className="mt-0.5 text-sm font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(lineTotal)}</p>
                           </div>
                         </div>
                       </div>
@@ -1103,7 +1481,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                 </div>
 
                 {/* Subtotals card */}
-                <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="mx-4 mb-4 grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/30 sm:mx-6 sm:mb-6 md:grid-cols-2">
                   <div className="space-y-4">
                     <Input
                       label="Desconto na Proposta (R$)"
@@ -1120,22 +1498,22 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                     />
                   </div>
 
-                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/30 rounded-xl border border-zinc-150 dark:border-zinc-800 flex flex-col justify-center space-y-2">
-                    <div className="flex justify-between text-xs text-zinc-500">
+                  <div className="flex flex-col justify-center space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40">
+                    <div className="flex justify-between text-xs text-slate-500 dark:text-zinc-400">
                       <span>Subtotal dos Itens:</span>
-                      <span className="font-bold">{formatCurrency(liveTotals.subtotal)}</span>
+                      <span className="font-bold text-slate-700 dark:text-zinc-200">{formatCurrency(liveTotals.subtotal)}</span>
                     </div>
-                    <div className="flex justify-between text-xs text-zinc-500">
+                    <div className="flex justify-between text-xs text-slate-500 dark:text-zinc-400">
                       <span>Desconto total:</span>
                       <span className="font-bold text-red-500">-{formatCurrency(Number(newQuoteForm.discount) || 0)}</span>
                     </div>
-                    <div className="flex justify-between text-xs text-zinc-500">
+                    <div className="flex justify-between text-xs text-slate-500 dark:text-zinc-400">
                       <span>Acréscimos/Impostos:</span>
-                      <span className="font-bold text-zinc-650">+{formatCurrency(liveTotals.tax)}</span>
+                      <span className="font-bold text-slate-700 dark:text-zinc-200">+{formatCurrency(liveTotals.tax)}</span>
                     </div>
-                    <div className="flex justify-between text-sm font-bold text-blue-950 dark:text-zinc-100 pt-2 border-t">
+                    <div className="flex justify-between border-t border-emerald-100 pt-2 text-sm font-bold text-slate-900 dark:border-emerald-950 dark:text-zinc-100">
                       <span>Total Geral:</span>
-                      <span className="text-success">{formatCurrency(liveTotals.total)}</span>
+                      <span className="text-emerald-700 dark:text-emerald-300">{formatCurrency(liveTotals.total)}</span>
                     </div>
                   </div>
                 </div>
@@ -1148,34 +1526,77 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
       {/* 2. MAIN SPLIT-SCREEN VIEW (List + PDF preview side-by-side) */}
       {view === "list" && (
         <>
-          {/* Search Header Bar (Hidden during printing) */}
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between print:hidden">
-            <div className="w-full sm:max-w-md">
-              <Input
-                placeholder="Buscar por cliente, proposta..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                icon={<Search size={16} />}
-              />
+          <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#071331] via-[#10275b] to-[#1d4d9b] p-6 text-white shadow-xl shadow-blue-950/10 print:hidden sm:p-8">
+            <div className="absolute -right-24 -top-32 h-80 w-80 rounded-full bg-blue-400/20 blur-3xl" />
+            <div className="absolute -bottom-20 left-1/3 h-48 w-96 rounded-full bg-cyan-300/10 blur-3xl" />
+            <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-blue-200"><BriefcaseBusiness size={14} /> Central comercial</div>
+                <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Propostas e Orçamentos</h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Acompanhe oportunidades, negociações, aprovações e a conversão de cada proposta em ordem de serviço.</p>
+              </div>
+              {hasPermission("quotes.write") && (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button onClick={() => openTab("orcamentos", "Proposta Preventiva", { tab: "preventiva" })} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 text-sm font-black text-white transition hover:bg-white/15"><Sparkles size={16} /> Proposta preventiva</button>
+                  <button onClick={() => setView("create")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-blue-950 shadow-lg shadow-blue-950/20 transition hover:bg-blue-50"><Plus size={17} /> Novo orçamento</button>
+                </div>
+              )}
             </div>
+          </section>
 
-            {hasPermission("quotes.write") && (
-              <Button variant="primary" onClick={() => setView("create")} className="w-full sm:w-auto">
-                <Plus size={16} /> Novo Orçamento Completo
-              </Button>
-            )}
-          </div>
+          <section className="grid gap-3 print:hidden sm:grid-cols-2 xl:grid-cols-4">
+            <button type="button" onClick={() => setStatusFilter("EM_ANDAMENTO")} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-zinc-900 ${statusFilter === "EM_ANDAMENTO" ? "border-blue-500 ring-2 ring-blue-100 dark:ring-blue-950" : "border-zinc-200 dark:border-zinc-800"}`}>
+              <div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/30"><TrendingUp size={19} /></span><span className="text-[9px] font-black uppercase tracking-wide text-zinc-400">Pipeline aberto</span></div>
+              <p className="mt-4 text-2xl font-black tracking-tight text-zinc-950 dark:text-white">{formatCurrency(openPipelineValue)}</p>
+              <p className="mt-1 text-xs font-semibold text-zinc-500">{openQuotes.length} proposta(s) em andamento</p>
+            </button>
+            <button type="button" onClick={() => setStatusFilter("RASCUNHOS")} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-zinc-900 ${statusFilter === "RASCUNHOS" ? "border-amber-500 ring-2 ring-amber-100 dark:ring-amber-950" : "border-zinc-200 dark:border-zinc-800"}`}>
+              <div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/30"><FileText size={19} /></span><span className="text-[9px] font-black uppercase tracking-wide text-zinc-400">Para revisar</span></div>
+              <p className="mt-4 text-2xl font-black tracking-tight text-zinc-950 dark:text-white">{draftQuotes.length}</p>
+              <p className="mt-1 text-xs font-semibold text-zinc-500">orçamento(s) em rascunho</p>
+            </button>
+            <button type="button" onClick={() => setStatusFilter("APROVADOS")} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-zinc-900 ${statusFilter === "APROVADOS" ? "border-emerald-500 ring-2 ring-emerald-100 dark:ring-emerald-950" : "border-zinc-200 dark:border-zinc-800"}`}>
+              <div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30"><CircleDollarSign size={19} /></span><span className="text-[9px] font-black uppercase tracking-wide text-zinc-400">Aprovado</span></div>
+              <p className="mt-4 text-2xl font-black tracking-tight text-zinc-950 dark:text-white">{formatCurrency(approvedValue)}</p>
+              <p className="mt-1 text-xs font-semibold text-zinc-500">{approvedQuotes.length} aprovada(s) · {conversionRate}% conversão</p>
+            </button>
+            <button type="button" onClick={() => setStatusFilter("EXPIRADOS")} className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-zinc-900 ${statusFilter === "EXPIRADOS" ? "border-rose-500 ring-2 ring-rose-100 dark:ring-rose-950" : "border-zinc-200 dark:border-zinc-800"}`}>
+              <div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-950/30"><Clock3 size={19} /></span><span className="text-[9px] font-black uppercase tracking-wide text-zinc-400">Atenção</span></div>
+              <p className="mt-4 text-2xl font-black tracking-tight text-zinc-950 dark:text-white">{expiredQuotes.length}</p>
+              <p className="mt-1 text-xs font-semibold text-zinc-500">expirada(s) ou recusada(s)</p>
+            </button>
+          </section>
 
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+          <section className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm print:hidden dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="relative min-w-0 flex-1 xl:max-w-lg">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" size={17} />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por cliente ou número da proposta" className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-4 text-sm font-semibold outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 dark:border-zinc-700 dark:bg-zinc-800" />
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
+                {[
+                  { id: "TODOS", label: `Todos ${quotes.length}` },
+                  { id: "RASCUNHOS", label: `Rascunhos ${draftQuotes.length}` },
+                  { id: "EM_ANDAMENTO", label: `Em andamento ${openQuotes.length}` },
+                  { id: "APROVADOS", label: `Aprovados ${approvedQuotes.length}` },
+                  { id: "EXPIRADOS", label: `Encerrados ${expiredQuotes.length}` },
+                ].map((item) => <button key={item.id} type="button" onClick={() => setStatusFilter(item.id)} className={`shrink-0 rounded-xl px-3.5 py-2.5 text-xs font-black transition ${statusFilter === item.id ? "bg-blue-600 text-white shadow-sm" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>{item.label}</button>)}
+              </div>
+              <label className="relative flex shrink-0 items-center gap-2"><SlidersHorizontal size={15} className="absolute left-3 text-zinc-400" /><select value={sortMode} onChange={(event) => setSortMode(event.target.value)} className="h-10 appearance-none rounded-xl border border-zinc-200 bg-white pl-9 pr-8 text-xs font-bold text-zinc-600 outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"><option value="RECENTES">Mais recentes</option><option value="MAIOR_VALOR">Maior valor</option><option value="MENOR_VALOR">Menor valor</option><option value="VALIDADE">Validade próxima</option></select></label>
+            </div>
+          </section>
+
+          <div className="quote-print-layout grid grid-cols-1 gap-5 items-start xl:grid-cols-12">
 
             {/* Left Side Quote List (Hidden during print) */}
-            <div className="xl:col-span-5 space-y-4 print:hidden">
-              <Card className="p-0 overflow-hidden shadow-premium">
-                <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/10">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Histórico de Propostas</span>
+            <div className="space-y-4 print:hidden xl:col-span-4">
+              <Card className="overflow-hidden rounded-2xl border border-zinc-200 p-0 shadow-sm dark:border-zinc-800">
+                <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/70 px-5 py-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+                  <div><span className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">Carteira de propostas</span><p className="mt-1 text-xs font-bold text-zinc-700 dark:text-zinc-200">{filteredQuotes.length} resultado(s)</p></div>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-zinc-400 shadow-sm dark:bg-zinc-800"><FileText size={15} /></span>
                 </div>
 
-                <div className="p-0 divide-y divide-zinc-100 dark:divide-zinc-800 max-h-[70vh] overflow-y-auto">
+                <div className="max-h-[calc(100vh-330px)] min-h-[420px] space-y-2 overflow-y-auto bg-zinc-50/40 p-2 dark:bg-zinc-950/20">
                   {loading ? (
                     <div className="p-12 text-center text-zinc-400 flex flex-col items-center justify-center gap-3">
                       <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -1189,37 +1610,43 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                   ) : (
                     filteredQuotes.map((q) => {
                       const isActive = q.id === selectedQuoteId;
+                      const expired = isQuoteExpired(q);
                       return (
                         <div
                           key={q.id}
                           onClick={() => setSelectedQuoteId(q.id)}
-                          className={`p-4 flex justify-between items-center transition-all cursor-pointer ${
+                          className={`cursor-pointer rounded-2xl border p-4 transition-all ${
                             isActive
-                              ? "bg-primary/5 border-l-4 border-primary"
-                              : "hover:bg-zinc-50 dark:hover:bg-zinc-800/40 border-l-4 border-transparent"
+                              ? "border-blue-400 bg-white shadow-md ring-2 ring-blue-100 dark:border-blue-700 dark:bg-zinc-900 dark:ring-blue-950"
+                              : "border-transparent bg-white/80 hover:border-zinc-200 hover:bg-white hover:shadow-sm dark:bg-zinc-900/60 dark:hover:border-zinc-700"
                           }`}
                         >
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-xs text-zinc-800 dark:text-zinc-150">#{q.code || q.id.slice(-4)}</span>
-                              <StatusBadge status={q.status} />
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono text-[10px] font-black text-blue-600">{q.code || q.id.slice(-4)}</span>
+                                <span className="text-[9px] font-bold text-zinc-400">V{q.version || 1}</span>
+                              </div>
+                              <p className="mt-2 truncate text-sm font-black text-zinc-950 dark:text-white">{q.clientName}</p>
+                              <p className="mt-1 text-[10px] font-semibold text-zinc-400">Criada em {formatDate(q.createdAt)}</p>
                             </div>
-                            <p className="font-semibold text-xs text-zinc-900 dark:text-zinc-100">{q.clientName}</p>
-                            <p className="text-[10px] text-zinc-450">{formatDate(q.createdAt)}</p>
+                            <div className="shrink-0 text-right">
+                              <span className="block text-sm font-black text-zinc-950 dark:text-white">{formatCurrency(q.total || 0)}</span>
+                              <div className="mt-1 flex justify-end">
+                              <StatusBadge status={q.status} />
+                              </div>
+                            </div>
                           </div>
-
-                          <div className="text-right flex flex-col items-end gap-2">
-                            <span className="font-bold text-xs text-zinc-800 dark:text-zinc-200">{formatCurrency(q.total || 0)}</span>
-
-                            {/* Approval and Edit triggers inside list */}
-                            <div className="flex gap-1.5 animate-in fade-in duration-200" onClick={(e) => e.stopPropagation()}>
+                          <div className="mt-3 flex items-center justify-between gap-3 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+                            <span className={`flex min-w-0 items-center gap-1.5 truncate text-[10px] font-bold ${expired ? "text-rose-600" : "text-zinc-500"}`}><CalendarDays size={12} /> {expired ? "Validade encerrada" : `Válida até ${formatDate(q.validUntil)}`}{q.serviceOrders?.[0]?.code ? ` · ${q.serviceOrders[0].code}` : ""}</span>
+                            <div className="flex shrink-0 gap-1.5" onClick={(e) => e.stopPropagation()}>
                               {hasPermission("quotes.write") && canApproveQuote(q.status) && (
                                 <button
                                   onClick={async () => {
                                     const details = await getQuoteDetails(q.id);
                                     if (details) handleStartEdit(details);
                                   }}
-                                  className="p-1 text-zinc-500 hover:bg-zinc-150 dark:hover:bg-zinc-800 rounded transition-all cursor-pointer"
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:border-blue-300 hover:text-blue-600 dark:border-zinc-700 dark:bg-zinc-800"
                                   title="Editar Orçamento"
                                 >
                                   <Edit size={15} />
@@ -1229,20 +1656,21 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                                 <>
                                   <button
                                     onClick={() => void requestQuoteApproval(q)}
-                                    className="inline-flex items-center gap-1 rounded-lg bg-success px-2 py-1 text-[10px] font-bold text-white hover:bg-success/90 transition-all cursor-pointer"
+                                    className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-2.5 text-[10px] font-black text-white transition hover:bg-emerald-700"
                                     title="Aprovar e Gerar OS"
                                   >
                                     <CheckCircle size={13} /> Aprovar
                                   </button>
                                   <button
                                     onClick={() => handleReject(q.id)}
-                                    className="p-1 text-danger hover:bg-danger/15 rounded transition-all cursor-pointer"
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50"
                                     title="Rejeitar Orçamento"
                                   >
                                     <XCircle size={15} />
                                   </button>
                                 </>
                               )}
+                              <button type="button" onClick={() => setSelectedQuoteId(q.id)} className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800"><ChevronRight size={16} /></button>
                             </div>
                           </div>
                         </div>
@@ -1254,26 +1682,40 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
             </div>
 
             {/* Right Side PDF Print Sheet Preview */}
-            <div className="xl:col-span-7 space-y-4">
+            <div className="quote-print-column min-w-0 space-y-4 xl:col-span-8">
 
               {/* Action Row for the PDF view */}
               {quoteDetails && (
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-4 sm:px-6 py-3.5 rounded-xl shadow-premium print:hidden">
-                  <span className="text-xs font-bold text-zinc-650 dark:text-zinc-350">Visualização de Proposta Timbrada (Formato A4)</span>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={handlePrint}>
-                      <Printer size={14} /> Imprimir / Salvar PDF
-                    </Button>
-                    {hasPermission("quotes.write") && canApproveQuote(quoteDetails.status) && (
-                      <Button variant="secondary" onClick={() => handleStartEdit(quoteDetails)}>
-                        <Edit size={14} /> Editar
+                <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm print:hidden dark:border-zinc-800 dark:bg-zinc-900 sm:p-5">
+                  <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/30"><Send size={18} /></span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-xs font-black text-blue-600">{quoteDetails.code}</span><StatusBadge status={quoteDetails.status} /><span className="text-[9px] font-bold text-zinc-400">VERSÃO {quoteDetails.version || 1}</span></div>
+                        <p className="mt-1 truncate text-sm font-black text-zinc-950 dark:text-white">{quoteDetails.client?.name || quoteDetails.clientName}</p>
+                        <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-semibold text-zinc-500"><span>{formatCurrency(quoteDetails.total || 0)}</span><span>·</span><span>Válida até {formatDate(quoteDetails.validUntil)}</span><span>·</span><span>PDF executivo em uma folha A4</span></p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" onClick={handlePrint}>
+                        <Printer size={14} /> PDF
                       </Button>
-                    )}
-                    {hasPermission("quotes.write") && canApproveQuote(quoteDetails.status) && (
-                      <Button variant="success" onClick={() => void requestQuoteApproval(quoteDetails)}>
-                        <CheckCircle size={14} /> Aprovar e gerar OS
-                      </Button>
-                    )}
+                      {hasPermission("quotes.write") && (
+                        <Button variant="primary" onClick={() => setIsEmailModalOpen(true)}>
+                          <Mail size={14} /> Enviar por Gmail
+                        </Button>
+                      )}
+                      {hasPermission("quotes.write") && canApproveQuote(quoteDetails.status) && (
+                        <Button variant="secondary" onClick={() => handleStartEdit(quoteDetails)}>
+                          <Edit size={14} /> Editar
+                        </Button>
+                      )}
+                      {hasPermission("quotes.write") && canApproveQuote(quoteDetails.status) && (
+                        <Button variant="success" onClick={() => void requestQuoteApproval(quoteDetails)}>
+                          <CheckCircle size={14} /> Aprovar e gerar OS
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1286,13 +1728,17 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
               ) : quoteDetails ? (
 
                 /* High-fidelity Blueprint PDF template matching the uploaded blueprint image */
-                <div className="print-a4-sheet bg-white text-zinc-850 p-6 md:p-8 rounded-xl border border-zinc-200/80 shadow-premium font-sans max-w-4xl mx-auto space-y-6 print:border-0 print:shadow-none print:p-0 print:mx-0">
+                <article
+                  className="print-a4-sheet w-full min-w-0 bg-white text-zinc-850 p-4 sm:p-6 md:p-8 rounded-xl border border-zinc-200/80 shadow-premium font-sans mx-auto space-y-5 sm:space-y-6 print:border-0 print:shadow-none print:p-0 print:mx-0"
+                  style={{ maxWidth: previewWidth }}
+                  aria-label={`Orçamento ${quoteDetails.code}`}
+                >
 
                   {/* HEADER ROW */}
-                  <div className="grid grid-cols-12 gap-4 pb-4 border-b-2 border-blue-950 items-center">
+                  <header className="quote-print-responsive-grid print-keep-together grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 pb-4 border-b-2 border-blue-950 items-center">
 
                     {/* Logo and company profile details */}
-                    <div className="col-span-5 flex items-center gap-3">
+                    <div className="sm:col-span-5 flex items-center gap-3 min-w-0">
                       {companyParams.logoUrl ? (
                         <img src={companyParams.logoUrl} alt="Logo" className="w-14 h-14 object-contain" />
                       ) : (
@@ -1300,7 +1746,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                           <Award size={24} />
                         </div>
                       )}
-                      <div className="space-y-0.5">
+                      <div className="space-y-0.5 min-w-0 break-words">
                         <h1 className="text-sm font-bold text-blue-955 uppercase tracking-tight leading-none">
                           {companyParams.tradeName || "SUA EMPRESA"}
                         </h1>
@@ -1318,7 +1764,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                     </div>
 
                     {/* commercial proposal block */}
-                    <div className="col-span-4 bg-blue-950 text-white p-2.5 text-center rounded-lg space-y-0.5 shadow">
+                    <div className="sm:col-span-4 bg-blue-950 text-white p-2.5 text-center rounded-lg space-y-0.5 shadow">
                       <span className="text-[8px] font-bold uppercase tracking-wider block">Proposta Comercial</span>
                       <span className="text-xs font-bold block">Nº {quoteDetails.code}</span>
                       <div className="text-[7.5px] font-bold text-zinc-300 pt-0.5 border-t border-white/10">
@@ -1327,16 +1773,16 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                     </div>
 
                     {/* Merchan Header placement */}
-                    <div className="col-span-3 border border-zinc-200/80 p-2 bg-zinc-50/50 rounded-lg text-center shadow-sm">
+                    <div className="sm:col-span-3 border border-zinc-200/80 p-2 bg-zinc-50/50 rounded-lg text-center shadow-sm">
                       <span className="text-[8px] font-bold text-blue-950 uppercase block">ESPAÇO PARA MERCHAN</span>
                       <p className="text-[7px] text-zinc-400 mt-0.5 leading-normal font-semibold">
                         {companyParams.tradeName || "NEXUS CLIMATIZACAO E ELETRICA"}: Ar limpo e manutenção preventiva garantida!
                       </p>
                     </div>
-                  </div>
+                  </header>
 
                   {/* DADOS DO CLIENTE & PROPOSTA BOXES */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="quote-print-responsive-grid print-keep-together grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
 
                     {/* Client Box */}
                     <div className="border border-zinc-200/85 p-3 rounded-xl bg-zinc-50/30 space-y-2">
@@ -1392,7 +1838,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                   </div>
 
                   {/* ITEMS GRID TABLE */}
-                  <div className="overflow-hidden border border-zinc-200 rounded-xl shadow-sm">
+                  <div className="print-items-table overflow-x-auto sm:overflow-hidden border border-zinc-200 rounded-xl shadow-sm">
                     <table className="w-full text-left text-[9px] border-collapse font-sans">
                       <thead>
                         <tr className="bg-blue-950 text-white font-bold uppercase text-[7.5px] tracking-wider">
@@ -1408,21 +1854,22 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                         {quoteDetails.items?.map((item: any, idx: number) => (
                           <tr key={item.id} className="hover:bg-zinc-50/50">
                             <td className="py-2.5 px-3 text-center text-zinc-450 font-bold">{idx + 1}</td>
-                            <td className="py-2.5 px-3 text-zinc-800 font-semibold font-sans">
+                            <td className="py-2.5 px-3 text-zinc-800 font-semibold font-sans break-words">
                               {item.description}
                               {item.type === "PECAS" && <span className="ml-1.5 text-[7px] bg-zinc-100 text-zinc-500 py-0.5 px-1 rounded uppercase font-bold">Peça/Material</span>}
                             </td>
                             <td className="py-2.5 px-3 text-center">{item.quantity}</td>
                             <td className="py-2.5 px-3 text-center font-bold">{item.unit || "UN"}</td>
                             <td className="py-2.5 px-3 text-right">{formatCurrency(item.unitPrice)}</td>
-                                                 </tr>
+                            <td className="py-2.5 px-3 text-right font-bold">{formatCurrency(item.quantity * item.unitPrice)}</td>
+                          </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
 
                   {/* FOOTER INFO: DIFERENCIAIS, MERCHAN & TOTALS */}
-                  <div className="grid grid-cols-3 gap-4 items-stretch">
+                  <div className="quote-print-responsive-grid print-keep-together grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-stretch">
                     {/* Diferenciais */}
                     <div className="border border-zinc-200/85 p-3 rounded-xl space-y-2 bg-zinc-50/30">
                       <span className="text-[9px] font-bold text-blue-955 uppercase tracking-wider block">★ Diferenciais</span>
@@ -1478,7 +1925,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                   </div>
 
                   {/* TRIBUTOS, PRAZO & FORMA PAGAMENTO ROW */}
-                  <div className="grid grid-cols-3 gap-4 pt-3 border-t border-zinc-200/80 text-[8px] text-zinc-500 leading-relaxed font-semibold">
+                  <div className="quote-print-responsive-grid print-keep-together grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-3 border-t border-zinc-200/80 text-[8px] text-zinc-500 leading-relaxed font-semibold">
                     <div className="space-y-0.5">
                       <span className="font-bold text-zinc-800 uppercase tracking-wide block text-[8.5px]">Condições Gerais</span>
                       <p>• A proposta tem validade conforme data informada.</p>
@@ -1496,24 +1943,24 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
                   </div>
 
                   {/* OBSERVATIONS & SIGNATURE LINE */}
-                  <div className="grid grid-cols-12 gap-4 items-end pt-4 border-t border-zinc-200/80">
-                    <div className="col-span-8 bg-zinc-50 p-2.5 rounded-lg border border-zinc-150 text-[7.5px] text-zinc-500 italic">
+                  <div className="quote-print-responsive-grid print-keep-together grid grid-cols-1 sm:grid-cols-12 gap-4 items-end pt-4 border-t border-zinc-200/80">
+                    <div className="sm:col-span-8 bg-zinc-50 p-2.5 rounded-lg border border-zinc-150 text-[7.5px] text-zinc-500 italic break-words">
                       <span className="font-bold text-zinc-700 not-italic block mb-0.5 uppercase tracking-wide text-[8px]">Observações:</span>
                       {quoteDetails.notes || "Estaremos sempre à disposição para melhor atendê-los!"}
                     </div>
 
-                    <div className="col-span-4 text-center text-[8.5px] text-zinc-450 border-t border-zinc-300 pt-1.5 mt-4">
+                    <div className="sm:col-span-4 text-center text-[8.5px] text-zinc-450 border-t border-zinc-300 pt-1.5 mt-4">
                       <span className="font-bold text-zinc-750 block">{currentUser?.name || "Lucas Souza"}</span>
                       Departamento Comercial
                     </div>
                   </div>
 
-                  <div className="bg-blue-950 text-white py-2 px-3 rounded-lg text-center flex justify-between items-center text-[7.5px] font-semibold">
+                  <footer className="print-keep-together bg-blue-950 text-white py-2 px-3 rounded-lg text-center flex flex-col sm:flex-row gap-1 sm:justify-between sm:items-center text-[7.5px] font-semibold">
                     <span>Obrigado pela confiança! Soluções que geram resultados.</span>
                     <span className="font-bold uppercase tracking-wider">{companyParams.tradeName || "NEXUS AR"}</span>
-                  </div>
+                  </footer>
 
-                </div>
+                </article>
               ) : (
                 <div className="py-24 text-center text-zinc-400 border border-dashed border-zinc-200 rounded-xl">
                   Nenhum orçamento selecionado para pré-visualização.
@@ -1568,6 +2015,18 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
         })()}
       </Modal>
 
+      <SendQuoteEmailModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        quoteId={quoteDetails?.id || null}
+        quoteCode={quoteDetails?.code}
+        company={companyParams}
+        onSent={async () => {
+          await loadQuotes();
+          if (selectedQuoteId) await fetchDetails(selectedQuoteId);
+        }}
+      />
+
       {/* Cadastro rápido de cliente dentro do orçamento */}
       <Modal isOpen={isQuickClientOpen} onClose={() => setIsQuickClientOpen(false)} title="Novo cliente para o orçamento" size="xl">
         <form onSubmit={handleQuickClientSave} className="space-y-6">
@@ -1586,7 +2045,7 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
             </div>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
               <div className="md:col-span-8">
-                <Input label="CPF ou CNPJ *" required placeholder="Somente números ou formatado" value={quickClientForm.cpfCnpj} onChange={(e) => setQuickClientForm((prev) => ({ ...prev, cpfCnpj: e.target.value }))} />
+                <Input label="CPF ou CNPJ (opcional)" placeholder="Pode ser preenchido depois" value={quickClientForm.cpfCnpj} onChange={(e) => setQuickClientForm((prev) => ({ ...prev, cpfCnpj: e.target.value }))} />
               </div>
               <div className="md:col-span-4">
                 <Button type="button" variant="secondary" className="w-full" loading={cnpjLoading} onClick={handleCnpjLookup}>
@@ -1648,60 +2107,79 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
         </form>
       </Modal>
 
-      {/* 3. DEDICATED MODAL: CADASTRO DE ITEM NO CATÁLOGO (ON-THE-FLY) */}
-      <Modal isOpen={isAdhocOpen} onClose={() => setIsAdhocOpen(false)} title="Cadastrar Novo Item no Catálogo Geral">
-        <form onSubmit={handleSaveAdhoc} className="space-y-4">
-          <Select
-            label="Tipo de Item *"
-            options={[
-              { value: "SERVICO", label: "Serviço Técnico" },
-              { value: "PECAS", label: "Peça / Insumo de Estoque" },
-            ]}
-            value={adhocForm.type}
-            onChange={(e) => setAdhocForm((prev) => ({ ...prev, type: e.target.value }))}
-          />
-
-          <Input
-            label="Nome do Item / Descrição Oficial *"
-            required
-            placeholder="Ex: Compressor Rotativo 18K BTU"
-            value={adhocForm.name}
-            onChange={(e) => setAdhocForm((prev) => ({ ...prev, name: e.target.value }))}
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Preço de Venda (R$) *"
-              type="number"
-              required
-              placeholder="0.00"
-              value={adhocForm.price}
-              onChange={(e) => setAdhocForm((prev) => ({ ...prev, price: e.target.value }))}
-            />
-
-            <Input
-              label="Preço de Custo (R$)"
-              type="number"
-              placeholder="0.00"
-              value={adhocForm.cost}
-              onChange={(e) => setAdhocForm((prev) => ({ ...prev, cost: e.target.value }))}
-            />
+      {/* Cadastro individual de serviço ou material */}
+      <Modal
+        isOpen={isAdhocOpen}
+        onClose={() => setIsAdhocOpen(false)}
+        title={adhocForm.type === "SERVICO" ? "Cadastrar Serviço Profissional" : "Cadastrar Material / Peça"}
+        size="xl"
+      >
+        <form onSubmit={handleSaveAdhoc} className="space-y-5">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-950/30">
+            <div className="flex items-start gap-3">
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm ${adhocForm.type === "SERVICO" ? "bg-blue-600 text-white" : "bg-orange-500 text-white"}`}>
+                {adhocForm.type === "SERVICO" ? <Wrench size={18} /> : <Package size={18} />}
+              </span>
+              <div>
+                <p className="text-sm font-black text-zinc-900 dark:text-white">{adhocForm.type === "SERVICO" ? "Ficha técnica do serviço" : "Ficha comercial e de estoque do material"}</p>
+                <p className="mt-1 text-xs leading-relaxed text-zinc-500">O cadastro será salvo separadamente no catálogo e aplicado somente à linha selecionada da proposta.</p>
+              </div>
+            </div>
           </div>
 
-          <Input
-            label="Unidade de Medida"
-            placeholder="Ex: UN, M, KG, PC"
-            value={adhocForm.unit}
-            onChange={(e) => setAdhocForm((prev) => ({ ...prev, unit: e.target.value }))}
-          />
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 border-b border-zinc-150 pb-2 dark:border-zinc-800">
+              <BookOpen size={15} className="text-primary" />
+              <h4 className="text-[10px] font-black uppercase tracking-wider text-zinc-600 dark:text-zinc-300">Identificação</h4>
+            </div>
+            <Input
+              label={adhocForm.type === "SERVICO" ? "Nome oficial do serviço *" : "Nome oficial do material *"}
+              required
+              placeholder={adhocForm.type === "SERVICO" ? "Ex: Manutenção preventiva em Split Hi-Wall" : "Ex: Filtro de ar 600 x 600 mm"}
+              value={adhocForm.name}
+              onChange={(e) => setAdhocForm((prev) => ({ ...prev, name: e.target.value }))}
+            />
+            <Input
+              label="Descrição técnica"
+              placeholder={adhocForm.type === "SERVICO" ? "Escopo resumido, atividades incluídas e aplicação" : "Marca, modelo, especificação ou aplicação"}
+              value={adhocForm.description}
+              onChange={(e) => setAdhocForm((prev) => ({ ...prev, description: e.target.value }))}
+            />
+          </section>
 
-          <div className="pt-4 border-t border-zinc-150 dark:border-zinc-800 flex justify-end gap-2">
-            <Button variant="secondary" type="button" onClick={() => setIsAdhocOpen(false)}>
-              Cancelar
-            </Button>
-            <Button variant="primary" type="submit" loading={actionLoading}>
-              Cadastrar no Catálogo
-            </Button>
+          {adhocForm.type === "SERVICO" ? (
+            <section className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Select label="Categoria" value={adhocForm.category} onChange={(e) => setAdhocForm((prev) => ({ ...prev, category: e.target.value }))} options={[{ value: "MANUTENCAO", label: "Manutenção" }, { value: "INSTALACAO", label: "Instalação" }, { value: "HIGIENIZACAO", label: "Higienização" }, { value: "INSPECAO", label: "Inspeção / Laudo" }, { value: "PROJETO", label: "Projeto técnico" }, { value: "OUTROS", label: "Outros" }]} />
+                <Select label="Modalidade" value={adhocForm.maintenanceType} onChange={(e) => setAdhocForm((prev) => ({ ...prev, maintenanceType: e.target.value }))} options={[{ value: "PREVENTIVA", label: "Preventiva" }, { value: "CORRETIVA", label: "Corretiva" }, { value: "PREDITIVA", label: "Preditiva" }, { value: "INSTALACAO", label: "Instalação" }, { value: "AVULSO", label: "Atendimento avulso" }]} />
+                <Select label="Unidade de cobrança" value={adhocForm.unit} onChange={(e) => setAdhocForm((prev) => ({ ...prev, unit: e.target.value }))} options={[{ value: "SERVIÇO", label: "Por serviço" }, { value: "H", label: "Por hora" }, { value: "DIA", label: "Por diária" }, { value: "UN", label: "Por unidade" }, { value: "M2", label: "Por metro²" }]} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Input label="Tempo estimado (horas)" type="number" min="0" step="0.5" value={adhocForm.estimatedHours} onChange={(e) => setAdhocForm((prev) => ({ ...prev, estimatedHours: e.target.value }))} />
+                <Input label="Preço padrão de venda (R$) *" type="number" min="0.01" step="0.01" required value={adhocForm.price} onChange={(e) => setAdhocForm((prev) => ({ ...prev, price: e.target.value }))} />
+              </div>
+            </section>
+          ) : (
+            <section className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Select label="Classificação" value={adhocForm.productType} onChange={(e) => setAdhocForm((prev) => ({ ...prev, productType: e.target.value }))} options={[{ value: "MATERIAL", label: "Material / insumo" }, { value: "PECA", label: "Peça de reposição" }, { value: "EQUIPAMENTO", label: "Equipamento" }, { value: "FERRAMENTA", label: "Ferramenta" }]} />
+                <Select label="Unidade" value={adhocForm.unit} onChange={(e) => setAdhocForm((prev) => ({ ...prev, unit: e.target.value }))} options={[{ value: "UN", label: "Unidade" }, { value: "PC", label: "Peça" }, { value: "M", label: "Metro" }, { value: "M2", label: "Metro²" }, { value: "KG", label: "Quilo" }, { value: "L", label: "Litro" }, { value: "CJ", label: "Conjunto" }]} />
+                <Input label="Estoque mínimo" type="number" min="0" step="0.01" value={adhocForm.minStock} onChange={(e) => setAdhocForm((prev) => ({ ...prev, minStock: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <Input label="Estoque inicial" type="number" min="0" step="0.01" value={adhocForm.stockQuantity} onChange={(e) => setAdhocForm((prev) => ({ ...prev, stockQuantity: e.target.value }))} />
+                <Input label="Custo unitário (R$)" type="number" min="0" step="0.01" value={adhocForm.cost} onChange={(e) => setAdhocForm((prev) => ({ ...prev, cost: e.target.value }))} />
+                <Input label="Preço de venda (R$) *" type="number" min="0.01" step="0.01" required value={adhocForm.price} onChange={(e) => setAdhocForm((prev) => ({ ...prev, price: e.target.value }))} />
+              </div>
+            </section>
+          )}
+
+          <div className="flex flex-col-reverse gap-2 border-t border-zinc-150 pt-4 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-center gap-1.5 text-[10px] font-semibold text-zinc-450"><BadgeDollarSign size={13} /> Depois de salvo, o item continuará disponível para outras propostas.</p>
+            <div className="flex gap-2">
+              <Button variant="secondary" type="button" onClick={() => setIsAdhocOpen(false)}>Cancelar</Button>
+              <Button variant="primary" type="submit" loading={actionLoading}><Save size={14} /> Salvar {adhocForm.type === "SERVICO" ? "serviço" : "material"}</Button>
+            </div>
           </div>
         </form>
       </Modal>

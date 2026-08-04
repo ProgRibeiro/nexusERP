@@ -22,8 +22,9 @@ import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Modal } from "../ui/Modal";
 import { StatusBadge } from "../ui/StatusBadge";
-import { Timeline } from "../ui/Timeline";
 import { Table, TableRow, TableCell } from "../ui/Table";
+import ServiceVisitsPanel from "@/components/os/ServiceVisitsPanel";
+import ServiceOrderAssetsPanel from "@/components/os/ServiceOrderAssetsPanel";
 import {
   Loader2,
   Wrench,
@@ -43,12 +44,55 @@ import {
   Camera,
   Image,
   Upload,
-  Printer
+  Printer,
+  ChevronRight,
+  ChevronDown,
+  Users,
+  Package,
+  ClipboardList,
+  History,
+  Check,
+  MoreHorizontal,
+  CalendarClock,
+  Boxes,
 } from "lucide-react";
 
 interface OrdemServicoDetailTabProps {
   id: string;
   initialSection?: string;
+}
+
+interface PendingOSPhoto {
+  id: string;
+  name: string;
+  url: string;
+  caption: string;
+}
+
+function compressEvidenceImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`Não foi possível ler ${file.name}.`));
+    reader.onload = () => {
+      const image = new window.Image();
+      image.onerror = () => reject(new Error(`Formato de imagem inválido: ${file.name}.`));
+      image.onload = () => {
+        const maxDimension = 1920;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) return reject(new Error("Não foi possível preparar a imagem."));
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServicoDetailTabProps) {
@@ -58,10 +102,10 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
 
   const [details, setDetails] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [subTab, setSubTab] = useState<"resumo" | "cliente" | "checklist" | "materials" | "relatorio" | "history">("resumo");
+  const [subTab, setSubTab] = useState<"resumo" | "cliente" | "visits" | "assets" | "checklist" | "materials" | "relatorio" | "history">("resumo");
 
   useEffect(() => {
-    if (["resumo", "cliente", "checklist", "materials", "relatorio", "history"].includes(initialSection || "")) {
+    if (["resumo", "cliente", "visits", "assets", "checklist", "materials", "relatorio", "history"].includes(initialSection || "")) {
       setSubTab(initialSection as typeof subTab);
     }
   }, [initialSection]);
@@ -70,6 +114,9 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [pipelineExpanded, setPipelineExpanded] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [preparingPrint, setPreparingPrint] = useState(false);
 
   // Inventário (estoque)
   const [dbProducts, setDbProducts] = useState<any[]>([]);
@@ -108,11 +155,10 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
   });
 
   // Foto Form
-  const [photoForm, setPhotoForm] = useState({
-    step: "ANTES",
-    url: "",
-    caption: "",
-  });
+  const [photoStep, setPhotoStep] = useState("ANTES");
+  const [pendingPhotos, setPendingPhotos] = useState<PendingOSPhoto[]>([]);
+  const [photoProgress, setPhotoProgress] = useState<{ mode: "preparing" | "uploading"; done: number; total: number } | null>(null);
+  const [photoGalleryLimit, setPhotoGalleryLimit] = useState(12);
 
   // Company parameters from localStorage (for PDF/Print Report)
   const [companyParams, setCompanyParams] = useState<any>({
@@ -403,41 +449,80 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoForm((prev) => ({ ...prev, url: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    const availableSlots = Math.max(0, 20 - pendingPhotos.length);
+    if (!availableSlots) {
+      toast("O limite é de 20 fotos por lote.", "warning");
+      return;
+    }
+    const selected = files.slice(0, availableSlots);
+    const valid = selected.filter((file) => {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return false;
+      return file.size > 0 && file.size <= 10 * 1024 * 1024;
+    });
+    if (valid.length !== selected.length) toast("Algumas imagens foram ignoradas. Use JPG, PNG ou WebP com até 10 MB.", "warning");
+    setPhotoProgress({ mode: "preparing", done: 0, total: valid.length });
+    try {
+      const prepared: PendingOSPhoto[] = [];
+      for (let index = 0; index < valid.length; index += 1) {
+        const file = valid[index];
+        prepared.push({
+          id: `${Date.now()}-${index}-${file.name}`,
+          name: file.name,
+          url: await compressEvidenceImage(file),
+          caption: file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "),
+        });
+        setPhotoProgress({ mode: "preparing", done: index + 1, total: valid.length });
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      setPendingPhotos((current) => [...current, ...prepared].slice(0, 20));
+      if (files.length > availableSlots) toast(`Foram adicionadas ${availableSlots} fotos. O máximo por lote é 20.`, "info");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "Erro ao preparar as imagens.", "error");
+    } finally {
+      setPhotoProgress(null);
     }
   };
 
   const handleAddPhotoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!photoForm.url) {
-      toast("Por favor, envie ou selecione uma imagem", "error");
+    if (!pendingPhotos.length) {
+      toast("Selecione pelo menos uma imagem.", "error");
       return;
     }
-    setActionLoading(true);
+    setPhotoProgress({ mode: "uploading", done: 0, total: pendingPhotos.length });
     try {
-      const res = await addOSPhoto(id, {
-        step: photoForm.step,
-        url: photoForm.url,
-        caption: photoForm.caption,
+      const failed: PendingOSPhoto[] = [];
+      let saved = 0;
+      let cursor = 0;
+      let completed = 0;
+      const workers = Array.from({ length: Math.min(3, pendingPhotos.length) }, async () => {
+        while (cursor < pendingPhotos.length) {
+          const photo = pendingPhotos[cursor++];
+          try {
+            const res = await addOSPhoto(id, { step: photoStep, url: photo.url, caption: photo.caption });
+            if (res.success) saved += 1;
+            else failed.push(photo);
+          } catch {
+            failed.push(photo);
+          } finally {
+            completed += 1;
+            setPhotoProgress({ mode: "uploading", done: completed, total: pendingPhotos.length });
+          }
+        }
       });
-      if (res.success) {
-        toast("Foto adicionada com sucesso!", "success");
-        setPhotoForm({ step: "ANTES", url: "", caption: "" });
-        loadDetails();
-      } else {
-        toast(res.error || "Erro ao adicionar foto", "error");
-      }
+      await Promise.all(workers);
+      setPendingPhotos(failed);
+      if (saved) await loadDetails();
+      if (!failed.length) toast(`${saved} foto${saved === 1 ? "" : "s"} cadastrada${saved === 1 ? "" : "s"} com sucesso!`, "success");
+      else toast(`${saved} foto(s) salva(s) e ${failed.length} com erro. As fotos com erro permaneceram no lote.`, "warning");
     } catch (err) {
       toast("Erro ao conectar", "error");
     } finally {
-      setActionLoading(false);
+      setPhotoProgress(null);
     }
   };
 
@@ -473,6 +558,45 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
       toast("Erro de conexão", "error");
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handlePrintReport = async () => {
+    if (preparingPrint) return;
+    setPreparingPrint(true);
+    try {
+      if (document.fonts?.ready) await document.fonts.ready;
+      const report = document.querySelector<HTMLElement>(".print-a4-report");
+      const images = Array.from(report?.querySelectorAll<HTMLImageElement>("img") || []);
+      const failed: HTMLImageElement[] = [];
+
+      await Promise.all(images.map(async (image) => {
+        if (!image.complete) {
+          await new Promise<void>((resolve) => {
+            const timeout = window.setTimeout(() => { failed.push(image); resolve(); }, 12_000);
+            image.addEventListener("load", () => { window.clearTimeout(timeout); resolve(); }, { once: true });
+            image.addEventListener("error", () => { window.clearTimeout(timeout); failed.push(image); resolve(); }, { once: true });
+          });
+        }
+        if (!image.naturalWidth) {
+          if (!failed.includes(image)) failed.push(image);
+          return;
+        }
+        try {
+          if (image.decode) await image.decode();
+        } catch {
+          if (!image.naturalWidth && !failed.includes(image)) failed.push(image);
+        }
+      }));
+
+      if (failed.length) {
+        toast(`${failed.length} imagem(ns) não carregaram. Verifique os arquivos antes de gerar o PDF.`, "error");
+        return;
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      window.print();
+    } finally {
+      setPreparingPrint(false);
     }
   };
 
@@ -537,10 +661,10 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
         };
       case "RETORNO":
         return {
-          title: "Agendar retorno técnico",
-          desc: "Escolha uma nova data, horário e equipe para o retorno ao cliente.",
-          btn: "Agendar retorno",
-          action: () => setIsScheduleOpen(true)
+          title: "Converter o retorno legado em visita",
+          desc: "Abra o histórico de visitas e programe a nova ida sem apagar o atendimento anterior.",
+          btn: "Abrir visitas",
+          action: () => setSubTab("visits")
         };
       case "CONCLUIDA":
       case "REVISAO":
@@ -600,116 +724,153 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
           { label: "Pausar", status: "PAUSADA" },
           { label: "Aguardando peça", status: "AGUARDANDO_PECA" },
           { label: "Aguardando cliente", status: "AGUARDANDO_CLIENTE" },
-          { label: "Programar retorno", status: "RETORNO" },
+          { label: "Programar retorno", status: "VISITS" },
         ]
       : [];
 
+  const estimatedCost = Number(details.estimatedCost || 0);
+  const totalValue = Number(details.totalValue || 0);
+  const estimatedMargin = totalValue - estimatedCost;
+  const estimatedMarginPercent = totalValue > 0 ? (estimatedMargin / totalValue) * 100 : 0;
+  const photoBusy = Boolean(photoProgress);
+  const photoProgressPercent = photoProgress?.total ? Math.round((photoProgress.done / photoProgress.total) * 100) : 0;
+
   return (
-    <div className="space-y-6 select-none animate-in fade-in duration-200">
+    <div className="mx-auto max-w-6xl space-y-5 select-none animate-in fade-in duration-200 sm:space-y-6">
+      <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+        <button onClick={() => openTab("ordens-servico", "Ordens de Serviço")} className="hover:text-teal-700">Ordens de Serviço</button>
+        <ChevronRight size={13} />
+        <span className="font-mono text-zinc-500">{details.code || details.id.slice(-4)}</span>
+      </div>
 
-      {/* Title / Summary Bar */}
-      <Card className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Ordem de Serviço</span>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mt-0.5">
-            OS #{details.code || details.id.slice(-4)} - {details.client?.name || details.clientName}
-          </h2>
-          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-zinc-500 mt-2">
-            <span className="flex items-center gap-1"><User size={13} /> {details.technicians?.map((t: any) => t.user?.name || t.name || t.technician?.name).filter(Boolean).join(", ") || "Nenhum técnico"}</span>
-            <span>•</span>
-            <span className="flex items-center gap-1"><Calendar size={13} /> Agendado: {details.scheduledDate ? formatDate(details.scheduledDate) : "A definir"}</span>
-            <span>•</span>
-            <span className="flex items-center gap-1"><DollarSign size={13} /> Valor: {formatCurrency(details.totalValue)}</span>
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="break-words text-xl font-semibold text-zinc-900 dark:text-white sm:text-2xl">
+                {details.client?.name || details.clientName}
+              </h1>
+              <StatusBadge status={details.status} />
+            </div>
+            <p className="mt-1 font-mono text-sm text-zinc-400">OS #{details.code || details.id.slice(-4)}</p>
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-600 dark:text-zinc-300">
+              <span className="flex items-center gap-1.5"><Users size={16} className="text-zinc-400" /> {details.technicians?.map((t: any) => t.user?.name || t.name || t.technician?.name).filter(Boolean).join(", ") || "Técnico não atribuído"}</span>
+              <span className="flex items-center gap-1.5"><Calendar size={16} className="text-zinc-400" /> Agendado: {details.scheduledDate ? formatDate(details.scheduledDate) : "A definir"}</span>
+              <span className="flex items-center gap-1.5 font-mono"><DollarSign size={16} className="text-zinc-400" /> {formatCurrency(totalValue)}</span>
+            </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => window.print()} className="h-8 py-1 text-[11px] font-bold flex items-center gap-1">
-            <Printer size={13} /> Emitir Relatório (PDF)
+          <Button variant="secondary" onClick={handlePrintReport} loading={preparingPrint} className="w-full shrink-0 justify-center sm:w-auto">
+            <Printer size={15} /> Emitir Relatório (PDF)
           </Button>
-          <StatusBadge status={details.status} />
         </div>
-      </Card>
+      </section>
 
-      {/* Next Action Box (Page 10) */}
-      {nextAction && (
-        <div className="bg-primary/5 dark:bg-primary/5 border border-primary/20 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <span className="text-[9px] font-bold text-primary uppercase block">Próxima ação recomendada</span>
-            <h4 className="font-semibold text-sm text-zinc-850 dark:text-zinc-100 mt-1">{nextAction.title}</h4>
-            <p className="text-[11px] text-zinc-500 mt-0.5">{nextAction.desc}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {secondaryActions.map((item) => (
-              <Button key={item.status} variant="secondary" size="sm" disabled={actionLoading} onClick={() => handleUpdateStatus(item.status)}>
-                {item.label}
-              </Button>
+      <section className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+            {timelineSteps.map((step, index) => (
+              <div key={step.label} className={`h-full flex-1 ${index ? "ml-0.5" : ""} ${index < currentStage ? "bg-emerald-500" : index === currentStage ? "bg-teal-600" : "bg-zinc-200 dark:bg-zinc-700"}`} />
             ))}
-            <Button variant="primary" size="sm" loading={actionLoading} onClick={nextAction.action}>
-              {nextAction.btn}
-            </Button>
           </div>
+          <span className="hidden shrink-0 font-mono text-xs text-zinc-400 sm:inline">{Math.min(currentStage + 1, timelineSteps.length)}/{timelineSteps.length}</span>
         </div>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-sm"><span className="font-mono text-xs text-zinc-400">Etapa {Math.min(currentStage + 1, timelineSteps.length)} de {timelineSteps.length}</span> <span className="font-semibold text-zinc-900 dark:text-white">· {timelineSteps[currentStage]?.label || timelineSteps.at(-1)?.label}</span></p>
+          <button type="button" onClick={() => setPipelineExpanded((value) => !value)} className="hidden items-center gap-1 text-xs font-medium text-teal-700 hover:text-teal-800 md:inline-flex">
+            {pipelineExpanded ? "Ocultar etapas" : "Ver todas as etapas"}<ChevronDown size={14} className={`transition-transform ${pipelineExpanded ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+        {pipelineExpanded && (
+          <div className="mt-4 hidden grid-cols-8 gap-1 border-t border-zinc-100 pt-4 dark:border-zinc-800 md:grid">
+            {timelineSteps.map((step, index) => (
+              <div key={step.label} className="flex flex-col items-center gap-1.5 text-center">
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${index < currentStage ? "bg-emerald-500 text-white" : index === currentStage ? "bg-teal-600 text-white" : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800"}`}>{index < currentStage ? <Check size={12} /> : index + 1}</span>
+                <span className={`text-[11px] leading-tight ${index === currentStage ? "font-semibold text-teal-700" : "text-zinc-400"}`}>{step.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {nextAction && (
+        <section className="relative rounded-xl border border-teal-100 bg-teal-50/70 p-5 dark:border-teal-950 dark:bg-teal-950/20">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white"><Wrench size={20} /></span>
+              <div><p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700 dark:text-teal-400">Próxima ação recomendada</p><h3 className="text-base font-semibold text-zinc-900 dark:text-white">{nextAction.title}</h3><p className="mt-0.5 text-sm text-zinc-500">{nextAction.desc}</p></div>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {secondaryActions.length > 0 && (
+                <div className="relative">
+                  <Button variant="secondary" onClick={() => setActionsOpen((value) => !value)}>Mais ações <ChevronDown size={15} /></Button>
+                  {actionsOpen && <><button aria-label="Fechar menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setActionsOpen(false)} /><div className="absolute right-0 z-20 mt-1.5 w-52 rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">{secondaryActions.map((item) => <button key={item.status} onClick={() => { setActionsOpen(false); if (item.status === "VISITS") setSubTab("visits"); else void handleUpdateStatus(item.status); }} className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800"><MoreHorizontal size={15} className="text-zinc-400" />{item.label}</button>)}</div></>}
+                </div>
+              )}
+              <Button variant="success" loading={actionLoading} onClick={nextAction.action}><Check size={16} /> {nextAction.btn}</Button>
+            </div>
+          </div>
+        </section>
       )}
 
-      {/* OS Flow Timeline */}
-      <Card>
-        <Timeline steps={timelineSteps} />
-      </Card>
-
       {/* Grid: Details & Tabs */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
         {/* Left Stats Cards (4/12) */}
-        <div className="lg:col-span-4 space-y-4">
-          <Card className="p-5 flex flex-col justify-between h-36">
+        <aside className="space-y-4 lg:col-span-1">
+          <Card className="p-5">
             <div>
-              <span className="text-[9px] font-bold text-zinc-400 block uppercase">Resumo Financeiro</span>
-              <span className="text-xl font-bold text-zinc-800 dark:text-zinc-200 mt-1.5 block">{formatCurrency(details.totalValue)}</span>
-              <span className="text-[10px] text-zinc-450 mt-1 block">Custo estimado: {formatCurrency(details.estimatedCost || 120)}</span>
+              <span className="text-xs font-medium tracking-wide text-zinc-400 block uppercase">Resumo financeiro</span>
+              <span className="mt-2 block font-mono text-2xl font-semibold text-zinc-900 dark:text-white">{formatCurrency(totalValue)}</span>
+              <span className="mt-1 block text-sm text-zinc-400">Custo estimado: {formatCurrency(estimatedCost)}</span>
+              <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800"><p className={`text-sm font-medium ${estimatedMargin >= 0 ? "text-emerald-600" : "text-red-600"}`}>Margem estimada: {formatCurrency(estimatedMargin)} <span>({estimatedMarginPercent.toFixed(0)}%)</span></p></div>
             </div>
           </Card>
 
-          <Card className="p-5 flex flex-col justify-between h-36">
+          <Card className="p-5">
             <div>
-              <span className="text-[9px] font-bold text-zinc-400 block uppercase">Materiais Utilizados</span>
-              <span className="text-xl font-bold text-zinc-800 dark:text-zinc-200 mt-1.5 block">{details.materials?.length || 0} itens</span>
-              <span className="text-[10px] text-zinc-450 mt-1 block">Peças e reposição do estoque.</span>
+              <span className="text-xs font-medium tracking-wide text-zinc-400 block uppercase">Materiais utilizados</span>
+              <span className="mt-2 block text-2xl font-semibold text-zinc-900 dark:text-white">{details.materials?.length || 0} itens</span>
+              <span className="mt-1 block text-sm text-zinc-400">Peças e reposição do estoque.</span>
             </div>
             <button
               onClick={() => setSubTab("materials")}
-              className="text-[10px] font-bold text-primary self-start hover:underline cursor-pointer"
+              className="mt-3 text-sm font-medium text-teal-700 hover:text-teal-800"
             >
-              Gerenciar materiais
+              Gerenciar materiais →
             </button>
           </Card>
-        </div>
+        </aside>
 
         {/* Right sub-tabs content (8/12) */}
-        <div className="lg:col-span-8">
+        <div className="lg:col-span-2">
           <Card className="p-0 overflow-hidden flex flex-col h-full min-h-[380px]">
             {/* Tabs Selector */}
             <div className="border-b border-zinc-150 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 px-6 py-2 flex gap-1 overflow-x-auto scrollbar-none">
               {[
-                { id: "resumo", label: "Descrição do Serviço" },
-                { id: "cliente", label: "Dados do Cliente" },
-                { id: "checklist", label: "Checklist Técnico" },
-                { id: "materials", label: "Materiais (Estoque)" },
-                { id: "relatorio", label: "Relatório & Fotos" },
-                { id: "history", label: "Histórico / Auditoria" },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setSubTab(tab.id as any)}
-                  className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer ${
-                    subTab === tab.id
-                      ? "border-primary text-primary"
-                      : "border-transparent text-zinc-400 hover:text-zinc-650"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+                { id: "resumo", label: "Descrição do Serviço", icon: FileText },
+                { id: "visits", label: `Visitas (${details.visits?.length || 0})`, icon: CalendarClock },
+                { id: "assets", label: `Ativos (${details.serviceOrderAssets?.length || 0})`, icon: Boxes },
+                { id: "cliente", label: "Dados do Cliente", icon: Users },
+                { id: "checklist", label: "Checklist Técnico", icon: ClipboardList },
+                { id: "materials", label: "Materiais (Estoque)", icon: Package },
+                { id: "relatorio", label: "Relatório & Fotos", icon: Camera },
+                { id: "history", label: "Histórico / Auditoria", icon: History },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSubTab(tab.id as any)}
+                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 pb-2.5 pt-1.5 text-sm font-medium transition-colors ${
+                      subTab === tab.id
+                        ? "border-teal-600 text-teal-700"
+                        : "border-transparent text-zinc-400 hover:text-zinc-600"
+                    }`}
+                  >
+                    <Icon size={15} /> {tab.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="p-6 flex-1 overflow-y-auto">
@@ -781,6 +942,24 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                     </Button>
                   </div>
                 </form>
+              )}
+
+              {/* SUBTAB: Visitas de serviço */}
+              {subTab === "visits" && (
+                <ServiceVisitsPanel
+                  serviceOrderId={id}
+                  visits={details.visits || []}
+                  technicians={systemUsers.filter((systemUser) => ["Técnico", "Gestor", "Administrador"].includes(systemUser.roleName))}
+                  onChanged={loadDetails}
+                />
+              )}
+
+              {/* SUBTAB: Ativos envolvidos */}
+              {subTab === "assets" && (
+                <ServiceOrderAssetsPanel
+                  serviceOrderId={id}
+                  onChanged={loadDetails}
+                />
               )}
 
               {/* SUBTAB: Cliente */}
@@ -921,7 +1100,7 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                     </div>
 
                     <div className="flex justify-between items-center">
-                      <Button variant="secondary" type="button" onClick={() => window.print()}>
+                      <Button variant="secondary" type="button" onClick={handlePrintReport} loading={preparingPrint}>
                         <Printer size={14} className="inline mr-1" /> Imprimir / Salvar PDF do Relatório
                       </Button>
                       <Button variant="primary" type="submit" loading={actionLoading}>
@@ -932,9 +1111,12 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
 
                   {/* Part B: Evidências Fotográficas */}
                   <div className="space-y-4">
-                    <h4 className="font-bold text-xs text-zinc-900 dark:text-zinc-150 uppercase tracking-wider flex items-center gap-1.5">
-                      <Camera size={14} className="text-primary" /> Evidências Fotográficas (Fotos)
-                    </h4>
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="font-bold text-xs text-zinc-900 dark:text-zinc-150 uppercase tracking-wider flex items-center gap-1.5">
+                        <Camera size={14} className="text-primary" /> Evidências Fotográficas (Fotos)
+                      </h4>
+                      <span className="text-[10px] font-semibold text-zinc-400">{details.photos?.length || 0} foto(s)</span>
+                    </div>
 
                     {/* Exibir Fotos */}
                     {!details.photos || details.photos.length === 0 ? (
@@ -943,12 +1125,12 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                       </p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {details.photos.map((photo: any) => (
+                        {details.photos.slice(0, photoGalleryLimit).map((photo: any) => (
                           <div key={photo.id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden bg-white dark:bg-zinc-900/50 relative flex flex-col justify-between">
                             <div>
                               <div className="relative aspect-video w-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden">
                                 {photo.url.startsWith("data:") || photo.url.startsWith("http") || photo.url.startsWith("/") ? (
-                                  <img src={photo.url} alt={photo.caption || "Evidência"} className="object-cover w-full h-full" />
+                                  <img src={photo.url} alt={photo.caption || "Evidência"} loading="lazy" decoding="async" className="object-cover w-full h-full" />
                                 ) : (
                                   <div className="text-center p-4">
                                     <Image size={24} className="mx-auto text-zinc-350 mb-1" />
@@ -978,14 +1160,22 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                         ))}
                       </div>
                     )}
+                    {details.photos?.length > photoGalleryLimit && (
+                      <div className="flex justify-center">
+                        <Button variant="secondary" size="sm" onClick={() => setPhotoGalleryLimit((current) => current + 12)}>
+                          Mostrar mais {Math.min(12, details.photos.length - photoGalleryLimit)} fotos
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Adicionar Fotos Form */}
                     <form onSubmit={handleAddPhotoSubmit} className="bg-zinc-50/50 dark:bg-zinc-800/10 border border-zinc-200 dark:border-zinc-800 p-5 rounded-xl space-y-4">
-                      <span className="text-[10px] font-bold text-blue-955 dark:text-zinc-100 uppercase tracking-wider block">
-                        Adicionar Foto de Evidência
-                      </span>
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="text-[10px] font-bold text-blue-955 dark:text-zinc-100 uppercase tracking-wider">Adicionar fotos em lote</span>
+                        <span className="text-[10px] font-semibold text-zinc-400">{pendingPhotos.length}/20 selecionadas</span>
+                      </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <div className="grid grid-cols-1 gap-4 items-end sm:grid-cols-2">
                         <Select
                           label="Etapa da OS *"
                           options={[
@@ -993,43 +1183,75 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                             { value: "DEPOIS", label: "Depois do Serviço" },
                             { value: "EVIDENCIA", label: "Outra Evidência / Laudo" }
                           ]}
-                          value={photoForm.step}
-                          onChange={(e) => setPhotoForm((prev) => ({ ...prev, step: e.target.value }))}
+                          value={photoStep}
+                          disabled={photoBusy}
+                          onChange={(e) => setPhotoStep(e.target.value)}
                         />
 
                         <div>
                           <label className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block mb-1">
-                            Carregar Imagem (Local) *
+                            Selecionar imagens *
                           </label>
                           <div className="flex items-center gap-2">
                             <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs font-bold text-zinc-650 dark:text-zinc-350 hover:bg-zinc-50 hover:text-zinc-800 cursor-pointer border-dashed">
-                              <Upload size={14} /> Selecionar Arquivo
+                              <Upload size={14} /> Selecionar várias fotos
                               <input
                                 type="file"
-                                accept="image/*"
+                                accept="image/jpeg,image/png,image/webp"
+                                multiple
+                                disabled={photoBusy}
                                 onChange={handlePhotoUpload}
                                 className="hidden"
                               />
                             </label>
-                            {photoForm.url && (
+                            {pendingPhotos.length > 0 && (
                               <span className="text-[10px] text-success font-bold flex items-center gap-0.5">
-                                <CheckCircle size={12} /> Carregada
+                                <CheckCircle size={12} /> Prontas
                               </span>
                             )}
                           </div>
                         </div>
-
-                        <Input
-                          label="Legenda / Comentário da Foto"
-                          placeholder="Ex: Condensadora limpa antes da manutenção"
-                          value={photoForm.caption}
-                          onChange={(e) => setPhotoForm((prev) => ({ ...prev, caption: e.target.value }))}
-                        />
                       </div>
 
-                      <div className="flex justify-end">
-                        <Button variant="secondary" type="submit" loading={actionLoading}>
-                          Cadastrar Foto na OS
+                      {photoProgress && (
+                        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 dark:border-blue-950 dark:bg-blue-950/20" role="status" aria-live="polite">
+                          <div className="mb-2 flex items-center justify-between gap-3 text-xs font-semibold text-blue-800 dark:text-blue-300">
+                            <span>{photoProgress.mode === "preparing" ? "Otimizando imagens" : "Salvando fotos na OS"}</span>
+                            <span>{photoProgress.done}/{photoProgress.total} · {photoProgressPercent}%</span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950">
+                            <div className="h-full rounded-full bg-blue-600 transition-[width] duration-300 ease-out" style={{ width: `${photoProgressPercent}%` }} />
+                          </div>
+                        </div>
+                      )}
+
+                      {pendingPhotos.length > 0 && (
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {pendingPhotos.map((photo) => (
+                            <div key={photo.id} className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                              <div className="relative aspect-video bg-zinc-100 dark:bg-zinc-800">
+                                <img src={photo.url} alt={photo.name} className="h-full w-full object-cover" />
+                                <button type="button" disabled={photoBusy} onClick={() => setPendingPhotos((current) => current.filter((item) => item.id !== photo.id))} className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/65 text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40" title="Remover do lote"><Trash2 size={13} /></button>
+                              </div>
+                              <div className="space-y-2 p-3">
+                                <p className="truncate text-[10px] font-semibold text-zinc-400" title={photo.name}>{photo.name}</p>
+                                <Input
+                                  aria-label={`Legenda de ${photo.name}`}
+                                  placeholder="Legenda da foto"
+                                  value={photo.caption}
+                                  disabled={photoBusy}
+                                  onChange={(event) => setPendingPhotos((current) => current.map((item) => item.id === photo.id ? { ...item, caption: event.target.value } : item))}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex flex-col-reverse gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800 sm:flex-row sm:justify-between">
+                        <Button variant="secondary" type="button" disabled={!pendingPhotos.length || photoBusy} onClick={() => setPendingPhotos([])}>Limpar lote</Button>
+                        <Button variant="primary" type="submit" loading={photoProgress?.mode === "uploading"} disabled={!pendingPhotos.length || photoBusy}>
+                          <Upload size={14} /> Cadastrar {pendingPhotos.length || ""} foto{pendingPhotos.length === 1 ? "" : "s"}
                         </Button>
                       </div>
                     </form>
@@ -1192,6 +1414,23 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
               .no-print {
                 display: none !important;
               }
+              .print-photo-card {
+                break-inside: avoid-page !important;
+                page-break-inside: avoid !important;
+              }
+              .print-photo-image-wrap {
+                aspect-ratio: auto !important;
+                height: auto !important;
+                min-height: 35mm;
+                overflow: hidden !important;
+              }
+              .print-photo-image {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                max-height: 112mm !important;
+                object-fit: contain !important;
+              }
             }
           `}} />
           <div className="print-a4-report hidden print:block bg-white text-zinc-850 p-8 font-sans space-y-6">
@@ -1317,9 +1556,7 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                     <thead>
                       <tr className="bg-zinc-50 border-b border-zinc-200 font-bold text-zinc-750">
                         <th className="p-2">Descrição</th>
-                        <th className="p-2 text-center w-16">Qtd</th>
-                        <th className="p-2 text-right w-28">Preço Unit.</th>
-                        <th className="p-2 text-right w-28">Total</th>
+                        <th className="p-2 text-center w-24">Quantidade</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1327,8 +1564,6 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                         <tr key={idx} className="border-b border-zinc-150 last:border-b-0 text-zinc-650">
                           <td className="p-2 font-semibold text-zinc-800">{item.description}</td>
                           <td className="p-2 text-center">{item.quantity} {item.unit || "UN"}</td>
-                          <td className="p-2 text-right">{formatCurrency(item.unitPrice)}</td>
-                          <td className="p-2 text-right font-bold text-zinc-800">{formatCurrency(item.total)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1344,10 +1579,8 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                     <thead>
                       <tr className="bg-zinc-50 border-b border-zinc-200 font-bold text-zinc-750">
                         <th className="p-2">Material / Produto</th>
-                        <th className="p-2 text-center w-16">Qtd</th>
+                        <th className="p-2 text-center w-24">Quantidade</th>
                         <th className="p-2 text-center w-28">Status</th>
-                        <th className="p-2 text-right w-28">Preço Unit.</th>
-                        <th className="p-2 text-right w-28">Total</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1358,8 +1591,6 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                           <td className="p-2 text-center">
                             <span className="text-zinc-755 font-bold">{m.status}</span>
                           </td>
-                          <td className="p-2 text-right">{formatCurrency(m.salePrice)}</td>
-                          <td className="p-2 text-right font-bold text-zinc-800">{formatCurrency((m.usedQuantity || m.quantity) * m.salePrice)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1367,9 +1598,6 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                 </div>
               )}
 
-              <div className="text-right font-bold text-xs pt-1 pr-2">
-                Valor Total do Atendimento: {formatCurrency(details.totalValue)}
-              </div>
             </div>
 
             {/* Section E: Completion Report */}
@@ -1406,9 +1634,9 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   {details.photos.map((photo: any, idx: number) => (
-                    <div key={idx} className="border border-zinc-200 rounded-lg overflow-hidden bg-white p-2 flex flex-col justify-between">
-                      <div className="relative aspect-video w-full bg-zinc-50 flex items-center justify-center overflow-hidden">
-                        <img src={photo.url} alt={photo.caption || "Evidência"} className="object-cover w-full h-full" />
+                    <div key={idx} className="print-photo-card border border-zinc-200 rounded-lg overflow-hidden bg-white p-2 flex flex-col justify-between">
+                      <div className="print-photo-image-wrap relative aspect-video w-full bg-zinc-50 flex items-center justify-center overflow-hidden">
+                        <img src={photo.url} alt={photo.caption || "Evidência"} loading="eager" decoding="sync" className="print-photo-image object-cover w-full h-full" />
                         <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] font-bold uppercase text-white bg-zinc-900/80">
                           {photo.step}
                         </span>
@@ -1432,7 +1660,7 @@ export default function OrdemServicoDetailTab({ id, initialSection }: OrdemServi
               <div className="flex flex-col items-center justify-end">
                 {details.signatureBase64 ? (
                   <div className="max-h-16 h-12 overflow-hidden mb-1 flex items-center justify-center">
-                    <img src={details.signatureBase64} alt="Assinatura Cliente" className="object-contain max-h-full" />
+                    <img src={details.signatureBase64} alt="Assinatura Cliente" loading="eager" decoding="sync" className="object-contain max-h-full" />
                   </div>
                 ) : (
                   <div className="h-12 flex items-center justify-center text-[10px] text-zinc-400 italic mb-1">

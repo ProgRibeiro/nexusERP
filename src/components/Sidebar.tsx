@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import {
@@ -17,22 +18,21 @@ import {
   Flame,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   BarChart3,
   Calendar,
-  Layers,
   ShieldCheck,
   LogOut,
   Briefcase,
   Network,
-  ClipboardCheck
+  ClipboardCheck,
+  X,
 } from "lucide-react";
 import { getNavigationIndicators, NavigationIndicators } from "@/app/actions/navigationActions";
 
 interface MenuItem {
   title: string;
   href: string;
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   permission: string;
   indicator?: keyof NavigationIndicators;
 }
@@ -50,7 +50,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     const saved = localStorage.getItem("nx_sidebar_collapsed") === "true";
-    setIsCollapsed(saved);
+    const restoreTimer = window.setTimeout(() => setIsCollapsed(saved), 0);
     let active = true;
     const load = async () => {
       const data = await getNavigationIndicators();
@@ -58,8 +58,14 @@ export default function Sidebar() {
     };
     void load();
     const timer = window.setInterval(load, 60_000);
-    return () => { active = false; window.clearInterval(timer); };
+    return () => { active = false; window.clearTimeout(restoreTimer); window.clearInterval(timer); };
   }, []);
+
+  useEffect(() => {
+    if (!sidebarOpen || window.innerWidth >= 1280) return;
+    const expandTimer = window.setTimeout(() => setIsCollapsed(false), 0);
+    return () => window.clearTimeout(expandTimer);
+  }, [sidebarOpen]);
 
   const toggleCollapsed = () => {
     const next = !isCollapsed;
@@ -74,7 +80,8 @@ export default function Sidebar() {
         { title: "CRM / Funil", href: "/crm", icon: Flame, permission: "crm.read" },
         { title: "Clientes", href: "/clientes", icon: Users, permission: "clients.read" },
         { title: "Orçamentos", href: "/orcamentos", icon: FileText, permission: "quotes.read" },
-        { title: "Propostas Preventivas", href: "/preventivas", icon: ClipboardCheck, permission: "quotes.read" },
+        { title: "Propostas Preventivas", href: "/orcamentos?tab=preventiva", icon: FileSignature, permission: "quotes.write" },
+        { title: "Central de Preventivas", href: "/preventivas", icon: ClipboardCheck, permission: "quotes.read" },
       ],
     },
     {
@@ -155,13 +162,13 @@ export default function Sidebar() {
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 bg-black/60 z-40 xl:hidden animate-in fade-in duration-200"
+          className="fixed inset-0 z-40 bg-slate-950/65 backdrop-blur-sm xl:hidden animate-in fade-in duration-200"
         />
       )}
 
       <aside
-        className={`fixed xl:sticky left-0 top-0 h-screen bg-chrome-950 text-chrome-200 border-r border-chrome-900 flex flex-col justify-between transition-all duration-300 select-none z-45 shrink-0 ${
-          isCollapsed ? "w-20" : "w-64"
+        className={`fixed xl:sticky left-0 top-0 h-[100dvh] overflow-visible bg-[linear-gradient(180deg,#071328_0%,#0a1934_52%,#07101f_100%)] text-chrome-200 border-r border-white/8 flex flex-col justify-between transition-all duration-300 select-none z-45 shrink-0 shadow-[12px_0_32px_rgba(2,8,23,.12)] ${
+          isCollapsed ? "w-[286px] xl:w-[76px]" : "w-[286px] xl:w-[272px]"
         } ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
         }`}
@@ -169,43 +176,45 @@ export default function Sidebar() {
       {/* Collapse button */}
       <button
         onClick={toggleCollapsed}
-        className="absolute -right-3 top-6 bg-chrome-900 border border-chrome-800 text-chrome-300 hover:text-white rounded-full p-1 cursor-pointer z-10 hidden xl:block"
+        className="absolute -right-3.5 top-7 z-10 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 shadow-md transition hover:border-blue-500 hover:bg-blue-600 hover:text-white xl:flex"
       >
         {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
 
       <div className="flex flex-col h-full overflow-hidden">
         {/* Header/Logo */}
-        <div className="p-5 border-b border-chrome-900 flex items-center justify-between shrink-0">
+        <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-white/8 px-4">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="bg-primary p-2 rounded-lg flex items-center justify-center shrink-0">
-              <Sparkles size={18} className="text-white" />
-            </div>
+            <Image src="/icons/icon-192.png" width={38} height={38} alt="NX ERP" className="h-[38px] w-[38px] shrink-0 rounded-xl shadow-lg shadow-blue-950/40 ring-1 ring-white/15" priority />
             {!isCollapsed && (
-              <span className="font-bold text-sm tracking-tight text-white truncate">
-                NX ERP
-              </span>
+              <div className="min-w-0">
+                <span className="block truncate text-sm font-black tracking-tight text-white">NX ERP</span>
+                <span className="block truncate text-[9px] font-bold uppercase tracking-[0.18em] text-blue-300/70">Gestão integrada</span>
+              </div>
             )}
           </div>
+          <button type="button" onClick={() => setSidebarOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white xl:hidden" aria-label="Fechar menu">
+            <X size={17} />
+          </button>
         </div>
 
         {/* Simulator Profile Panel */}
         {user && !isCollapsed && (
-          <div className="p-4 mx-4 my-3 bg-chrome-900/40 rounded-xl border border-chrome-900/80 flex flex-col gap-1.5 shrink-0 transition-all">
+          <div className="mx-3 my-3 flex shrink-0 flex-col gap-2 rounded-2xl border border-white/8 bg-white/[0.045] p-3.5 transition-all">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 truncate">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-chrome-700 to-chrome-900 flex items-center justify-center text-xs font-bold text-chrome-150 uppercase border border-chrome-800">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/15 bg-blue-500/10 text-xs font-black uppercase text-blue-200">
                   {user.name.slice(0, 2)}
                 </div>
                 <div className="truncate">
-                  <p className="font-semibold text-xs text-chrome-100 truncate">{user.name}</p>
-                  <p className="text-[10px] text-chrome-500 truncate">{user.email}</p>
+                  <p className="truncate text-xs font-bold text-slate-100">{user.name}</p>
+                  <p className="truncate text-[10px] text-slate-500">{user.email}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={logout}
-                className="p-1.5 text-chrome-500 hover:text-red-400 hover:bg-chrome-800/40 rounded-lg transition-colors cursor-pointer shrink-0"
+                className="shrink-0 cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
                 title="Sair do Sistema"
               >
                 <LogOut size={13} />
@@ -220,7 +229,7 @@ export default function Sidebar() {
         )}
 
         {/* Scrollable Navigation */}
-        <nav className="px-3 py-4 flex flex-col gap-1 overflow-y-auto flex-1 scrollbar-none">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4 pt-2 scrollbar-none">
           {/* Dashboard Item */}
           {hasPermission("dashboard.view") && (
             <button
@@ -229,17 +238,17 @@ export default function Sidebar() {
                 openTab("dashboard", "Dashboard");
                 setSidebarOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-left text-xs font-bold transition-all duration-150 group ${
+              className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
                 isLinkActive("/")
-                  ? "bg-chrome-900 text-white"
-                  : "text-chrome-400 hover:bg-chrome-900/60 hover:text-chrome-100"
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                  : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
               }`}
               title="Dashboard"
             >
               <LayoutDashboard
                 size={16}
                 className={`shrink-0 transition-transform group-hover:scale-105 ${
-                  isLinkActive("/") ? "text-white" : "text-chrome-400 group-hover:text-chrome-200"
+                  isLinkActive("/") ? "text-white" : "text-slate-400 group-hover:text-blue-200"
                 }`}
               />
               {!isCollapsed && <span>Dashboard</span>}
@@ -257,11 +266,11 @@ export default function Sidebar() {
             return (
               <div key={section.name} className="flex flex-col gap-0.5 mt-4">
                 {!isCollapsed ? (
-                  <span className="px-3.5 text-[9px] font-bold text-chrome-500 tracking-wider uppercase mb-1.5 block">
+                  <span className="mb-1.5 block px-3.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
                     {section.name}
                   </span>
                 ) : (
-                  <div className="border-t border-chrome-900/60 my-2" />
+                  <div className="my-2 border-t border-white/8" />
                 )}
 
                 {filteredItems.map((item) => {
@@ -272,20 +281,22 @@ export default function Sidebar() {
                       type="button"
                       key={item.href}
                       onClick={() => {
-                        openTab(item.href.slice(1), item.title);
+                        const [path, query] = item.href.slice(1).split("?");
+                        const params = query ? Object.fromEntries(new URLSearchParams(query)) : undefined;
+                        openTab(path, item.title, params);
                         setSidebarOpen(false);
                       }}
-                      className={`relative w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-left text-xs font-bold transition-all duration-150 group ${
+                      className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
                         isActive
-                          ? "bg-chrome-900 text-white"
-                          : "text-chrome-400 hover:bg-chrome-900/60 hover:text-chrome-100"
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                          : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                       }`}
                       title={item.title}
                     >
                       <Icon
                         size={16}
                         className={`shrink-0 transition-transform group-hover:scale-105 ${
-                          isActive ? "text-white" : "text-chrome-400 group-hover:text-chrome-200"
+                          isActive ? "text-white" : "text-slate-400 group-hover:text-blue-200"
                         }`}
                       />
                       {!isCollapsed && <span className="truncate">{item.title}</span>}
@@ -304,11 +315,13 @@ export default function Sidebar() {
       </div>
 
       {!isCollapsed && (
-        <div className="p-4 border-t border-chrome-900 text-center shrink-0">
-          <p className="text-[9px] text-chrome-650 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
-            <ShieldCheck size={11} className="text-chrome-550" />
-            NX Climatização
-          </p>
+        <div className="shrink-0 border-t border-white/8 p-4">
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-400/[0.05] px-3 py-2.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,.10)]" />
+            <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
+              <ShieldCheck size={11} className="text-emerald-400" /> Sistema conectado
+            </p>
+          </div>
         </div>
       )}
       </aside>

@@ -106,3 +106,12 @@ npm run backup:install-local   # instala backup automático de hora em hora no m
 
 Os arquivos ficam em `backups/`, possuem checksum SHA-256 e podem ser
 verificados com `npm run backup:restore -- backups/ARQUIVO.dump`.
+
+## Envio de propostas pelo Gmail
+
+O ERP envia propostas com PDF A4 anexado usando OAuth 2.0, sem armazenar a
+senha da conta Google. A configuração pode ser acompanhada em
+**Configurações > Gmail & Integrações**.
+
+O passo a passo completo está em
+[docs/INTEGRACAO_GMAIL.md](./docs/INTEGRACAO_GMAIL.md).

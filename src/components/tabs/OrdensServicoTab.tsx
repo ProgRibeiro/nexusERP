@@ -24,10 +24,13 @@ interface OrdensServicoTabProps {
   newRecord?: boolean;
   requestId?: string;
   clientId?: string;
+  contractId?: string;
+  addressId?: string;
+  initialType?: string;
   statusFilter?: string;
 }
 
-export default function OrdensServicoTab({ newRecord = false, requestId, clientId, statusFilter }: OrdensServicoTabProps) {
+export default function OrdensServicoTab({ newRecord = false, requestId, clientId, contractId, addressId, initialType, statusFilter }: OrdensServicoTabProps) {
   const { hasPermission } = useAuth();
   const { openDrawer, openTab } = useWorkspace();
   const { toast } = useToast();
@@ -44,16 +47,17 @@ export default function OrdensServicoTab({ newRecord = false, requestId, clientI
   const [contacts, setContacts] = useState<any[]>([]);
   const [form, setForm] = useState({
     clientId: clientId || "",
-    addressId: "",
+    contractId: contractId || "",
+    addressId: addressId || "",
     contactId: "",
-    type: "CORRETIVA",
+    type: initialType || "CORRETIVA",
     priority: "MEDIA",
     problemReported: "",
     notes: "",
   });
 
   useEffect(() => {
-    if (newRecord) setIsCreateOpen(true);
+    setIsCreateOpen(newRecord);
   }, [newRecord, requestId]);
 
   useEffect(() => {
@@ -227,7 +231,7 @@ export default function OrdensServicoTab({ newRecord = false, requestId, clientI
           <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800 dark:border-blue-950 dark:bg-blue-950/20 dark:text-blue-300">
             A OS manual será criada como <strong>aguardando agendamento</strong>. Depois você define data, horário e equipe técnica.
           </div>
-          <Select label="Cliente *" required value={form.clientId} onChange={(e) => setForm((current) => ({ ...current, clientId: e.target.value }))} options={clients.map((client) => ({ value: client.id, label: `${client.name} · ${client.cpfCnpj}` }))} />
+          <Select label="Cliente *" required value={form.clientId} onChange={(e) => setForm((current) => ({ ...current, clientId: e.target.value }))} options={clients.map((client) => ({ value: client.id, label: `${client.name} · ${client.cpfCnpj || "Sem documento"}` }))} />
           <Select label="Endereço de execução *" required value={form.addressId} onChange={(e) => setForm((current) => ({ ...current, addressId: e.target.value }))} options={addresses.length ? addresses.map((address) => ({ value: address.id, label: `${address.label} · ${address.street}, ${address.number} · ${address.city}/${address.state}` })) : [{ value: "", label: "Cadastre um endereço no cliente antes de criar a OS" }]} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select label="Tipo de serviço *" value={form.type} onChange={(e) => setForm((current) => ({ ...current, type: e.target.value }))} options={[

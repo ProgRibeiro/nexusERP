@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAuth, requirePermission } from "@/lib/auth";
+import { buildBillingDescription } from "@/lib/billingDescription";
 
 export interface BillingQueueItem {
   id: string;
@@ -17,12 +18,27 @@ export interface BillingQueueItem {
   marginReal: number;
   legalName: string;
   description: string;
+  serviceDescription: string;
+  quoteCode: string;
   cnae: string;
   email: string;
   cep: string;
   addressNumber: string;
+  purchaseOrder: string;
   isCnpj: boolean;
   missingFields: string[];
+}
+
+export interface BillingMirrorInput {
+  legalName: string;
+  clientDocument: string;
+  value: number;
+  description: string;
+  cnae: string;
+  email: string;
+  cep: string;
+  addressNumber: string;
+  purchaseOrder: string;
 }
 
 /**
@@ -41,6 +57,7 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
         address: true,
         items: true,
         materials: true,
+        quote: { select: { code: true } },
       },
       orderBy: { completedAt: "asc" },
     });
@@ -52,34 +69,54 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
         .filter((m) => m.status === "UTILIZADO")
         .reduce((sum, m) => sum + m.usedQuantity * Number(m.salePrice), 0);
 
-      const value = itemsVal + materialsVal;
+      const calculatedValue = itemsVal + materialsVal;
       const address = os.address || os.client.addresses[0] || null;
-      const legalName = os.client.socialName || os.client.name;
-      const description = os.items.map((item) => item.description).filter(Boolean).join("; ");
-      const document = os.client.cpfCnpj.replace(/\D/g, "");
+      const mirror = os.billingMirrorJson && typeof os.billingMirrorJson === "object" && !Array.isArray(os.billingMirrorJson)
+        ? os.billingMirrorJson as Record<string, unknown>
+        : {};
+      const mirrorString = (field: string, fallback: string) => typeof mirror[field] === "string" ? mirror[field] as string : fallback;
+      const mirrorValue = typeof mirror.value === "number" && Number.isFinite(mirror.value) ? mirror.value : calculatedValue;
+      const legalName = mirrorString("legalName", os.client.socialName || os.client.name);
+      const serviceDescription = os.items.map((item) => item.description).filter(Boolean).join("; ");
+      const purchaseOrder = os.purchaseOrder || "";
+      const automaticDescription = buildBillingDescription({
+        purchaseOrder,
+        quoteCode: os.quote?.code,
+        serviceOrderCode: os.code,
+        serviceDescription,
+      });
+      const savedDescription = mirrorString("description", "");
+      const description = !savedDescription || savedDescription === serviceDescription ? automaticDescription : savedDescription;
+      const document = mirrorString("clientDocument", os.client.cpfCnpj || "").replace(/\D/g, "");
+      const email = mirrorString("email", os.client.email);
+      const cep = mirrorString("cep", address?.cep || "");
+      const addressNumber = mirrorString("addressNumber", address?.number || "");
       const missingFields: string[] = [];
       if (!legalName) missingFields.push("Razão social / tomador");
       if (![11, 14].includes(document.length)) missingFields.push("CPF/CNPJ válido");
-      if (value <= 0) missingFields.push("Valor");
-      if (!os.client.email || os.client.email.endsWith("@importado.local")) missingFields.push("E-mail válido");
-      if (!address?.cep) missingFields.push("CEP");
-      if (!address?.number) missingFields.push("Número do endereço");
+      if (mirrorValue <= 0) missingFields.push("Valor");
+      if (!email || email.endsWith("@importado.local")) missingFields.push("E-mail válido");
+      if (!cep) missingFields.push("CEP");
+      if (!addressNumber) missingFields.push("Número do endereço");
 
       return {
         id: os.id,
         code: os.code,
         clientName: os.client.name,
-        clientDocument: os.client.cpfCnpj,
+        clientDocument: os.client.cpfCnpj || "",
         type: os.type,
         completedAt: os.completedAt,
-        value,
+        value: mirrorValue,
         marginReal: os.marginReal,
         legalName,
         description,
-        cnae: "",
-        email: os.client.email,
-        cep: address?.cep || "",
-        addressNumber: address?.number || "",
+        serviceDescription,
+        quoteCode: os.quote?.code || "",
+        cnae: mirrorString("cnae", ""),
+        email,
+        cep,
+        addressNumber,
+        purchaseOrder,
         isCnpj: document.length === 14,
         missingFields,
       };
@@ -87,6 +124,52 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
   } catch (error) {
     logger.error("Erro ao obter fila de faturamento:", error);
     return [];
+  }
+}
+
+/**
+ * Persiste os ajustes do espelho para que não sejam perdidos ao atualizar a tela.
+ * O pedido de compra fica em campo próprio da OS e acompanha o histórico fiscal.
+ */
+export async function updateBillingMirror(osId: string, data: BillingMirrorInput) {
+  try {
+    const session = await requirePermission("faturamento.write");
+    const normalized = {
+      legalName: data.legalName.trim(),
+      clientDocument: data.clientDocument.replace(/\D/g, ""),
+      value: Number(data.value) || 0,
+      description: data.description.trim(),
+      cnae: data.cnae.replace(/\D/g, ""),
+      email: data.email.trim(),
+      cep: data.cep.replace(/\D/g, ""),
+      addressNumber: data.addressNumber.trim(),
+    };
+    const purchaseOrder = data.purchaseOrder.trim().slice(0, 120);
+
+    const serviceOrder = await prisma.serviceOrder.update({
+      where: { id: osId },
+      data: {
+        purchaseOrder: purchaseOrder || null,
+        billingMirrorJson: normalized,
+      },
+      select: { id: true, code: true },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ATUALIZACAO",
+        entity: "EspelhoFaturamento",
+        entityId: serviceOrder.id,
+        changesJson: JSON.stringify({ ...normalized, purchaseOrder }),
+      },
+    });
+
+    revalidatePath("/faturamento");
+    return { success: true, purchaseOrder, mirror: normalized };
+  } catch (error: any) {
+    logger.error("Erro ao salvar espelho de faturamento:", error);
+    return { success: false, error: error.message };
   }
 }
 
@@ -220,6 +303,7 @@ export async function processBilling(data: {
         changesJson: JSON.stringify({
           osCode: os.code,
           invoiceCode: data.invoiceCode,
+          purchaseOrder: os.purchaseOrder || null,
           installments: data.installments,
           totalValue: data.totalValue,
         }),
@@ -248,7 +332,7 @@ export async function getInvoices() {
     return await prisma.invoice.findMany({
       include: {
         client: true,
-        serviceOrder: { select: { code: true } },
+        serviceOrder: { select: { code: true, purchaseOrder: true } },
       },
       orderBy: { createdAt: "desc" },
     });

@@ -7,6 +7,9 @@ import { revalidatePath } from "next/cache";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { saveBase64Asset, deleteUploadedAsset } from "@/lib/storage";
 import { osScheduleSchema } from "@/lib/schemas";
+import { nextServiceOrderCode } from "@/lib/sequences";
+import { createInitialVisit, nextVisitNumber, visitStatusFromLegacyOS } from "@/lib/visits";
+import type { Prisma } from "@prisma/client";
 
 export interface OSPartsInput {
   productId: string;
@@ -59,6 +62,7 @@ function statusFilterValues(status: string) {
 
 export async function createManualServiceOrder(data: {
   clientId: string;
+  contractId?: string;
   addressId: string;
   contactId?: string;
   type: string;
@@ -83,21 +87,24 @@ export async function createManualServiceOrder(data: {
     if (!client) throw new Error("Cliente não encontrado.");
     if (!client.addresses.length) throw new Error("O endereço selecionado não pertence ao cliente.");
     if (data.contactId && (!client.contacts || !client.contacts.length)) throw new Error("O contato selecionado não pertence ao cliente.");
-
-    const year = new Date().getFullYear();
-    const lastOS = await prisma.serviceOrder.findFirst({
-      where: { code: { startsWith: `OS-${year}-` } },
-      orderBy: { code: "desc" },
-      select: { code: true },
-    });
-    const lastSequence = Number(lastOS?.code.split("-").pop()) || 0;
-    const code = `OS-${year}-${String(lastSequence + 1).padStart(4, "0")}`;
+    if (data.contractId) {
+      const contract = await prisma.contract.findFirst({
+        where: { id: data.contractId, clientId: data.clientId, status: "ATIVO" },
+        select: { id: true, addressId: true },
+      });
+      if (!contract) throw new Error("O contrato selecionado não pertence a este cliente ou não está ativo.");
+      if (contract.addressId && contract.addressId !== data.addressId) {
+        throw new Error("O endereço da OS deve ser a loja vinculada ao contrato.");
+      }
+    }
 
     const os = await prisma.$transaction(async (tx) => {
+      const code = await nextServiceOrderCode(tx);
       const created = await tx.serviceOrder.create({
         data: {
           code,
           clientId: data.clientId,
+          contractId: data.contractId || null,
           addressId: data.addressId,
           contactId: data.contactId || null,
           type: data.type,
@@ -116,13 +123,19 @@ export async function createManualServiceOrder(data: {
           justification: "OS criada manualmente e encaminhada para agendamento.",
         },
       });
+      await createInitialVisit(tx, {
+        serviceOrderId: created.id,
+        status: created.status,
+        kind: data.type === "RETORNO" ? "RETORNO" : "ATENDIMENTO",
+        changedById: session.userId,
+      });
       await tx.auditLog.create({
         data: {
           userId: session.userId,
           action: "CRIACAO",
           entity: "OrdemServico",
           entityId: created.id,
-          changesJson: JSON.stringify({ code, origin: "MANUAL", clientId: data.clientId }),
+          changesJson: JSON.stringify({ code: created.code, origin: "MANUAL", clientId: data.clientId }),
         },
       });
       return created;
@@ -188,6 +201,23 @@ export async function getServiceOrders(filters?: {
             user: true,
           },
         },
+        visits: {
+          include: {
+            technicians: { include: { user: { select: { id: true, name: true, email: true } } } },
+            statusHistory: {
+              include: { changedBy: { select: { id: true, name: true } } },
+              orderBy: { changedAt: "desc" },
+            },
+            timeEntries: { orderBy: { startedAt: "desc" } },
+            measurementReadings: { include: { definition: true }, orderBy: { recordedAt: "desc" } },
+            _count: { select: { evidences: true, locationEvents: true } },
+          },
+          orderBy: { number: "desc" },
+        },
+        serviceOrderAssets: {
+          include: { storeAsset: true, clientEquipment: true },
+        },
+        evidences: { orderBy: { createdAt: "desc" } },
         items: true,
         materials: true,
       },
@@ -263,6 +293,32 @@ export async function getServiceOrderDetails(id: string) {
             user: true,
           },
         },
+        visits: {
+          include: {
+            technicians: { include: { user: { select: { id: true, name: true, email: true } } } },
+            statusHistory: {
+              include: { changedBy: { select: { id: true, name: true } } },
+              orderBy: { changedAt: "desc" },
+            },
+            timeEntries: { orderBy: { startedAt: "desc" } },
+            measurementReadings: { include: { definition: true }, orderBy: { recordedAt: "desc" } },
+            formSubmissions: {
+              include: { version: { include: { template: true } } },
+              orderBy: { updatedAt: "desc" },
+            },
+            _count: { select: { evidences: true, locationEvents: true } },
+          },
+          orderBy: { number: "desc" },
+        },
+        serviceOrderAssets: {
+          include: {
+            storeAsset: { include: { project: { select: { id: true, name: true } } } },
+            clientEquipment: true,
+          },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        },
+        storeProject: { select: { id: true, name: true } },
+        evidences: { orderBy: { createdAt: "desc" } },
         statusHistory: {
           include: {
             changedBy: true,
@@ -346,6 +402,44 @@ export async function scheduleServiceOrder(
     const updatedOS = await prisma.$transaction(async (tx) => {
       await tx.serviceOrderTechnician.deleteMany({ where: { serviceOrderId: osId } });
       await tx.serviceOrderTechnician.createMany({ data: techRelations });
+      let visit = await tx.serviceVisit.findFirst({
+        where: { serviceOrderId: osId, status: { notIn: ["CONCLUIDA", "CANCELADA"] } },
+        orderBy: { number: "desc" },
+      });
+      if (!visit) {
+        visit = await createInitialVisit(tx, {
+          serviceOrderId: osId,
+          status: currentStatus,
+          scheduledStart: data.scheduledDate,
+          scheduledTime: data.scheduledTime,
+          technicianIds: data.techIds,
+          changedById: userId,
+        });
+      }
+      const visitStart = new Date(data.scheduledDate);
+      const [visitHours, visitMinutes] = data.scheduledTime.split(":").map(Number);
+      if (Number.isFinite(visitHours) && Number.isFinite(visitMinutes)) visitStart.setHours(visitHours, visitMinutes, 0, 0);
+      await tx.visitTechnician.deleteMany({ where: { visitId: visit.id } });
+      await tx.visitTechnician.createMany({
+        data: data.techIds.map((techId, index) => ({ visitId: visit!.id, userId: techId, role: index === 0 ? "RESPONSAVEL" : "TECNICO" })),
+      });
+      await tx.serviceVisit.update({
+        where: { id: visit.id },
+        data: {
+          status: "AGENDADA",
+          scheduledStart: visitStart,
+          scheduledEnd: new Date(visitStart.getTime() + visit.estimatedDurationMinutes * 60_000),
+        },
+      });
+      await tx.visitStatusHistory.create({
+        data: {
+          visitId: visit.id,
+          oldStatus: visit.status,
+          newStatus: "AGENDADA",
+          changedById: userId,
+          justification: `Visita ${visit.number} agendada para ${visitStart.toLocaleDateString("pt-BR")} às ${data.scheduledTime}.`,
+        },
+      });
       const updated = await tx.serviceOrder.update({
         where: { id: osId },
         data: {
@@ -432,7 +526,7 @@ export async function updateOSStatus(
     const os = await prisma.serviceOrder.findUnique({
       where: { id: osId },
       include: {
-        technicians: { select: { id: true } },
+        technicians: { select: { id: true, userId: true } },
         completionReport: true,
         materials: true,
       },
@@ -488,6 +582,111 @@ export async function updateOSStatus(
           justification: justification || "Etapa atualizada pelo fluxo operacional da OS.",
         },
       });
+
+      // Mantém o fluxo legado da OS sincronizado com a visita operacional.
+      // A OS continua sendo o processo comercial; a visita guarda cada ida a campo.
+      let activeVisit = await tx.serviceVisit.findFirst({
+        where: { serviceOrderId: osId },
+        orderBy: { number: "desc" },
+        include: { technicians: true },
+      });
+      if (!activeVisit) {
+        await createInitialVisit(tx, {
+          serviceOrderId: osId,
+          status: oldStatus,
+          scheduledStart: os.scheduledDate,
+          scheduledTime: os.scheduledTime,
+          technicianIds: os.technicians.map((technician) => technician.userId),
+          changedById: userId,
+        });
+        activeVisit = await tx.serviceVisit.findFirst({
+          where: { serviceOrderId: osId },
+          orderBy: { number: "desc" },
+          include: { technicians: true },
+        });
+      }
+
+      if (activeVisit && newStatus === "RETORNO") {
+        const now = new Date();
+        if (!['CONCLUIDA', 'CANCELADA'].includes(activeVisit.status)) {
+          await tx.serviceVisit.update({
+            where: { id: activeVisit.id },
+            data: {
+              status: "CONCLUIDA",
+              result: "RETORNO_NECESSARIO",
+              returnReason: justification || "Retorno solicitado durante o atendimento.",
+              completedAt: now,
+            },
+          });
+          await tx.visitStatusHistory.create({
+            data: {
+              visitId: activeVisit.id,
+              oldStatus: activeVisit.status,
+              newStatus: "CONCLUIDA",
+              changedById: userId,
+              justification: justification || "Visita encerrada com necessidade de retorno.",
+            },
+          });
+        }
+
+        const visitNumber = await nextVisitNumber(tx, osId);
+        await tx.serviceVisit.create({
+          data: {
+            serviceOrderId: osId,
+            number: visitNumber,
+            kind: "RETORNO",
+            status: "NAO_AGENDADA",
+            sourceVisitId: activeVisit.id,
+            returnReason: justification || "Retorno solicitado durante o atendimento.",
+            technicians: activeVisit.technicians.length
+              ? {
+                  create: activeVisit.technicians.map((technician) => ({
+                    userId: technician.userId,
+                    role: technician.role,
+                  })),
+                }
+              : undefined,
+            statusHistory: {
+              create: {
+                oldStatus: "NENHUM",
+                newStatus: "NAO_AGENDADA",
+                changedById: userId,
+                justification: `Retorno originado na visita ${activeVisit.number}.`,
+              },
+            },
+          },
+        });
+      } else if (activeVisit) {
+        const visitStatus = visitStatusFromLegacyOS(newStatus);
+        if (visitStatus !== activeVisit.status) {
+          const now = new Date();
+          const visitData: Prisma.ServiceVisitUncheckedUpdateInput = { status: visitStatus };
+          if (visitStatus === "EM_DESLOCAMENTO") visitData.travelStartedAt = activeVisit.travelStartedAt || now;
+          if (visitStatus === "EM_EXECUCAO") {
+            visitData.startedAt = activeVisit.startedAt || now;
+            visitData.completedAt = null;
+            visitData.cancelledAt = null;
+            visitData.result = null;
+          }
+          if (visitStatus === "PAUSADA") visitData.pausedAt = now;
+          if (visitStatus === "CONCLUIDA") {
+            visitData.completedAt = activeVisit.completedAt || now;
+            visitData.result = activeVisit.result || "RESOLVIDO";
+          }
+          if (visitStatus === "CANCELADA") visitData.cancelledAt = now;
+
+          await tx.serviceVisit.update({ where: { id: activeVisit.id }, data: visitData });
+          await tx.visitStatusHistory.create({
+            data: {
+              visitId: activeVisit.id,
+              oldStatus: activeVisit.status,
+              newStatus: visitStatus,
+              changedById: userId,
+              justification: justification || `Sincronizado com a etapa ${newStatus} da OS.`,
+            },
+          });
+        }
+      }
       return updated;
     });
 
@@ -868,19 +1067,33 @@ export async function addOSPhoto(
   }
 ) {
   try {
-    await requirePermission("os.write");
+    const session = await requirePermission("os.write");
 
     // Converte a foto (recebida como data URL base64 do client) em arquivo em
     // disco e grava só a URL pública no banco — nunca o base64 bruto.
     const storedUrl = await saveBase64Asset(photoData.url, `os-${osId}`);
 
-    const photo = await prisma.serviceOrderPhoto.create({
-      data: {
-        serviceOrderId: osId,
-        step: photoData.step,
-        url: storedUrl,
-        caption: photoData.caption,
-      },
+    const visit = await prisma.serviceVisit.findFirst({
+      where: { serviceOrderId: osId },
+      orderBy: { number: "desc" },
+    });
+    const photo = await prisma.$transaction(async (tx) => {
+      const created = await tx.serviceOrderPhoto.create({
+        data: { serviceOrderId: osId, step: photoData.step, url: storedUrl, caption: photoData.caption },
+      });
+      await tx.evidence.create({
+        data: {
+          serviceOrderId: osId,
+          visitId: visit?.id || null,
+          authorId: session.userId,
+          kind: "FOTO",
+          stage: photoData.step === "EVIDENCIA" ? "DIAGNOSTICO" : photoData.step,
+          fileUrl: storedUrl,
+          caption: photoData.caption,
+          capturedAt: new Date(),
+        },
+      });
+      return created;
     });
 
     revalidatePath("/ordens-servico");
@@ -899,14 +1112,14 @@ export async function deleteOSPhoto(photoId: string) {
     await requirePermission("os.write");
 
     const photo = await prisma.serviceOrderPhoto.findUnique({ where: { id: photoId } });
+    if (!photo) throw new Error("Foto não encontrada.");
 
-    await prisma.serviceOrderPhoto.delete({
-      where: { id: photoId },
+    await prisma.$transaction(async (tx) => {
+      await tx.evidence.deleteMany({ where: { serviceOrderId: photo.serviceOrderId, fileUrl: photo.url } });
+      await tx.serviceOrderPhoto.delete({ where: { id: photoId } });
     });
 
-    if (photo) {
-      await deleteUploadedAsset(photo.url);
-    }
+    await deleteUploadedAsset(photo.url);
 
     revalidatePath("/ordens-servico");
     return { success: true };

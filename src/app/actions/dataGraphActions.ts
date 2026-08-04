@@ -70,7 +70,7 @@ export async function getDataGraphAction(clientId?: string, search?: string) {
     const addEdge = (source: string, target: string, label: string) => edges.set(`${source}:${target}:${label}`, { id: `${source}:${target}:${label}`, source, target, label });
     const clientNode = `CLIENTE:${client.id}`;
 
-    addNode({ id: clientNode, entityId: client.id, type: "CLIENTE", label: client.fancyName || client.name, subtitle: client.cpfCnpj, status: client.status, tab: "clientes", params: { id: client.id } });
+    addNode({ id: clientNode, entityId: client.id, type: "CLIENTE", label: client.fancyName || client.name, subtitle: client.cpfCnpj || "Documento não informado", status: client.status, tab: "clientes", params: { id: client.id } });
 
     client.contacts.forEach((contact) => {
       const id = `CONTATO:${contact.id}`;

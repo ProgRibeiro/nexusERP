@@ -26,7 +26,7 @@ export default function EstoqueTab({ newRecord = false, requestId }: { newRecord
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    if (newRecord) setIsAddOpen(true);
+    setIsAddOpen(newRecord);
   }, [newRecord, requestId]);
 
   // Form State

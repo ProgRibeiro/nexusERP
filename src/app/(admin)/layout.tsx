@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import FloatingTabsBar from "@/components/FloatingTabsBar";
 import GlobalDrawer from "@/components/GlobalDrawer";
+import MobileNavigation from "@/components/MobileNavigation";
 import { Loader2 } from "lucide-react";
 
 // Tab views imports (dynamically mapped in TabContent wrapper)
@@ -26,6 +27,7 @@ import ConfiguracoesTab from "@/components/tabs/ConfiguracoesTab";
 import AgendaTab from "@/components/tabs/AgendaTab";
 import ServicosTab from "@/components/tabs/ServicosTab";
 import DataGraphTab from "@/components/tabs/DataGraphTab";
+import PreventiveCentralTab from "@/components/tabs/PreventiveCentralTab";
 import PreventiveProposalsTab from "@/components/tabs/PreventiveProposalsTab";
 import { ToastProvider } from "@/components/ui/Toast";
 
@@ -42,13 +44,16 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
       if (tab.params?.id) {
         return <OrdemServicoDetailTab id={tab.params.id} initialSection={tab.params?.section} />;
       }
-      return <OrdensServicoTab newRecord={tab.params?.new === "true"} requestId={tab.params?.requestId} clientId={tab.params?.clientId} statusFilter={tab.params?.status} />;
+      return <OrdensServicoTab newRecord={tab.params?.new === "true"} requestId={tab.params?.requestId} clientId={tab.params?.clientId} contractId={tab.params?.contractId} addressId={tab.params?.addressId} initialType={tab.params?.type} statusFilter={tab.params?.status} />;
     case "crm":
       return <CrmTab newRecord={tab.params?.new === "true"} requestId={tab.params?.requestId} />;
     case "orcamentos":
+      if (tab.params?.tab === "preventiva") {
+        return <PreventiveProposalsTab />;
+      }
       return <OrcamentosTab newRecord={tab.params?.new === "true"} requestId={tab.params?.requestId} clientId={tab.params?.clientId} quoteId={tab.params?.id} />;
     case "preventivas":
-      return <PreventiveProposalsTab />;
+      return <PreventiveCentralTab />;
     case "agenda":
       return <AgendaTab />;
     case "faturamento":
@@ -78,16 +83,17 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
 
 function WorkspaceContainer() {
   const { openTabs, activeTabId, darkMode } = useWorkspace();
+  const activeTab = openTabs.find((tab) => tab.id === activeTabId);
 
   return (
-    <div className={`flex h-screen w-screen overflow-hidden font-sans antialiased ${darkMode ? "dark bg-zinc-950 text-zinc-100" : "bg-zinc-50 text-zinc-800"}`}>
+    <div className={`app-shell flex h-[100dvh] w-screen overflow-hidden font-sans antialiased print:block print:h-auto print:w-auto print:overflow-visible ${darkMode ? "dark bg-zinc-950 text-zinc-100" : "bg-zinc-50 text-zinc-800"}`}>
       {/* Sidebar Navigation */}
       <div className="print:hidden flex h-full">
         <Sidebar />
       </div>
 
       {/* Main Container */}
-      <div className="min-w-0 flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="min-w-0 flex-1 flex flex-col h-[100dvh] overflow-hidden print:block print:h-auto print:overflow-visible">
         {/* Topbar / Search */}
         <div className="print:hidden">
           <Header />
@@ -99,15 +105,15 @@ function WorkspaceContainer() {
         </div>
 
         {/* Tab Viewport - only renders the active tab to maximize speed and minimize memory/queries */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6 bg-zinc-50 dark:bg-zinc-950 relative print:p-0 print:bg-white">
-          <div className="w-full max-w-7xl mx-auto min-h-full print:max-w-none">
+        <main className="app-workspace flex-1 overflow-y-auto overflow-x-hidden p-3 pb-24 sm:p-4 sm:pb-24 lg:p-5 xl:p-6 xl:pb-6 relative print:block print:overflow-visible print:p-0 print:bg-white">
+          <div className={`w-full mx-auto min-h-full print:max-w-none print:min-h-0 ${["preventivas", "orcamentos"].includes(activeTab?.type || "") ? "max-w-[1800px]" : "max-w-7xl"}`}>
             {openTabs.map((tab) => {
               const isActive = tab.id === activeTabId;
               if (!isActive) return null;
               return (
                 <div
                   key={tab.id}
-                  className="h-full animate-in fade-in duration-150"
+                  className="h-full animate-in fade-in duration-150 print:h-auto"
                 >
                   <TabContentRenderer tab={tab} />
                 </div>
@@ -119,6 +125,7 @@ function WorkspaceContainer() {
 
       {/* Slide-in Drawers */}
       <GlobalDrawer />
+      <MobileNavigation />
     </div>
   );
 }
@@ -128,6 +135,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  void children;
   const { loading, user } = useAuth();
 
   // Premium loading state

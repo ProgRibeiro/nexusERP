@@ -13,7 +13,15 @@ import { decryptSession, SESSION_COOKIE_NAME } from "@/lib/session";
  * sem passar pelo middleware.
  */
 
-const PASSTHROUGH_PREFIXES = ["/_next", "/favicon.ico", "/api"];
+const PASSTHROUGH_PREFIXES = [
+  "/_next",
+  "/favicon.ico",
+  "/api",
+  "/portal/loja",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/icons",
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -147,7 +147,7 @@ export default function PreventiveProposalsTab() {
       client.name.toLowerCase().includes(query) ||
       (client.fancyName || "").toLowerCase().includes(query) ||
       (client.socialName || "").toLowerCase().includes(query) ||
-      (digits && client.cpfCnpj.replace(/\D/g, "").includes(digits))
+      (digits && Boolean(client.cpfCnpj?.replace(/\D/g, "").includes(digits)))
     ).slice(0, 8);
   }, [clientQuery, clients]);
 
@@ -170,7 +170,7 @@ export default function PreventiveProposalsTab() {
     // Cadastros importados podem ainda não ter endereço estruturado. Quando o
     // documento é CNPJ, completa os dados públicos e tenta novamente sem exigir
     // que o usuário saia da proposta.
-    if (!details?.addresses.length && client.cpfCnpj.replace(/\D/g, "").length === 14) {
+    if (!details?.addresses.length && (client.cpfCnpj?.replace(/\D/g, "").length || 0) === 14) {
       const synced = await syncClientFromCNPJ(client.id);
       if (synced.success) {
         details = await getClientDetails(client.id);
@@ -292,9 +292,9 @@ export default function PreventiveProposalsTab() {
         <div className="flex items-start gap-4">
           <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/15"><ClipboardCheck size={24} /></div>
           <div>
-            <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200"><Sparkles size={12} /> Comercial recorrente</div>
-            <h1 className="text-xl font-black sm:text-2xl">Propostas de manutenção preventiva</h1>
-            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-blue-100/80 sm:text-sm">Monte um plano completo a partir de modelos técnicos, vincule os equipamentos e entregue uma proposta pronta para aprovação.</p>
+            <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200"><Sparkles size={12} /> Operação recorrente</div>
+            <h1 className="text-xl font-black sm:text-2xl">Central de manutenção preventiva</h1>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-blue-100/80 sm:text-sm">Escolha a loja, acompanhe contratos, organize projetos e mapeie todo o patrimônio técnico em uma planta 2D.</p>
           </div>
         </div>
         <div className="flex rounded-xl bg-black/20 p-1 ring-1 ring-white/10">
@@ -358,7 +358,7 @@ export default function PreventiveProposalsTab() {
                   <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
                     {filteredClients.length ? filteredClients.map((client) => (
                       <button key={client.id} type="button" onClick={() => void selectClient(client)} className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left hover:bg-blue-50 dark:hover:bg-blue-950/30">
-                        <div><p className="text-sm font-bold text-zinc-850 dark:text-zinc-100">{client.name}</p><p className="text-[11px] text-zinc-500">{client.socialName || client.fancyName || "Cadastro principal"} · {client.cpfCnpj}</p></div>
+                        <div><p className="text-sm font-bold text-zinc-850 dark:text-zinc-100">{client.name}</p><p className="text-[11px] text-zinc-500">{client.socialName || client.fancyName || "Cadastro principal"} · {client.cpfCnpj || "Documento não informado"}</p></div>
                         {form.clientId === client.id && <CheckCircle2 className="text-blue-600" size={17} />}
                       </button>
                     )) : <p className="p-3 text-xs text-zinc-500">Nenhum cliente encontrado.</p>}
@@ -367,7 +367,7 @@ export default function PreventiveProposalsTab() {
               </div>
               {selectedClient && clientDetails && (
                 <div className="space-y-4 rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
-                  <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-black text-zinc-900 dark:text-white">{selectedClient.name}</p><p className="text-xs text-zinc-500">{selectedClient.cpfCnpj} · {selectedClient.email}</p></div><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">Cliente selecionado</span></div>
+                  <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-black text-zinc-900 dark:text-white">{selectedClient.name}</p><p className="text-xs text-zinc-500">{selectedClient.cpfCnpj || "Documento não informado"} · {selectedClient.email}</p></div><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">Cliente selecionado</span></div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <Select label="Endereço de execução * · automático" value={form.addressId} onChange={(event) => setField("addressId", event.target.value)} options={[{ value: "", label: clientDetails.addresses.length ? "Selecione o local" : "Endereço não cadastrado" }, ...clientDetails.addresses.map((address) => ({ value: address.id, label: `${address.label} — ${address.street}, ${address.number}` }))]} />
                     <Select label="Contato responsável · automático" value={form.contactId} onChange={(event) => setField("contactId", event.target.value)} options={[{ value: "", label: selectedClient.email ? `Contato cadastral — ${selectedClient.email}` : `Contato cadastral — ${selectedClient.phone}` }, ...clientDetails.contacts.map((contact) => ({ value: contact.id, label: `${contact.name}${contact.role ? ` — ${contact.role}` : ""}` }))]} />

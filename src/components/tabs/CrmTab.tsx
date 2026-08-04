@@ -44,7 +44,7 @@ export default function CrmTab({ newRecord = false, requestId }: CrmTabProps) {
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (newRecord) setIsAddOpen(true);
+    setIsAddOpen(newRecord);
   }, [newRecord, requestId]);
 
   // Lead Form

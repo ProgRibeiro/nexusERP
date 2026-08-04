@@ -50,7 +50,7 @@ export default function ClientesTab({ newRecord = false, requestId }: ClientesTa
   const [cnpjLoading, setCnpjLoading] = useState(false);
 
   useEffect(() => {
-    if (newRecord) setIsAddOpen(true);
+    setIsAddOpen(newRecord);
   }, [newRecord, requestId]);
 
   const handleCnpjSearch = async () => {
@@ -225,12 +225,16 @@ export default function ClientesTab({ newRecord = false, requestId }: ClientesTa
             <div className="flex gap-2 items-end">
               <div className="flex-1">
                 <Input
-                  label="CPF / CNPJ *"
-                  required
-                  placeholder="Digite CNPJ para buscar"
+                  label="CPF / CNPJ (opcional)"
+                  placeholder="Pode ser preenchido depois"
                   value={newClientForm.cpfCnpj}
                   onChange={(e) => setNewClientForm((prev) => ({ ...prev, cpfCnpj: e.target.value }))}
                 />
+                {!newClientForm.cpfCnpj.trim() && (
+                  <span className="mt-1 block text-[10px] font-medium text-zinc-450">
+                    O cliente será salvo como cadastro provisório, sem documento.
+                  </span>
+                )}
               </div>
               <Button
                 type="button"

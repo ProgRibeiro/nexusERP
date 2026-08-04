@@ -149,7 +149,7 @@ export default function ClientesPage() {
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClientForm.name || !newClientForm.cpfCnpj || !newClientForm.email || !newClientForm.phone) {
+    if (!newClientForm.name || !newClientForm.email || !newClientForm.phone) {
       alert("Preencha todos os campos obrigatórios (*)");
       return;
     }
@@ -716,11 +716,10 @@ export default function ClientesPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-zinc-500 block mb-1">CPF ou CNPJ *</label>
+                  <label className="text-xs font-semibold text-zinc-500 block mb-1">CPF ou CNPJ (opcional)</label>
                   <input
                     type="text"
-                    required
-                    placeholder="Sem pontos ou traços"
+                    placeholder="Pode ser preenchido depois"
                     value={newClientForm.cpfCnpj}
                     onChange={(e) => setNewClientForm({ ...newClientForm, cpfCnpj: e.target.value.replace(/\D/g, "") })}
                     className="w-full border border-zinc-200 rounded-lg p-2 text-sm focus:border-emerald-500 focus:outline-none"

@@ -28,6 +28,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import { CommandPalette } from "./ui/CommandPalette";
 import { getSearchResultTarget } from "@/lib/searchNavigation";
+import PwaInstallButton from "./PwaInstallButton";
 
 // Badge color shown next to each global search result type.
 const SEARCH_RESULT_BADGE: Record<SearchResult["type"], string> = {
@@ -123,8 +124,6 @@ export default function Header() {
   // Global search effect
   useEffect(() => {
     if (searchQuery.trim().length < 2) {
-      setSearchResults([]);
-      setIsSearchOpen(false);
       return;
     }
 
@@ -222,25 +221,29 @@ export default function Header() {
   };
 
   return (
-    <header className="h-14 sm:h-16 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between px-3 sm:px-4 lg:px-6 z-20 shrink-0 select-none gap-2">
+    <header className="relative z-30 flex h-16 shrink-0 select-none items-center justify-between gap-2 border-b border-zinc-200/80 bg-white/90 px-3 shadow-[0_1px_0_rgba(15,23,42,.03)] backdrop-blur-xl sm:px-4 lg:h-[72px] lg:px-6 dark:border-zinc-800/80 dark:bg-zinc-950/88">
       {/* Title & Mobile Menu Toggle */}
       <div className="flex items-center gap-3 shrink-0">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-850 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 xl:hidden cursor-pointer flex items-center justify-center"
+          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 xl:hidden"
           title="Menu Lateral"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <h1 className="max-w-[38vw] truncate text-sm sm:max-w-[45vw] lg:max-w-none lg:text-base font-bold text-zinc-900 dark:text-zinc-50 leading-tight">
-          {getPageTitle(pathname)}
-        </h1>
+        <div className="min-w-0">
+          <p className="hidden text-[9px] font-black uppercase tracking-[0.22em] text-blue-600 sm:block dark:text-blue-400">NX Workspace</p>
+          <h1 className="max-w-[35vw] truncate text-sm font-black leading-tight tracking-tight text-zinc-950 sm:max-w-[42vw] lg:max-w-none lg:text-lg dark:text-white">
+            {activeTab?.title || getPageTitle(pathname)}
+          </h1>
+          <p className="mt-0.5 hidden text-[10px] font-medium text-zinc-500 2xl:block">{getPageTitle(pathname)} · operação integrada em tempo real</p>
+        </div>
       </div>
 
       {/* Global Search Bar */}
-      <div className="flex-1 max-w-md mx-4 xl:mx-8 relative hidden xl:block z-30">
+      <div className="relative z-30 mx-5 hidden max-w-xl flex-1 xl:block 2xl:mx-10">
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400 dark:text-zinc-550">
             <Search size={15} />
@@ -249,9 +252,16 @@ export default function Header() {
             type="text"
             placeholder="Buscar cliente, OS, nota, CPF, CNPJ..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSearchQuery(value);
+              if (value.trim().length < 2) {
+                setSearchResults([]);
+                setIsSearchOpen(false);
+              }
+            }}
             onFocus={() => searchQuery.trim().length >= 2 && setIsSearchOpen(true)}
-            className="w-full pl-9 pr-8 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl text-xs placeholder-zinc-400 text-zinc-800 dark:text-zinc-150 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
+            className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50/80 py-2 pl-9 pr-8 text-xs text-zinc-800 outline-none transition-all duration-200 placeholder:text-zinc-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:focus:border-blue-700 dark:focus:bg-zinc-900"
           />
           {searchQuery && (
             <button
@@ -318,9 +328,10 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 shrink-0">
+        <PwaInstallButton />
         <button
           onClick={() => setIsPaletteOpen(true)}
-          className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:bg-zinc-50 dark:hover:bg-zinc-800 xl:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 xl:hidden"
           title="Busca global"
           aria-label="Abrir busca global"
         >
@@ -329,7 +340,7 @@ export default function Header() {
         {/* Command Palette Keyboard Indicator */}
         <button
           onClick={() => setIsPaletteOpen(true)}
-          className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all cursor-pointer hidden xl:flex items-center gap-1.5"
+          className="hidden h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 text-zinc-500 transition-all hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200 xl:flex"
           title="Atalhos rápidos (Ctrl + K)"
         >
           <Keyboard size={15} />
@@ -339,7 +350,7 @@ export default function Header() {
         {/* Theme Light / Dark Switch */}
         <button
           onClick={toggleDarkMode}
-          className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-450 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all cursor-pointer"
+          className="hidden h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 transition-all hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:bg-zinc-900 dark:hover:text-zinc-200 sm:flex"
           title={darkMode ? "Modo Claro" : "Modo Escuro"}
         >
           {darkMode ? <Sun size={15} /> : <Moon size={15} />}
@@ -349,7 +360,7 @@ export default function Header() {
         <div className="relative">
           <button
             onClick={() => setIsNewOpen(!isNewOpen)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-white text-xs font-semibold transition-colors cursor-pointer"
+            className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-xs font-bold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700"
           >
             <Plus size={15} />
             <span className="hidden sm:inline">Novo</span>
@@ -458,7 +469,7 @@ export default function Header() {
         </div>
 
         {/* User Simulator Dropdown */}
-        <div className="relative">
+        <div className="relative hidden lg:block">
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-850 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all text-zinc-700 dark:text-zinc-350 cursor-pointer"
@@ -520,7 +531,7 @@ export default function Header() {
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 mt-2 w-96 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg py-2 z-50 flex flex-col max-h-[480px] animate-in fade-in slide-in-from-top-1 duration-150">
+            <div className="absolute right-0 z-50 mt-2 flex max-h-[480px] w-[min(24rem,calc(100vw-1rem))] flex-col rounded-xl border border-zinc-200 bg-white py-2 shadow-lg animate-in fade-in slide-in-from-top-1 duration-150 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                 <span className="font-bold text-xs text-zinc-800 dark:text-zinc-100">
                   Notificações e Alertas

@@ -37,6 +37,23 @@ interface WorkspaceContextType {
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 const WORKSPACE_STORAGE_KEY = "nx_workspace_v1";
 
+function sanitizeRestoredTab(tab: Tab): Tab {
+  if (!tab.params || tab.params.new !== "true") return tab;
+  const {
+    new: _new,
+    requestId: _requestId,
+    clientId: _clientId,
+    contractId: _contractId,
+    addressId: _addressId,
+    type: _type,
+    ...stableParams
+  } = tab.params;
+  return {
+    ...tab,
+    params: Object.keys(stableParams).length ? stableParams : undefined,
+  };
+}
+
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -64,7 +81,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       if (raw) {
         const saved = JSON.parse(raw) as { tabs?: Tab[]; activeTabId?: string };
         const validTabs = Array.isArray(saved.tabs)
-          ? saved.tabs.filter((tab) => tab && typeof tab.id === "string" && typeof tab.type === "string" && typeof tab.title === "string").slice(0, 12)
+          ? saved.tabs
+              .filter((tab) => tab && typeof tab.id === "string" && typeof tab.type === "string" && typeof tab.title === "string")
+              .slice(0, 12)
+              .map(sanitizeRestoredTab)
           : [];
         const dashboard = validTabs.find((tab) => tab.id === "dashboard") || { id: "dashboard", type: "dashboard", title: "Dashboard", pinned: true };
         const restored = [dashboard, ...validTabs.filter((tab) => tab.id !== "dashboard")];
@@ -130,7 +150,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           ? {
               ...tab,
               title: title || tab.title,
-              params: params ? { ...(tab.params || {}), ...params } : tab.params,
+              // Ao abrir um módulo normalmente pelo menu, removemos ações
+              // temporárias antigas (new/requestId) em vez de reabrir modais.
+              params: params ? { ...params } : undefined,
               pinned: options?.pin !== undefined ? options.pin : tab.pinned,
               status: options?.status || tab.status,
             }
@@ -251,7 +273,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     else if (type === "ordens-servico") title = "Ordens de Serviço";
     else if (type === "crm") title = "CRM / Funil";
     else if (type === "orcamentos") title = "Orçamentos";
-    else if (type === "preventivas") title = "Propostas Preventivas";
+    else if (type === "preventivas") title = "Central de Preventivas";
     else if (type === "faturamento") title = "Painel Fiscal";
     else if (type === "financeiro") title = "Financeiro";
     else if (type === "estoque") title = "Estoque";
@@ -274,7 +296,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
       const subTitle = tabParam ? ` (${tabParam})` : actionParam ? ` (${actionParam})` : "";
       tabId = `${type}?tab=${tabParam || ""}`;
-      title = title + subTitle;
+      title = type === "orcamentos" && tabParam === "preventiva"
+        ? "Propostas Preventivas"
+        : title + subTitle;
     }
 
     const syncTimer = window.setTimeout(() => {

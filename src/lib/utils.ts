@@ -11,8 +11,10 @@ export function formatCurrency(value: number): string {
 /**
  * Formata CPF ou CNPJ adicionando as pontuações correspondentes
  */
-export function formatCpfCnpj(value: string): string {
+export function formatCpfCnpj(value?: string | null): string {
+  if (!value) return "Não informado";
   const clean = value.replace(/\D/g, "");
+  if (!clean) return "Não informado";
   
   if (clean.length <= 11) {
     // CPF: 000.000.000-00

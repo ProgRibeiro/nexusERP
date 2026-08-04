@@ -26,8 +26,9 @@ export const clientCreateSchema = z.object({
   cpfCnpj: z
     .string()
     .trim()
+    .default("")
     .transform((v) => v.replace(/\D/g, ""))
-    .refine((v) => v.length === 11 || v.length === 14, "CPF/CNPJ deve ter 11 ou 14 dígitos."),
+    .refine((v) => v.length === 0 || v.length === 11 || v.length === 14, "CPF/CNPJ deve ficar vazio ou ter 11 ou 14 dígitos."),
   stateRegistration: z.string().trim().optional(),
   municipalRegistration: z.string().trim().optional(),
   email: z.string().trim().email("E-mail inválido."),

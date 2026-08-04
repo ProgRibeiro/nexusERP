@@ -48,7 +48,7 @@ export default function FloatingTabsBar() {
   };
 
   return (
-    <div className="w-full bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800/80 px-3 sm:px-4 lg:px-6 py-2 flex items-center gap-2 overflow-x-auto select-none scrollbar-none shrink-0 z-10 shadow-sm">
+    <div className="z-20 hidden w-full shrink-0 select-none items-center gap-1.5 overflow-x-auto border-b border-zinc-200/80 bg-white/80 px-4 py-2 backdrop-blur-lg scrollbar-none sm:flex lg:px-6 dark:border-zinc-800/80 dark:bg-zinc-950/80">
       {openTabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         const statusColor = getStatusDotColor(tab.status);
@@ -57,10 +57,10 @@ export default function FloatingTabsBar() {
         return (
           <div
             key={tab.id}
-            className={`group inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all duration-150 cursor-pointer shrink-0 ${
+            className={`group relative inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all duration-150 ${
               isActive
-                ? "bg-zinc-100 dark:bg-zinc-800/85 text-zinc-900 dark:text-white border-zinc-250 dark:border-zinc-700 shadow-xs"
-                : "bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-450 border-zinc-200 dark:border-zinc-800/60 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 hover:text-zinc-750 dark:hover:text-zinc-250 hover:border-zinc-250 dark:hover:border-zinc-700"
+                ? "border-blue-200 bg-blue-50 text-blue-800 shadow-sm dark:border-blue-900/70 dark:bg-blue-950/35 dark:text-blue-200"
+                : "border-transparent bg-transparent text-zinc-500 hover:border-zinc-200 hover:bg-white hover:text-zinc-850 dark:text-zinc-400 dark:hover:border-zinc-800 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
             }`}
           >
             <button
@@ -75,6 +75,7 @@ export default function FloatingTabsBar() {
               )}
               <span className="shrink-0">{icon}</span>
               <span className="truncate max-w-[120px]">{tab.title}</span>
+              {isActive && <span className="absolute inset-x-3 -bottom-[9px] h-0.5 rounded-full bg-blue-600" />}
             </button>
 
             {/* Action buttons (Pin/Close) */}
