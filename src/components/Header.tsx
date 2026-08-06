@@ -49,7 +49,7 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, users, switchUser } = useAuth();
-  const { darkMode, toggleDarkMode, openTab, openTabs, activeTabId, sidebarOpen, setSidebarOpen } = useWorkspace();
+  const { darkMode, toggleDarkMode, openTab, activeTab, sidebarOpen, setSidebarOpen } = useWorkspace();
 
   const [notifications, setNotifications] = useState<NotificationDTO[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -61,7 +61,6 @@ export default function Header() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNewOpen, setIsNewOpen] = useState(false);
-  const activeTab = openTabs.find((tab) => tab.id === activeTabId);
 
   const contextualNewItems = useMemo(() => {
     const requestId = () => String(Date.now());
@@ -221,7 +220,7 @@ export default function Header() {
   };
 
   return (
-    <header className="relative z-30 flex h-16 shrink-0 select-none items-center justify-between gap-2 border-b border-zinc-200/80 bg-white/90 px-3 shadow-[0_1px_0_rgba(15,23,42,.03)] backdrop-blur-xl sm:px-4 lg:h-[72px] lg:px-6 dark:border-zinc-800/80 dark:bg-zinc-950/88">
+    <header className="relative z-30 flex h-[68px] shrink-0 select-none items-center justify-between gap-2 border-b border-slate-200/75 bg-white/82 px-3 shadow-[0_8px_30px_rgba(15,23,42,.035)] backdrop-blur-2xl sm:px-4 lg:h-[76px] lg:px-7 dark:border-zinc-800/80 dark:bg-zinc-950/84">
       {/* Title & Mobile Menu Toggle */}
       <div className="flex items-center gap-3 shrink-0">
         <button
@@ -234,8 +233,8 @@ export default function Header() {
           </svg>
         </button>
         <div className="min-w-0">
-          <p className="hidden text-[9px] font-black uppercase tracking-[0.22em] text-blue-600 sm:block dark:text-blue-400">NX Workspace</p>
-          <h1 className="max-w-[35vw] truncate text-sm font-black leading-tight tracking-tight text-zinc-950 sm:max-w-[42vw] lg:max-w-none lg:text-lg dark:text-white">
+          <p className="hidden text-[8px] font-black uppercase tracking-[0.28em] text-blue-600 sm:block dark:text-blue-400">NX Workspace</p>
+          <h1 className="max-w-[35vw] truncate text-sm font-black leading-tight tracking-[-0.025em] text-zinc-950 sm:max-w-[42vw] lg:max-w-none lg:text-xl dark:text-white">
             {activeTab?.title || getPageTitle(pathname)}
           </h1>
           <p className="mt-0.5 hidden text-[10px] font-medium text-zinc-500 2xl:block">{getPageTitle(pathname)} · operação integrada em tempo real</p>
@@ -243,7 +242,7 @@ export default function Header() {
       </div>
 
       {/* Global Search Bar */}
-      <div className="relative z-30 mx-5 hidden max-w-xl flex-1 xl:block 2xl:mx-10">
+      <div className="relative z-30 mx-6 hidden max-w-2xl flex-1 xl:block 2xl:mx-12">
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400 dark:text-zinc-550">
             <Search size={15} />
@@ -261,7 +260,7 @@ export default function Header() {
               }
             }}
             onFocus={() => searchQuery.trim().length >= 2 && setIsSearchOpen(true)}
-            className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50/80 py-2 pl-9 pr-8 text-xs text-zinc-800 outline-none transition-all duration-200 placeholder:text-zinc-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:focus:border-blue-700 dark:focus:bg-zinc-900"
+            className="h-11 w-full rounded-2xl border border-slate-200/90 bg-slate-50/80 py-2 pl-10 pr-8 text-xs text-zinc-800 shadow-[inset_0_1px_1px_rgba(15,23,42,.02)] outline-none transition-all duration-200 placeholder:text-zinc-400 hover:border-slate-300 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:focus:border-blue-700 dark:focus:bg-zinc-900"
           />
           {searchQuery && (
             <button
@@ -360,7 +359,7 @@ export default function Header() {
         <div className="relative">
           <button
             onClick={() => setIsNewOpen(!isNewOpen)}
-            className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-xs font-bold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700"
+            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-gradient-to-b from-blue-500 to-blue-600 px-4 text-xs font-black text-white shadow-[0_8px_18px_rgba(37,99,235,.22)] transition-all hover:-translate-y-0.5 hover:from-blue-600 hover:to-blue-700 hover:shadow-[0_12px_24px_rgba(37,99,235,.28)]"
           >
             <Plus size={15} />
             <span className="hidden sm:inline">Novo</span>

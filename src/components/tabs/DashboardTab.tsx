@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { DashboardData, DashboardPeriod, getDashboardData } from "@/app/actions/dashboardActions";
@@ -21,7 +22,7 @@ import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { StatusBadge } from "../ui/StatusBadge";
 
-const panel = "rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
+const panel = "rounded-[22px] border border-slate-200/80 bg-white/95 shadow-[0_12px_35px_rgba(15,23,42,.055)] ring-1 ring-white/70 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/[.03]";
 
 type IconType = React.ComponentType<{ size?: number; className?: string }>;
 
@@ -46,7 +47,8 @@ const tones = {
 
 function KpiCard({ title, value, helper, action, icon: Icon, tone, variation, onClick }: KpiCardProps) {
   return (
-    <button onClick={onClick} className={`${panel} group min-h-40 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md dark:hover:border-blue-800`}>
+    <button onClick={onClick} className={`${panel} group relative min-h-40 overflow-hidden p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-[0_20px_45px_rgba(37,99,235,.12)] dark:hover:border-blue-800`}>
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-gradient-to-r from-blue-600 to-cyan-400 transition-transform duration-300 group-hover:scale-x-100" />
       <div className="flex items-start justify-between gap-3">
         <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}><Icon size={19} /></div>
         {variation !== undefined && (
@@ -149,22 +151,24 @@ export default function DashboardTab() {
 
   return (
     <div className="space-y-6 pb-10 text-zinc-900 dark:text-zinc-100">
-      <section className={`${panel} overflow-hidden`}>
-        <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 p-5 text-white md:p-7">
+      <section className="relative overflow-hidden rounded-[26px] border border-blue-400/15 bg-[#071328] shadow-[0_24px_60px_rgba(7,19,40,.24)]">
+        <Image src="/brand/nx-operations-hero.webp" alt="Visão integrada da operação predial" fill priority unoptimized sizes="(min-width: 1280px) 1280px, 100vw" className="object-cover object-[68%_center] opacity-90" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,12,29,.98)_0%,rgba(4,15,34,.86)_42%,rgba(5,23,53,.18)_100%)]" />
+        <div className="relative p-5 text-white md:p-8 lg:p-9">
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
             <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-blue-200"><Sparkles size={14} /> Central de Comando Operacional</div>
-              <h2 className="text-2xl font-black tracking-tight md:text-3xl">Bom trabalho, {user?.name?.split(" ")[0]}.</h2>
-              <p className="mt-2 max-w-2xl text-sm text-blue-100/80">Veja o que exige atenção agora e avance cada etapa da operação sem procurar informação em várias telas.</p>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100 backdrop-blur"><Sparkles size={13} /> Central de Comando Operacional</div>
+              <h2 className="text-3xl font-black tracking-[-0.045em] md:text-4xl">Bom trabalho, {user?.name?.split(" ")[0]}.</h2>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100/75">Veja o que exige atenção agora e avance cada etapa da operação sem procurar informação em várias telas.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {(Object.keys(periodLabels) as DashboardPeriod[]).map((key) => <button key={key} onClick={() => setPeriod(key)} className={`rounded-lg px-3 py-2 text-xs font-bold transition ${period === key ? "bg-white text-blue-950 shadow" : "bg-white/10 text-white hover:bg-white/20"}`}>{periodLabels[key]}</button>)}
-              <button onClick={() => setShowFilters((v) => !v)} className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20"><Filter size={14} /> Filtros</button>
-              <button onClick={() => void loadData(true)} className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20" title="Atualizar"><RefreshCw size={15} className={refreshing ? "animate-spin" : ""} /></button>
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-slate-950/25 p-2 backdrop-blur-md">
+              {(Object.keys(periodLabels) as DashboardPeriod[]).map((key) => <button key={key} onClick={() => setPeriod(key)} className={`rounded-xl px-3 py-2 text-[11px] font-bold transition ${period === key ? "bg-white text-blue-950 shadow-lg" : "text-blue-100/80 hover:bg-white/10 hover:text-white"}`}>{periodLabels[key]}</button>)}
+              <button onClick={() => setShowFilters((v) => !v)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-bold text-blue-100/80 hover:bg-white/10 hover:text-white"><Filter size={14} /> Filtros</button>
+              <button onClick={() => void loadData(true)} className="flex h-9 w-9 items-center justify-center rounded-xl text-blue-100/80 hover:bg-white/10 hover:text-white" title="Atualizar"><RefreshCw size={15} className={refreshing ? "animate-spin" : ""} /></button>
             </div>
           </div>
         </div>
-        {showFilters && <div className="grid grid-cols-1 gap-4 border-t border-zinc-200 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-zinc-800">
+        {showFilters && <div className="relative grid grid-cols-1 gap-4 border-t border-white/10 bg-white/95 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:bg-zinc-900/95">
           <Input label="Cliente ou registro" placeholder="Filtrar tabelas rápidas" icon={<Search size={14} />} value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} />
           <Select label="Status da OS" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} options={[{ value: "", label: "Todos os status" }, { value: "CRIADA", label: "Criada" }, { value: "AGENDADA", label: "Agendada" }, { value: "EXECUCAO", label: "Em execução" }, { value: "CONCLUIDA", label: "Concluída" }, { value: "FATURADA", label: "Faturada" }]} />
           <Select label="Empresa / filial" value="matriz" onChange={() => {}} options={[{ value: "matriz", label: "NX Climatização · Matriz" }]} />

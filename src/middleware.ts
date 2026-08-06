@@ -20,6 +20,7 @@ const PASSTHROUGH_PREFIXES = [
   "/portal/loja",
   "/manifest.webmanifest",
   "/sw.js",
+  "/offline.html",
   "/icons",
 ];
 

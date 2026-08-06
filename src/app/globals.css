@@ -7,11 +7,11 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #F3F6FA;
+  --background: #F2F6FB;
   --foreground: #111827;
   --card: #FFFFFF;
   --card-hover: #FAFBFC;
-  --border: #E5E7EB;
+  --border: #DDE4EE;
   --text-muted: #6B7280;
 
   --primary: #2563EB;
@@ -25,9 +25,9 @@
   --danger: #DC2626;
   --cancelled: #9CA3AF;
 
-  --radius-card-large: 14px;
-  --radius-card-small: 10px;
-  --radius-input: 8px;
+  --radius-card-large: 22px;
+  --radius-card-small: 14px;
+  --radius-input: 12px;
 
   /* Premium Light Mode Zinc Colors */
   --zinc-50: #f9fafb;
@@ -180,6 +180,27 @@ body {
   transition: background-color 0.2s ease, border-color 0.2s ease;
   overscroll-behavior: none;
   text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    background: #0b1833;
+  }
+
+  .app-shell {
+    height: calc(100dvh - env(safe-area-inset-top));
+  }
+}
+
+@media (max-width: 767px) {
+  /* Impede o zoom automático do Safari ao focar campos menores que 16px. */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 button,
@@ -205,13 +226,15 @@ textarea:focus-visible {
 }
 
 .app-workspace {
-  background-color: #f3f6fa;
+  background-color: #f2f6fb;
   background-image:
-    radial-gradient(circle at 8% -10%, rgba(59, 130, 246, 0.09), transparent 28rem),
-    radial-gradient(circle at 95% 0%, rgba(14, 165, 233, 0.06), transparent 24rem),
-    linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
-  background-size: auto, auto, 32px 32px, 32px 32px;
+    radial-gradient(circle at 7% -6%, rgba(37, 99, 235, 0.12), transparent 30rem),
+    radial-gradient(circle at 96% 2%, rgba(56, 189, 248, 0.09), transparent 28rem),
+    radial-gradient(circle at 55% 110%, rgba(99, 102, 241, 0.05), transparent 34rem),
+    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
+  background-size: auto, auto, auto, 40px 40px, 40px 40px;
+  background-attachment: local;
 }
 
 .dark .app-workspace {
@@ -219,9 +242,10 @@ textarea:focus-visible {
   background-image:
     radial-gradient(circle at 8% -10%, rgba(37, 99, 235, 0.14), transparent 30rem),
     radial-gradient(circle at 95% 0%, rgba(14, 165, 233, 0.06), transparent 24rem),
-    linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
-  background-size: auto, auto, 32px 32px, 32px 32px;
+    radial-gradient(circle at 55% 110%, rgba(99, 102, 241, 0.05), transparent 34rem),
+    linear-gradient(rgba(148, 163, 184, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.022) 1px, transparent 1px);
+  background-size: auto, auto, auto, 40px 40px, 40px 40px;
 }
 
 @media (max-width: 640px) {
@@ -262,9 +286,9 @@ textarea:focus-visible {
 
 /* Backdrop scrim used behind modals/drawers only */
 .overlay-scrim {
-  background: rgba(15, 23, 42, 0.4);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(3, 10, 25, 0.58);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
 }
 
 /* Custom smooth scrollbar */
@@ -294,9 +318,26 @@ textarea:focus-visible {
    Kept as the same class name so unmigrated files still get a consistent,
    flatter look until they're touched directly. */
 .shadow-premium {
-  box-shadow: 0 1px 2px 0 rgba(17, 24, 39, 0.04), 0 1px 1px 0 rgba(17, 24, 39, 0.03);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.055), 0 2px 5px rgba(15, 23, 42, 0.025);
 }
 
 .dark .shadow-premium {
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.4), 0 1px 1px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.22);
+}
+
+/* Superfícies compartilhadas recebem profundidade e acabamento consistentes. */
+.app-workspace :where(.animate-in) {
+  animation-duration: 220ms;
+}
+
+.premium-accent-line {
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+}
+
+@media (hover: hover) {
+  .app-workspace button,
+  .app-workspace a {
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+    transition-duration: 180ms;
+  }
 }

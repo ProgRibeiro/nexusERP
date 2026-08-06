@@ -24,7 +24,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
       onClose={onClose}
       title={title}
       containerClassName="items-center justify-center p-4"
-      panelClassName={`w-full ${sizeClass} rounded-2xl max-h-[85vh] animate-in zoom-in-95 duration-150`}
+      panelClassName={`w-full ${sizeClass} rounded-[24px] max-h-[88vh] animate-in zoom-in-95 duration-200`}
     >
       {children}
     </Overlay>

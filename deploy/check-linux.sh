@@ -8,7 +8,7 @@ ERRORS=0
 ok() { printf 'OK   %s\n' "$1"; }
 fail() { printf 'ERRO %s\n' "$1" >&2; ERRORS=$((ERRORS + 1)); }
 
-for command_name in node npm npx nginx curl psql pg_dump systemctl; do
+for command_name in node npm npx nginx curl psql pg_dump systemctl flock; do
   if command -v "$command_name" >/dev/null 2>&1; then
     ok "comando $command_name disponível"
   else
@@ -58,6 +58,9 @@ fi
 
 if [[ "$ACTIVE" == "blue" || "$ACTIVE" == "green" ]]; then
   systemctl is-active --quiet "nexus-erp@$ACTIVE.service" && ok "serviço do ERP ativo" || fail "serviço nexus-erp@$ACTIVE inativo"
+  [[ "$ACTIVE" == "blue" ]] && ACTIVE_PORT=3001 || ACTIVE_PORT=3002
+  DIRECT_HEALTH="$(curl -fsS --max-time 5 "http://127.0.0.1:$ACTIVE_PORT/api/health" 2>/dev/null || true)"
+  grep -q '"status":"ok"' <<<"$DIRECT_HEALTH" && ok "slot ativo responde somente na porta interna $ACTIVE_PORT" || fail "porta interna $ACTIVE_PORT não respondeu"
 fi
 
 nginx -t >/dev/null 2>&1 && ok "configuração do Nginx válida" || fail "configuração do Nginx inválida"
@@ -74,6 +77,14 @@ for timer in hourly daily weekly; do
     ok "timer de backup $timer habilitado" || fail "timer de backup $timer não habilitado"
 done
 
+if systemctl is-enabled --quiet nexus-erp-update.timer 2>/dev/null; then
+  ok "busca automática de atualizações habilitada"
+else
+  ok "atualização automática desabilitada (modo manual)"
+fi
+
+[[ -f /etc/nexus-erp-update.env ]] && ok "branch de atualização configurado" || fail "/etc/nexus-erp-update.env ausente"
+
 for directory in "$ROOT/shared/uploads" "$ROOT/shared/backups"; do
   if runuser -u nexus -- test -w "$directory" 2>/dev/null; then
     ok "diretório persistente gravável: $directory"
@@ -81,6 +92,12 @@ for directory in "$ROOT/shared/uploads" "$ROOT/shared/backups"; do
     fail "usuário nexus não pode gravar em $directory"
   fi
 done
+
+if runuser -u nexus -- test -w /var/cache/nexus-erp/static 2>/dev/null && runuser -u www-data -- test -r /var/cache/nexus-erp/static 2>/dev/null; then
+  ok "arquivos estáticos compartilhados entre releases"
+else
+  fail "permissões inválidas em /var/cache/nexus-erp/static"
+fi
 
 if (( ERRORS > 0 )); then
   printf '\nVerificação terminou com %d erro(s).\n' "$ERRORS" >&2

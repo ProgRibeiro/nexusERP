@@ -8,7 +8,7 @@ import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Table, TableRow, TableCell } from "../ui/Table";
-import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, BookOpen, KeyRound, Server, Unplug } from "lucide-react";
+import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, BookOpen, KeyRound, Server, Unplug, Smartphone, Tablet, Wifi, AppWindow, Share2 } from "lucide-react";
 import { consultarCNPJAction } from "@/app/actions/clientActions";
 import { importClientsAction, importServicesAction, importProductsAction, parseImportFileAction, previewImportAction } from "@/app/actions/importActions";
 import { getBackupStatusAction, triggerBackupAction } from "@/app/actions/backupActions";
@@ -24,7 +24,7 @@ export default function ConfiguracoesTab() {
   const { user: currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
 
-  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "matrix" | "importador" | "integrations" | "security">("system");
+  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "matrix" | "importador" | "mobile" | "integrations" | "security">("system");
 
   const [gmailSettings, setGmailSettings] = useState<GmailSettings | null>(null);
   const [gmailLoading, setGmailLoading] = useState(false);
@@ -509,6 +509,14 @@ export default function ConfiguracoesTab() {
             <FileSpreadsheet size={13} className="inline mr-1" /> Importar Planilhas
           </button>
           <button
+            onClick={() => setActiveSubTab("mobile")}
+            className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === "mobile" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
+            }`}
+          >
+            <Smartphone size={13} className="inline mr-1" /> Aplicativo móvel
+          </button>
+          <button
             onClick={() => setActiveSubTab("integrations")}
             className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === "integrations" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
@@ -927,7 +935,60 @@ export default function ConfiguracoesTab() {
             </div>
           )}
 
-          {/* 5. Gmail e integrações externas */}
+          {/* 5. Instalação móvel */}
+          {activeSubTab === "mobile" && (
+            <div className="space-y-6">
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 px-5 py-7 text-white sm:px-7">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-4">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15"><AppWindow size={23} /></span>
+                      <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-black">NX ERP para Android e Apple</h3><span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-300/25">PWA preparada</span></div><p className="mt-2 max-w-2xl text-xs leading-relaxed text-blue-100/80">Instale o ERP na tela inicial, use em tela cheia e receba novas versões sem baixar arquivos novamente.</p></div>
+                    </div>
+                    <div className="rounded-xl bg-white/10 px-4 py-3 text-[11px] leading-relaxed text-blue-100 ring-1 ring-white/15"><strong className="block text-white">Onde instalar?</strong>Use o botão <strong>Instalar aplicativo</strong> na barra superior.</div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 p-5 sm:p-7 lg:grid-cols-3">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900 dark:bg-emerald-950/20"><CheckCircle size={18} className="text-emerald-600" /><p className="mt-3 text-xs font-black text-zinc-900 dark:text-white">Instalação pronta</p><p className="mt-1 text-[11px] leading-relaxed text-zinc-500">Manifesto, ícones Android/Apple e execução em tela cheia configurados.</p></div>
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-950/20"><RefreshCw size={18} className="text-blue-600" /><p className="mt-3 text-xs font-black text-zinc-900 dark:text-white">Atualização automática</p><p className="mt-1 text-[11px] leading-relaxed text-zinc-500">O aparelho detecta a nova versão e apresenta um botão seguro para atualizar.</p></div>
+                  <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 dark:border-violet-900 dark:bg-violet-950/20"><ShieldCheck size={18} className="text-violet-600" /><p className="mt-3 text-xs font-black text-zinc-900 dark:text-white">Dados protegidos</p><p className="mt-1 text-[11px] leading-relaxed text-zinc-500">Telas autenticadas não ficam gravadas no cache compartilhado do aparelho.</p></div>
+                </div>
+              </section>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+                  <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"><Smartphone size={19} /></span><div><h4 className="text-sm font-black text-zinc-900 dark:text-white">Instalar no Android</h4><p className="mt-1 text-[10px] text-zinc-500">Chrome, Samsung Internet ou navegador compatível.</p></div></div>
+                  <ol className="mt-5 space-y-3 text-[11px] text-zinc-600 dark:text-zinc-300">
+                    <li className="flex gap-3"><strong className="text-blue-600">1.</strong><span>Abra o endereço HTTPS do NX ERP no Chrome.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">2.</strong><span>Entre normalmente com seu usuário.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">3.</strong><span>Toque em <strong>⋮</strong> e escolha <strong>Instalar aplicativo</strong>. Se a opção não aparecer, use <strong>Adicionar à tela inicial</strong>.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">4.</strong><span>Confirme a instalação e abra o ícone <strong>NX ERP</strong>.</span></li>
+                  </ol>
+                </section>
+
+                <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+                  <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300"><Tablet size={19} /></span><div><h4 className="text-sm font-black text-zinc-900 dark:text-white">Instalar no iPhone ou iPad</h4><p className="mt-1 text-[10px] text-zinc-500">Faça o primeiro acesso pelo Safari.</p></div></div>
+                  <ol className="mt-5 space-y-3 text-[11px] text-zinc-600 dark:text-zinc-300">
+                    <li className="flex gap-3"><strong className="text-blue-600">1.</strong><span>Abra o endereço HTTPS do NX ERP no <strong>Safari</strong>.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">2.</strong><span>Toque no botão <Share2 size={13} className="mx-1 inline text-blue-600" /> <strong>Compartilhar</strong>.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">3.</strong><span>Role as opções e toque em <strong>Adicionar à Tela de Início</strong>.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">4.</strong><span>Confirme em <strong>Adicionar</strong>. O aplicativo abrirá em tela cheia.</span></li>
+                  </ol>
+                </section>
+              </div>
+
+              <section className="grid gap-4 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-5 dark:border-zinc-800 dark:bg-zinc-950/30 sm:grid-cols-3 sm:p-6">
+                <div className="flex gap-3"><Wifi size={17} className="mt-0.5 shrink-0 text-blue-600" /><div><p className="text-xs font-black text-zinc-850 dark:text-zinc-100">Servidor acessível</p><p className="mt-1 text-[10px] leading-relaxed text-zinc-500">O celular precisa alcançar o servidor Linux pela rede ou internet.</p></div></div>
+                <div className="flex gap-3"><Lock size={17} className="mt-0.5 shrink-0 text-blue-600" /><div><p className="text-xs font-black text-zinc-850 dark:text-zinc-100">HTTPS obrigatório</p><p className="mt-1 text-[10px] leading-relaxed text-zinc-500">A instalação móvel e o funcionamento seguro exigem certificado válido.</p></div></div>
+                <div className="flex gap-3"><Cloud size={17} className="mt-0.5 shrink-0 text-blue-600" /><div><p className="text-xs font-black text-zinc-850 dark:text-zinc-100">Uma única base</p><p className="mt-1 text-[10px] leading-relaxed text-zinc-500">Android, Apple e computadores usam os mesmos cadastros em tempo real.</p></div></div>
+              </section>
+
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-[11px] leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200"><AlertCircle size={17} className="mt-0.5 shrink-0" /><span><strong>Modo offline:</strong> a execução de campo conserva rascunhos e fotos pendentes no aparelho. Cadastros administrativos e dados financeiros continuam exigindo conexão com o servidor para evitar informações desatualizadas.</span></div>
+            </div>
+          )}
+
+          {/* 6. Gmail e integrações externas */}
           {activeSubTab === "integrations" && (
             <div className="space-y-6">
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -1039,7 +1100,7 @@ export default function ConfiguracoesTab() {
             </div>
           )}
 
-          {/* 6. Segurança & Autenticação (2FA) */}
+          {/* 7. Segurança & Autenticação (2FA) */}
           {activeSubTab === "security" && (
             <div className="space-y-6 max-w-lg select-none">
               <div>

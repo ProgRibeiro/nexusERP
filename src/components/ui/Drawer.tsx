@@ -17,7 +17,7 @@ export function Drawer({ isOpen, onClose, title, children }: DrawerProps) {
       onClose={onClose}
       title={title}
       containerClassName="justify-end"
-      panelClassName="w-full max-w-[440px] h-full rounded-none animate-in slide-in-from-right duration-200"
+      panelClassName="w-full max-w-[480px] h-full rounded-none sm:rounded-l-[24px] animate-in slide-in-from-right duration-200"
     >
       {children}
     </Overlay>

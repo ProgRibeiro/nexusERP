@@ -1,0 +1,19 @@
+[Unit]
+Description=Nexus ERP - atualização segura blue/green
+After=network-online.target postgresql.service nginx.service
+Wants=network-online.target
+Requires=postgresql.service nginx.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/nexus-erp/source
+Environment=DEPLOY_BRANCH=main
+EnvironmentFile=-/etc/nexus-erp-update.env
+ExecStart=/usr/bin/bash /opt/nexus-erp/source/deploy/update-linux.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+TimeoutStartSec=45min
+UMask=0027

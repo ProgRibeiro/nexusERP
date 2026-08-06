@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useToast } from "@/components/ui/Toast";
@@ -14,6 +14,9 @@ import { Modal } from "../ui/Modal";
 import { ListPageShell } from "../ui/ListPageShell";
 import { UserPlus, Users } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
+import { isStaleServerActionError, preserveFormDraft, takePreservedFormDraft } from "@/lib/actionRecovery";
+
+const CLIENT_FORM_DRAFT_KEY = "nx_client_form_draft";
 
 interface ClientesTabProps {
   newRecord?: boolean;
@@ -30,6 +33,7 @@ export default function ClientesTab({ newRecord = false, requestId }: ClientesTa
   const [loading, setLoading] = useState(true);
   const [isAddOpen, setIsAddOpen] = useState(newRecord);
   const [actionLoading, setActionLoading] = useState(false);
+  const clientLoadRequest = useRef(0);
 
   // Form State
   const [newClientForm, setNewClientForm] = useState({
@@ -52,6 +56,14 @@ export default function ClientesTab({ newRecord = false, requestId }: ClientesTa
   useEffect(() => {
     setIsAddOpen(newRecord);
   }, [newRecord, requestId]);
+
+  useEffect(() => {
+    const draft = takePreservedFormDraft<typeof newClientForm>(CLIENT_FORM_DRAFT_KEY);
+    if (!draft) return;
+    setNewClientForm(draft);
+    setIsAddOpen(true);
+    toast("O formulário foi recuperado após a atualização do ERP. Confira e clique em cadastrar novamente.", "info");
+  }, [toast]);
 
   const handleCnpjSearch = async () => {
     const clean = newClientForm.cpfCnpj.replace(/\D/g, "");
@@ -89,26 +101,32 @@ export default function ClientesTab({ newRecord = false, requestId }: ClientesTa
   };
 
   async function loadClients(query = "") {
+    const requestId = ++clientLoadRequest.current;
     setLoading(true);
     try {
       const data = await getClients(query);
-      setClients(data);
+      if (requestId === clientLoadRequest.current) setClients(data);
     } catch (err) {
       console.error(err);
-      toast("Erro ao carregar lista de clientes", "error");
+      if (requestId === clientLoadRequest.current) toast("Erro ao carregar lista de clientes", "error");
     } finally {
-      setLoading(false);
+      if (requestId === clientLoadRequest.current) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadClients(search);
+    const timer = window.setTimeout(() => void loadClients(search), 200);
+    return () => window.clearTimeout(timer);
   }, [search]);
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClientForm.name || !newClientForm.phone) {
       toast("Nome e telefone são obrigatórios", "warning");
+      return;
+    }
+    if (newClientForm.phone.replace(/\D/g, "").length < 8) {
+      toast("Informe pelo menos 8 números no telefone. O cliente ainda não foi salvo.", "warning");
       return;
     }
 
@@ -129,8 +147,8 @@ export default function ClientesTab({ newRecord = false, requestId }: ClientesTa
         notes: newClientForm.notes || undefined,
       });
 
-      if (res.success) {
-        toast("Cliente cadastrado com sucesso!", "success");
+      if (res.success && res.client) {
+        toast(`${res.client.name} foi salvo no banco de dados.`, "success");
         setIsAddOpen(false);
         setNewClientForm({
           name: "",
@@ -146,12 +164,26 @@ export default function ClientesTab({ newRecord = false, requestId }: ClientesTa
           origin: "Google",
           notes: "",
         });
-        loadClients();
+        setSearch("");
+        await loadClients("");
+        openDrawer("client", res.client.name, res.client);
       } else {
+        if (res.existingClient) {
+          toast(`${res.existingClient.name} já estava cadastrado. Abrindo o cadastro existente.`, "info");
+          setIsAddOpen(false);
+          openTab("clientes", res.existingClient.name, { id: res.existingClient.id });
+          return;
+        }
         toast(res.error || "Erro ao cadastrar cliente", "error");
       }
     } catch (err) {
       console.error(err);
+      if (isStaleServerActionError(err)) {
+        preserveFormDraft(CLIENT_FORM_DRAFT_KEY, newClientForm);
+        toast("O ERP recebeu uma atualização. Seus dados foram preservados e a tela será recarregada.", "warning");
+        window.setTimeout(() => window.location.reload(), 900);
+        return;
+      }
       toast("Erro de conexão", "error");
     } finally {
       setActionLoading(false);

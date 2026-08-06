@@ -14,20 +14,64 @@ SHARED="$ROOT/shared"
 BRANCH="${DEPLOY_BRANCH:-main}"
 ENV_FILE="${NEXUS_ENV_FILE:-/etc/nexus-erp.env}"
 LOCK_FILE="$ROOT/.update.lock"
+STATUS_FILE="$SHARED/update-status.json"
+STATIC_ROOT="${NEXUS_STATIC_ROOT:-/var/cache/nexus-erp/static}"
 
 if [[ ! -r "$ENV_FILE" ]]; then
   echo "Ambiente ausente ou ilegível: $ENV_FILE" >&2
   exit 1
 fi
 
-for command_name in git node npm npx curl nginx systemctl flock; do
+for command_name in git node npm npx curl nginx systemctl flock rsync runuser; do
   command -v "$command_name" >/dev/null 2>&1 || { echo "Dependência ausente: $command_name" >&2; exit 1; }
 done
 
 mkdir -p "$RELEASES" "$SLOTS" "$SHARED/uploads" "$SHARED/backups" "$SHARED/npm-cache"
+install -d -o nexus -g www-data -m 0750 "$STATIC_ROOT"
 chown -R nexus:nexus "$ROOT"
 exec 9>"$LOCK_FILE"
 flock -n 9 || { echo "Já existe uma atualização em andamento." >&2; exit 1; }
+
+write_update_status() {
+  local state="$1"
+  local message="$2"
+  local temporary="${STATUS_FILE}.tmp"
+
+  STATUS_STATE="$state" \
+  STATUS_MESSAGE="$message" \
+  STATUS_ACTIVE_SLOT="${ACTIVE:-}" \
+  STATUS_CANDIDATE_SLOT="${CANDIDATE:-}" \
+  STATUS_ACTIVE_PORT="${ACTIVE_PORT:-}" \
+  STATUS_CANDIDATE_PORT="${CANDIDATE_PORT:-}" \
+  STATUS_FROM_COMMIT="${OLD_COMMIT:-}" \
+  STATUS_TO_COMMIT="${NEW_COMMIT:-}" \
+  node <<'NODE' > "$temporary"
+const payload = {
+  state: process.env.STATUS_STATE,
+  message: process.env.STATUS_MESSAGE,
+  updatedAt: new Date().toISOString(),
+  activeSlot: process.env.STATUS_ACTIVE_SLOT || null,
+  candidateSlot: process.env.STATUS_CANDIDATE_SLOT || null,
+  activePort: process.env.STATUS_ACTIVE_PORT ? Number(process.env.STATUS_ACTIVE_PORT) : null,
+  candidatePort: process.env.STATUS_CANDIDATE_PORT ? Number(process.env.STATUS_CANDIDATE_PORT) : null,
+  fromCommit: process.env.STATUS_FROM_COMMIT || null,
+  toCommit: process.env.STATUS_TO_COMMIT || null,
+};
+process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+NODE
+  mv "$temporary" "$STATUS_FILE"
+  chown root:nexus "$STATUS_FILE"
+  chmod 0640 "$STATUS_FILE"
+}
+
+on_error() {
+  local exit_code=$?
+  local line="${1:-desconhecida}"
+  trap - ERR
+  write_update_status "failed" "Atualização interrompida na linha $line; o tráfego permaneceu na versão estável." || true
+  exit "$exit_code"
+}
+trap 'on_error "$LINENO"' ERR
 
 set -a
 # shellcheck disable=SC1090
@@ -36,6 +80,10 @@ set +a
 export BACKUP_DIR="$SHARED/backups"
 export HOME="/home/nexus"
 export NPM_CONFIG_CACHE="$SHARED/npm-cache"
+
+git_nexus() {
+  runuser -u nexus --preserve-environment -- /usr/bin/git -C "$SOURCE" "$@"
+}
 
 ACTIVE="$(cat "$ROOT/active-slot" 2>/dev/null || echo blue)"
 if [[ "$ACTIVE" != "blue" && "$ACTIVE" != "green" ]]; then
@@ -51,21 +99,30 @@ if [[ ! -d "$SOURCE/.git" ]]; then
   exit 1
 fi
 
-git -C "$SOURCE" fetch --prune origin "$BRANCH"
-NEW_COMMIT="$(git -C "$SOURCE" rev-parse "origin/$BRANCH")"
+git_nexus fetch --prune origin "$BRANCH"
+NEW_COMMIT="$(git_nexus rev-parse "origin/$BRANCH")"
 OLD_COMMIT=""
 [[ -f "$SLOTS/$ACTIVE/.release-commit" ]] && OLD_COMMIT="$(cat "$SLOTS/$ACTIVE/.release-commit")"
 
 if [[ -n "$OLD_COMMIT" && "$OLD_COMMIT" == "$NEW_COMMIT" ]]; then
+  write_update_status "current" "O servidor já está na versão mais recente."
   echo "O servidor já está na versão $NEW_COMMIT."
   exit 0
 fi
 
 if [[ -n "$OLD_COMMIT" ]]; then
-  DANGEROUS_MIGRATIONS="$(git -C "$SOURCE" diff --name-only "$OLD_COMMIT" "$NEW_COMMIT" -- 'prisma/migrations/*/migration.sql' | while read -r file; do
-    git -C "$SOURCE" show "$NEW_COMMIT:$file" 2>/dev/null | grep -Eiq 'DROP[[:space:]]+(TABLE|COLUMN)|ALTER[[:space:]].*TYPE|SET[[:space:]]+NOT[[:space:]]+NULL' && echo "$file" || true
+  DANGEROUS_MIGRATIONS="$(git_nexus diff --name-only "$OLD_COMMIT" "$NEW_COMMIT" -- 'prisma/migrations/*/migration.sql' | while read -r file; do
+    if ! git_nexus cat-file -e "$NEW_COMMIT:$file" 2>/dev/null; then
+      echo "$file (migração removida)"
+      continue
+    fi
+    git_nexus show "$NEW_COMMIT:$file" 2>/dev/null \
+      | tr '\n' ' ' \
+      | grep -Eiq 'DROP[[:space:]]+(TABLE|COLUMN|SCHEMA|TYPE)|TRUNCATE([[:space:]]+TABLE)?|DELETE[[:space:]]+FROM|ALTER[[:space:]]+TABLE.*[[:space:]]DROP[[:space:]]|ALTER[[:space:]]+TABLE.*[[:space:]]RENAME[[:space:]]|ALTER[[:space:]].*TYPE|SET[[:space:]]+NOT[[:space:]]+NULL' \
+      && echo "$file" || true
   done)"
   if [[ -n "$DANGEROUS_MIGRATIONS" && "${ALLOW_DESTRUCTIVE_MIGRATIONS:-false}" != "true" ]]; then
+    write_update_status "blocked" "Migração potencialmente destrutiva bloqueada antes de alterar o servidor."
     echo "Atualização bloqueada: migração potencialmente destrutiva:" >&2
     echo "$DANGEROUS_MIGRATIONS" >&2
     echo "Use migrações expand/contract ou ALLOW_DESTRUCTIVE_MIGRATIONS=true conscientemente." >&2
@@ -74,27 +131,40 @@ if [[ -n "$OLD_COMMIT" ]]; then
 fi
 
 if [[ -n "$OLD_COMMIT" ]]; then
+  write_update_status "backup" "Criando e verificando o backup anterior à atualização."
   echo "Criando backup verificado antes da atualização..."
   cd "$SLOTS/$ACTIVE"
   runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install tsx scripts/backup-db.ts --type=pre-update
+  if [[ -d "$SLOTS/$ACTIVE/.next/static" ]]; then
+    rsync -a "$SLOTS/$ACTIVE/.next/static/" "$STATIC_ROOT/"
+  fi
 fi
 
 RELEASE_ID="$(date -u +%Y%m%d%H%M%S)-${NEW_COMMIT:0:12}"
 RELEASE="$RELEASES/$RELEASE_ID"
-git -C "$SOURCE" worktree add --detach "$RELEASE" "$NEW_COMMIT"
+git_nexus worktree add --detach "$RELEASE" "$NEW_COMMIT"
 rm -rf "$RELEASE/public/uploads" "$RELEASE/backups"
 ln -s "$SHARED/uploads" "$RELEASE/public/uploads"
 ln -s "$SHARED/backups" "$RELEASE/backups"
 printf '%s\n' "$NEW_COMMIT" > "$RELEASE/.release-commit"
-printf 'APP_RELEASE=%s\n' "$RELEASE_ID" > "$RELEASE/.release.env"
+printf 'APP_RELEASE=%s\nNEXT_DEPLOYMENT_ID=%s\n' "$RELEASE_ID" "$RELEASE_ID" > "$RELEASE/.release.env"
 chown -R nexus:nexus "$RELEASE" "$SHARED"
 
 echo "Instalando e compilando a versão $RELEASE_ID fora do ar ativo..."
+write_update_status "building" "Instalando dependências e compilando a nova versão na porta de upgrade."
 cd "$RELEASE"
 runuser -u nexus --preserve-environment -- /usr/bin/npm ci --include=dev
 runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma generate
-runuser -u nexus --preserve-environment -- /usr/bin/npm run build
+runuser -u nexus --preserve-environment -- env NEXT_DEPLOYMENT_ID="$RELEASE_ID" /usr/bin/npm run build
+# Mantém chunks com hash de releases anteriores. Assim, uma tela que já estava
+# aberta durante a troca ainda consegue carregar componentes sob demanda.
+rsync -a "$RELEASE/.next/static/" "$STATIC_ROOT/"
+chown -R nexus:www-data "$STATIC_ROOT"
+find "$STATIC_ROOT" -type d -exec chmod 0750 {} +
+find "$STATIC_ROOT" -type f -exec chmod 0640 {} +
+write_update_status "migrating" "Aplicando somente migrações compatíveis e aditivas no PostgreSQL."
 runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate deploy
+runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate status
 
 ln -sfn "$RELEASE" "$SLOTS/$CANDIDATE.next"
 mv -Tf "$SLOTS/$CANDIDATE.next" "$SLOTS/$CANDIDATE"
@@ -102,9 +172,11 @@ systemctl enable "nexus-erp@$CANDIDATE.service"
 systemctl restart "nexus-erp@$CANDIDATE.service"
 
 echo "Validando o slot $CANDIDATE na porta $CANDIDATE_PORT..."
+write_update_status "testing" "Nova versão isolada em teste na porta 127.0.0.1:$CANDIDATE_PORT."
 HEALTHY=false
 for _ in {1..30}; do
-  if curl -fsS --max-time 2 "http://127.0.0.1:$CANDIDATE_PORT/api/health" | grep -q '"status":"ok"'; then
+  CANDIDATE_HEALTH="$(curl -fsS --max-time 2 "http://127.0.0.1:$CANDIDATE_PORT/api/health" 2>/dev/null || true)"
+  if grep -q '"status":"ok"' <<<"$CANDIDATE_HEALTH" && grep -q "\"release\":\"$RELEASE_ID\"" <<<"$CANDIDATE_HEALTH"; then
     HEALTHY=true
     break
   fi
@@ -113,12 +185,14 @@ done
 if [[ "$HEALTHY" != "true" ]]; then
   systemctl stop "nexus-erp@$CANDIDATE.service" || true
   systemctl disable "nexus-erp@$CANDIDATE.service" || true
+  write_update_status "rejected" "Nova versão reprovada na porta de upgrade; usuários continuaram na versão anterior."
   echo "Nova versão reprovada no health check. O slot ativo não foi alterado." >&2
   exit 1
 fi
 
 UPSTREAM_FILE="/etc/nginx/nexus-erp-upstream.conf"
 UPSTREAM_BACKUP="${UPSTREAM_FILE}.previous"
+write_update_status "switching" "Testes aprovados; direcionando novas conexões para a nova versão."
 [[ -f "$UPSTREAM_FILE" ]] && cp "$UPSTREAM_FILE" "$UPSTREAM_BACKUP"
 cat > "${UPSTREAM_FILE}.new" <<EOF
 upstream nexus_erp_backend {
@@ -131,6 +205,7 @@ if ! nginx -t; then
   [[ -f "$UPSTREAM_BACKUP" ]] && cp "$UPSTREAM_BACKUP" "$UPSTREAM_FILE"
   systemctl stop "nexus-erp@$CANDIDATE.service" || true
   systemctl disable "nexus-erp@$CANDIDATE.service" || true
+  write_update_status "rejected" "Nginx recusou a configuração; usuários permaneceram na versão anterior."
   echo "Configuração Nginx inválida; atualização revertida antes da troca." >&2
   exit 1
 fi
@@ -140,7 +215,8 @@ printf '%s\n' "$CANDIDATE" > "$ROOT/active-slot"
 
 PUBLIC_HEALTHY=false
 for _ in {1..10}; do
-  if curl -fsS --max-time 3 "http://127.0.0.1/api/health" | grep -q '"status":"ok"'; then
+  PUBLIC_HEALTH="$(curl -fsS --max-time 3 "http://127.0.0.1/api/health" 2>/dev/null || true)"
+  if grep -q '"status":"ok"' <<<"$PUBLIC_HEALTH" && grep -q "\"release\":\"$RELEASE_ID\"" <<<"$PUBLIC_HEALTH"; then
     PUBLIC_HEALTHY=true
     break
   fi
@@ -152,6 +228,7 @@ if [[ "$PUBLIC_HEALTHY" != "true" ]]; then
   printf '%s\n' "$ACTIVE" > "$ROOT/active-slot"
   systemctl stop "nexus-erp@$CANDIDATE.service" || true
   systemctl disable "nexus-erp@$CANDIDATE.service" || true
+  write_update_status "rolled-back" "Teste público falhou; Nginx retornou automaticamente para a versão anterior."
   echo "Health check público falhou; o Nginx voltou ao slot $ACTIVE." >&2
   exit 1
 fi
@@ -161,15 +238,20 @@ sleep "${DRAIN_SECONDS:-30}"
 systemctl stop "nexus-erp@$ACTIVE.service" 2>/dev/null || true
 systemctl disable "nexus-erp@$ACTIVE.service" 2>/dev/null || true
 
+ACTIVE="$CANDIDATE"
+ACTIVE_PORT="$CANDIDATE_PORT"
+write_update_status "complete" "Atualização concluída sem interrupção e com os dados persistentes preservados."
 echo "Atualização concluída sem interrupção: $OLD_COMMIT -> $NEW_COMMIT ($CANDIDATE)."
 
 mapfile -t OLD_RELEASES < <(find "$RELEASES" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2-)
 for old_release in "${OLD_RELEASES[@]}"; do
   [[ "$(readlink -f "$SLOTS/blue" 2>/dev/null || true)" == "$old_release" ]] && continue
   [[ "$(readlink -f "$SLOTS/green" 2>/dev/null || true)" == "$old_release" ]] && continue
-  git -C "$SOURCE" worktree remove --force "$old_release" || true
+  git_nexus worktree remove --force "$old_release" || true
 done
 
 # Avança o clone de administração sem apagar alterações locais inesperadas.
-# Se alguém editou esse clone diretamente, o merge falha com segurança.
-git -C "$SOURCE" merge --ff-only "$NEW_COMMIT"
+# Uma edição indevida no clone não invalida uma publicação já aprovada.
+if ! git_nexus merge --ff-only "$NEW_COMMIT"; then
+  echo "AVISO: aplicação atualizada, mas o clone de administração não avançou. Verifique $SOURCE." >&2
+fi

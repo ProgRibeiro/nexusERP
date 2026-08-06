@@ -67,15 +67,18 @@ export interface ClientDetailsDTO extends ClientDTO {
 export async function getClients(search?: string): Promise<ClientDTO[]> {
   try {
     await requireAuth();
+    const term = search?.trim();
 
     const clients = await prisma.client.findMany({
-      where: search
+      where: term
         ? {
             OR: [
-              { name: { contains: search } },
-              { fancyName: { contains: search } },
-              { socialName: { contains: search } },
-              { cpfCnpj: { contains: search } },
+              { name: { contains: term, mode: "insensitive" } },
+              { fancyName: { contains: term, mode: "insensitive" } },
+              { socialName: { contains: term, mode: "insensitive" } },
+              { cpfCnpj: { contains: term.replace(/\D/g, "") || term } },
+              { email: { contains: term, mode: "insensitive" } },
+              { phone: { contains: term } },
             ],
           }
         : undefined,
@@ -184,41 +187,68 @@ export async function createClient(data: {
       : null;
 
     if (existing) {
-      throw new Error("Já existe um cliente cadastrado com este CPF/CNPJ.");
+      return {
+        success: false,
+        error: `Este CPF/CNPJ já pertence ao cliente ${existing.name}.`,
+        existingClient: { id: existing.id, name: existing.name },
+      };
     }
 
-    const client = await prisma.client.create({
-      data: {
-        name: parsed.name,
-        socialName: parsed.socialName || null,
-        fancyName: parsed.fancyName || null,
-        cpfCnpj: parsed.cpfCnpj || null,
-        stateRegistration: parsed.stateRegistration || null,
-        municipalRegistration: parsed.municipalRegistration || null,
-        email: parsed.email,
-        phone: parsed.phone,
-        whatsapp: parsed.whatsapp || null,
-        segment: parsed.segment || null,
-        origin: parsed.origin || null,
-        notes: parsed.notes || null,
-        status: "ATIVO",
-      },
-    });
+    const client = await prisma.$transaction(async (tx) => {
+      const created = await tx.client.create({
+        data: {
+          name: parsed.name,
+          socialName: parsed.socialName || null,
+          fancyName: parsed.fancyName || null,
+          cpfCnpj: parsed.cpfCnpj || null,
+          stateRegistration: parsed.stateRegistration || null,
+          municipalRegistration: parsed.municipalRegistration || null,
+          email: parsed.email,
+          phone: parsed.phone,
+          whatsapp: parsed.whatsapp || null,
+          segment: parsed.segment || null,
+          origin: parsed.origin || null,
+          notes: parsed.notes || null,
+          status: "ATIVO",
+        },
+      });
 
-    // Auditoria (userId sempre da sessão do servidor, nunca do payload do client)
-    await prisma.auditLog.create({
-      data: {
-        userId: session.userId,
-        action: "CRIACAO",
-        entity: "Cliente",
-        entityId: client.id,
-        changesJson: JSON.stringify(client),
-      },
+      // O cadastro e a auditoria são confirmados juntos. Assim a interface
+      // nunca informa falha depois de o cliente já ter sido persistido.
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          action: "CRIACAO",
+          entity: "Cliente",
+          entityId: created.id,
+          changesJson: JSON.stringify(created),
+        },
+      });
+      return created;
     });
 
     revalidatePath("/clientes");
+    revalidatePath("/orcamentos");
     return { success: true, client };
   } catch (error: any) {
+    if (error?.code === "P2002" && data.cpfCnpj) {
+      try {
+        const normalizedDocument = data.cpfCnpj.replace(/\D/g, "");
+        const existing = await prisma.client.findFirst({
+          where: { cpfCnpj: normalizedDocument },
+          select: { id: true, name: true },
+        });
+        if (existing) {
+          return {
+            success: false,
+            error: `Este CPF/CNPJ já pertence ao cliente ${existing.name}.`,
+            existingClient: existing,
+          };
+        }
+      } catch (lookupError) {
+        logger.error("Erro ao localizar cliente duplicado:", lookupError);
+      }
+    }
     logger.error("Erro ao criar cliente:", error);
     return { success: false, error: error.issues?.[0]?.message || error.message };
   }

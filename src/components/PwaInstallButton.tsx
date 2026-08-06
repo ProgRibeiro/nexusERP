@@ -1,18 +1,19 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Check, Download, MonitorSmartphone, ShieldCheck, X } from "lucide-react";
+import { Check, Download, MonitorSmartphone, Share2, ShieldCheck, Smartphone, X } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
-export default function PwaInstallButton() {
+export default function PwaInstallButton({ compact = true }: { compact?: boolean }) {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isSecure, setIsSecure] = useState(true);
   const [showGuide, setShowGuide] = useState(false);
+  const [platform, setPlatform] = useState<"ios" | "android" | "desktop">("desktop");
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -21,6 +22,10 @@ export default function PwaInstallButton() {
     const initialStateTimer = window.setTimeout(() => {
       setIsInstalled(standalone);
       setIsSecure(window.isSecureContext);
+      const agent = navigator.userAgent.toLowerCase();
+      const appleMobile = /iphone|ipad|ipod/.test(agent)
+        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      setPlatform(appleMobile ? "ios" : /android/.test(agent) ? "android" : "desktop");
     }, 0);
 
     const handlePrompt = (event: Event) => {
@@ -63,7 +68,7 @@ export default function PwaInstallButton() {
 
   if (isInstalled) {
     return (
-      <span className="hidden 2xl:flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[10px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-400">
+      <span className={`${compact ? "hidden 2xl:flex" : "inline-flex"} items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-[10px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-400`}>
         <Check size={14} /> App instalado
       </span>
     );
@@ -78,7 +83,7 @@ export default function PwaInstallButton() {
         title="Instalar NX ERP como aplicativo"
       >
         <Download size={15} />
-        <span className="hidden 2xl:inline">Instalar aplicativo</span>
+        <span className={compact ? "hidden 2xl:inline" : "inline"}>Instalar aplicativo</span>
       </button>
 
       {showGuide && (
@@ -89,20 +94,34 @@ export default function PwaInstallButton() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-black">Use o ERP como aplicativo</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-blue-100/75">A mesma base de dados, em janela própria no computador e na tela inicial do Android.</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-blue-100/75">A mesma base de dados, em tela cheia no Android, iPhone, iPad e computador.</p>
             </div>
             <button type="button" onClick={() => setShowGuide(false)} className="rounded-lg p-1 text-blue-100/70 hover:bg-white/10 hover:text-white" aria-label="Fechar">
               <X size={16} />
             </button>
           </div>
           <div className="space-y-3 p-4 text-xs text-zinc-600 dark:text-zinc-300">
+            {platform === "ios" && (
+              <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+                <Share2 size={17} className="mt-0.5 shrink-0" /><div><p className="font-black">Neste iPhone ou iPad</p><p className="mt-1 leading-relaxed">No Safari, toque em <strong>Compartilhar</strong>, depois em <strong>Adicionar à Tela de Início</strong> e confirme em <strong>Adicionar</strong>.</p></div>
+              </div>
+            )}
+            {platform === "android" && (
+              <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+                <Smartphone size={17} className="mt-0.5 shrink-0" /><div><p className="font-black">Neste Android</p><p className="mt-1 leading-relaxed">No Chrome, toque em <strong>⋮</strong> e escolha <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</p></div>
+              </div>
+            )}
             <div>
-              <p className="font-black text-zinc-900 dark:text-white">No computador</p>
-              <p className="mt-1 leading-relaxed">Abra no Chrome ou Edge e use o ícone de instalação da barra de endereço.</p>
+              <p className="font-black text-zinc-900 dark:text-white">iPhone e iPad</p>
+              <p className="mt-1 leading-relaxed">Abra no <strong>Safari</strong>, toque em Compartilhar e selecione <strong>Adicionar à Tela de Início</strong>.</p>
             </div>
             <div>
               <p className="font-black text-zinc-900 dark:text-white">No Android</p>
               <p className="mt-1 leading-relaxed">Abra no Chrome, toque em ⋮ e escolha <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong>.</p>
+            </div>
+            <div>
+              <p className="font-black text-zinc-900 dark:text-white">No computador</p>
+              <p className="mt-1 leading-relaxed">Abra no Chrome ou Edge e use o ícone de instalação da barra de endereço.</p>
             </div>
             {!isSecure && (
               <div className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-300">

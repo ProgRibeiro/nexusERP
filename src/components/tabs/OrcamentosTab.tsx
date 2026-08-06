@@ -7,6 +7,7 @@ import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useToast } from "@/components/ui/Toast";
 import { getQuotes, getQuoteDetails, createQuote, updateQuote, approveAndConvertQuote, updateQuoteStatus, getQuoteCatalog, registerCatalogItem, getClientItemHistory, ClientItemHistoryDTO, QuoteItemInput } from "@/app/actions/quoteActions";
 import { addClientAddress, consultarCNPJAction, createClient, getClientDetails, getClients, syncClientFromCNPJ, ClientDetailsDTO, ClientDTO } from "@/app/actions/clientActions";
+import { isStaleServerActionError, preserveFormDraft, takePreservedFormDraft } from "@/lib/actionRecovery";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -42,6 +43,7 @@ const preferredContact = (details: ClientDetailsDTO) =>
   || null;
 
 const QUOTE_REFERENCE_TIME = Date.now();
+const QUICK_CLIENT_DRAFT_KEY = "nx_quote_quick_client_draft";
 
 export default function OrcamentosTab({ newRecord = false, requestId, clientId, quoteId }: OrcamentosTabProps) {
   const pathname = usePathname();
@@ -106,6 +108,14 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cnpjSyncLoading, setCnpjSyncLoading] = useState(false);
   const [taxProfile, setTaxProfile] = useState<TaxProfile>({ regime: "SIMPLES_NACIONAL", rate: 6, label: "Simples Nacional", configured: false });
+
+  useEffect(() => {
+    const draft = takePreservedFormDraft<typeof quickClientForm>(QUICK_CLIENT_DRAFT_KEY);
+    if (!draft) return;
+    setQuickClientForm(draft);
+    setIsQuickClientOpen(true);
+    toast("O cadastro do cliente foi recuperado após a atualização do ERP. Confira e salve novamente.", "info");
+  }, [toast]);
 
   useEffect(() => {
     getCompanyTaxProfile().then(setTaxProfile).catch(() => {});
@@ -368,6 +378,10 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
   const handleQuickClientSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const document = quickClientForm.cpfCnpj.replace(/\D/g, "");
+    if (quickClientForm.phone.replace(/\D/g, "").length < 8) {
+      toast("Informe pelo menos 8 números no telefone. O cliente ainda não foi salvo.", "warning");
+      return;
+    }
     const hasAddress = Boolean(quickClientForm.address.street.trim());
     if (hasAddress && (!quickClientForm.address.number.trim() || !quickClientForm.address.neighborhood.trim() || !quickClientForm.address.city.trim() || quickClientForm.address.state.trim().length !== 2 || !quickClientForm.address.cep.trim())) {
       toast("Complete número, bairro, cidade, UF e CEP do endereço de execução.", "warning");
@@ -388,6 +402,27 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
         notes: quickClientForm.notes.trim() || undefined,
       });
       if (!result.success || !result.client) {
+        if (result.existingClient) {
+          const [refreshedClients, details] = await Promise.all([
+            getClients(),
+            getClientDetails(result.existingClient.id),
+          ]);
+          const address = details ? preferredAddress(details) : null;
+          const contact = details ? preferredContact(details) : null;
+          setClients(refreshedClients);
+          setNewQuoteForm((prev) => ({
+            ...prev,
+            clientId: result.existingClient!.id,
+            addressId: address?.id || "",
+            contactId: contact?.id || "",
+          }));
+          setSelectedClientDetails(details);
+          setClientSearch(result.existingClient.name);
+          setQuickClientForm(emptyQuickClient);
+          setIsQuickClientOpen(false);
+          toast(`${result.existingClient.name} já estava cadastrado e foi selecionado no orçamento.`, "info");
+          return;
+        }
         toast(result.error || "Não foi possível cadastrar o cliente", "error");
         return;
       }
@@ -414,6 +449,15 @@ export default function OrcamentosTab({ newRecord = false, requestId, clientId, 
       setQuickClientForm(emptyQuickClient);
       setIsQuickClientOpen(false);
       toast("Cliente cadastrado e selecionado no orçamento.", "success");
+    } catch (error) {
+      console.error(error);
+      if (isStaleServerActionError(error)) {
+        preserveFormDraft(QUICK_CLIENT_DRAFT_KEY, quickClientForm);
+        toast("O ERP recebeu uma atualização. Seus dados foram preservados e a tela será recarregada.", "warning");
+        window.setTimeout(() => window.location.reload(), 900);
+        return;
+      }
+      toast(error instanceof Error ? error.message : "Erro de conexão ao cadastrar o cliente.", "error");
     } finally {
       setActionLoading(false);
     }

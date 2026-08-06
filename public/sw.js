@@ -1,11 +1,11 @@
-const VERSION = "nx-erp-shell-v2";
+const VERSION = "nx-erp-shell-v4";
 const SAFE_STATIC_FILES = [
   "/manifest.webmanifest",
+  "/offline.html",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/apple-touch-icon.png",
 ];
-const FIELD_SHELL_ROUTES = ["/execucao"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -38,14 +38,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (event.request.mode === "navigate" && FIELD_SHELL_ROUTES.includes(url.pathname)) {
+  if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request)
-        .then((response) => {
-          if (response.ok) caches.open(VERSION).then((cache) => cache.put(event.request, response.clone()));
-          return response;
-        })
-        .catch(() => caches.match(event.request)),
+        // Páginas autenticadas nunca são persistidas em cache. Isso evita que
+        // dados de um usuário anterior apareçam após logout ou troca de perfil.
+        .catch(() => caches.match("/offline.html")),
     );
   }
 });

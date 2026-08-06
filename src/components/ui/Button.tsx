@@ -17,21 +17,21 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyle = "inline-flex items-center justify-center font-semibold rounded-lg transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-background disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] cursor-pointer";
+  const baseStyle = "inline-flex items-center justify-center font-bold rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] cursor-pointer whitespace-nowrap";
 
   const variants = {
-    primary: "bg-primary hover:bg-primary-hover text-white focus:ring-primary/40",
-    secondary: "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-750 focus:ring-zinc-500/30",
-    success: "bg-success hover:bg-success/90 text-white focus:ring-success/40",
+    primary: "bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-[0_7px_16px_rgba(37,99,235,.18)] hover:shadow-[0_10px_22px_rgba(37,99,235,.26)] focus:ring-primary/40",
+    secondary: "bg-white/95 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700 shadow-sm hover:border-blue-200 hover:bg-blue-50/50 hover:text-blue-700 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 dark:hover:text-blue-300 focus:ring-blue-500/20",
+    success: "bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-[0_7px_16px_rgba(16,185,129,.18)] focus:ring-success/40",
     warning: "bg-warning hover:bg-warning/90 text-white focus:ring-warning/40",
     danger: "bg-danger hover:bg-danger/90 text-white focus:ring-danger/40",
     ghost: "text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 hover:text-zinc-900 dark:hover:text-white focus:ring-zinc-400/20"
   };
 
   const sizes = {
-    sm: "px-3 py-1.5 text-xs gap-1.5 h-8",
-    md: "px-3.5 py-2 text-sm gap-2 h-9",
-    lg: "px-5 py-2.5 text-sm gap-2.5 h-11"
+    sm: "px-3 py-1.5 text-xs gap-1.5 h-9",
+    md: "px-4 py-2 text-sm gap-2 h-10",
+    lg: "px-5 py-2.5 text-sm gap-2.5 h-12"
   };
 
   return (

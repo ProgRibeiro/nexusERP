@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build-next.mjs",
     "start": "next start",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -24,6 +24,7 @@
     "test:gmail-proposal": "tsx --env-file=.env src/tests/testGmailProposalWorkflow.ts",
     "install:linux": "sudo bash deploy/install-linux.sh",
     "update:linux": "sudo bash deploy/update-linux.sh",
+    "update:status": "bash deploy/update-status.sh",
     "rollback:linux": "sudo bash deploy/rollback-linux.sh",
     "check:linux": "sudo bash deploy/check-linux.sh",
     "lint": "eslint"

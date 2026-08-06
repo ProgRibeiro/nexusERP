@@ -115,3 +115,22 @@ senha da conta Google. A configuração pode ser acompanhada em
 
 O passo a passo completo está em
 [docs/INTEGRACAO_GMAIL.md](./docs/INTEGRACAO_GMAIL.md).
+
+## Aplicativo para Android e Apple
+
+O NX ERP pode ser instalado como PWA no Android, iPhone, iPad e computadores,
+com ícone próprio, execução em tela cheia e atualização automática. O servidor
+precisa estar acessível por HTTPS.
+
+As instruções estão em
+[docs/INSTALACAO_ANDROID_IOS.md](./docs/INSTALACAO_ANDROID_IOS.md).
+
+## Atualização sem perda de dados
+
+No Linux, o comando de atualização busca a versão no Git e publica pelo modelo
+blue/green. A versão candidata é testada internamente nas portas
+`3001/3002`; clientes acessam apenas o Nginx em `80/443`. Banco, fotos, backups
+e configurações não ficam dentro das releases substituídas.
+
+O fluxo e os comandos de diagnóstico estão em
+[docs/ATUALIZACAO_SEM_PERDA.md](./docs/ATUALIZACAO_SEM_PERDA.md).

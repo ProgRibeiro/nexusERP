@@ -167,7 +167,7 @@ export default function Sidebar() {
       )}
 
       <aside
-        className={`fixed xl:sticky left-0 top-0 h-[100dvh] overflow-visible bg-[linear-gradient(180deg,#071328_0%,#0a1934_52%,#07101f_100%)] text-chrome-200 border-r border-white/8 flex flex-col justify-between transition-all duration-300 select-none z-45 shrink-0 shadow-[12px_0_32px_rgba(2,8,23,.12)] ${
+        className={`fixed xl:sticky left-0 top-0 h-[100dvh] overflow-visible bg-[radial-gradient(circle_at_15%_0%,rgba(37,99,235,.22),transparent_18rem),linear-gradient(180deg,#071328_0%,#091a37_52%,#06101f_100%)] text-chrome-200 border-r border-white/8 flex flex-col justify-between transition-all duration-300 select-none z-45 shrink-0 shadow-[16px_0_45px_rgba(2,8,23,.16)] ${
           isCollapsed ? "w-[286px] xl:w-[76px]" : "w-[286px] xl:w-[272px]"
         } ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
@@ -240,7 +240,7 @@ export default function Sidebar() {
               }}
               className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
                 isLinkActive("/")
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                  ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_10px_24px_rgba(1,8,23,.28)] ring-1 ring-blue-300/15"
                   : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
               }`}
               title="Dashboard"
@@ -288,7 +288,7 @@ export default function Sidebar() {
                       }}
                       className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
                         isActive
-                          ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                          ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_10px_24px_rgba(1,8,23,.28)] ring-1 ring-blue-300/15"
                           : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                       }`}
                       title={item.title}

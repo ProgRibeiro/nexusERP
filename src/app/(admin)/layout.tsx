@@ -5,7 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { WorkspaceProvider, useWorkspace, Tab } from "@/contexts/WorkspaceContext";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
-import FloatingTabsBar from "@/components/FloatingTabsBar";
 import GlobalDrawer from "@/components/GlobalDrawer";
 import MobileNavigation from "@/components/MobileNavigation";
 import { Loader2 } from "lucide-react";
@@ -82,8 +81,7 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
 }
 
 function WorkspaceContainer() {
-  const { openTabs, activeTabId, darkMode } = useWorkspace();
-  const activeTab = openTabs.find((tab) => tab.id === activeTabId);
+  const { activeTab, darkMode } = useWorkspace();
 
   return (
     <div className={`app-shell flex h-[100dvh] w-screen overflow-hidden font-sans antialiased print:block print:h-auto print:w-auto print:overflow-visible ${darkMode ? "dark bg-zinc-950 text-zinc-100" : "bg-zinc-50 text-zinc-800"}`}>
@@ -99,26 +97,12 @@ function WorkspaceContainer() {
           <Header />
         </div>
 
-        {/* Floating Tabs Bar */}
-        <div className="print:hidden">
-          <FloatingTabsBar />
-        </div>
-
-        {/* Tab Viewport - only renders the active tab to maximize speed and minimize memory/queries */}
-        <main className="app-workspace flex-1 overflow-y-auto overflow-x-hidden p-3 pb-24 sm:p-4 sm:pb-24 lg:p-5 xl:p-6 xl:pb-6 relative print:block print:overflow-visible print:p-0 print:bg-white">
-          <div className={`w-full mx-auto min-h-full print:max-w-none print:min-h-0 ${["preventivas", "orcamentos"].includes(activeTab?.type || "") ? "max-w-[1800px]" : "max-w-7xl"}`}>
-            {openTabs.map((tab) => {
-              const isActive = tab.id === activeTabId;
-              if (!isActive) return null;
-              return (
-                <div
-                  key={tab.id}
-                  className="h-full animate-in fade-in duration-150 print:h-auto"
-                >
-                  <TabContentRenderer tab={tab} />
-                </div>
-              );
-            })}
+        {/* Viewport principal: a navegação fica exclusivamente na barra lateral. */}
+        <main className="app-workspace relative flex-1 overflow-y-auto overflow-x-hidden p-3 pb-28 sm:p-4 sm:pb-28 lg:p-5 xl:p-7 xl:pb-8 2xl:p-8 print:block print:overflow-visible print:p-0 print:bg-white">
+          <div className={`w-full mx-auto min-h-full print:max-w-none print:min-h-0 ${["preventivas", "orcamentos"].includes(activeTab.type) ? "max-w-[1800px]" : "max-w-7xl"}`}>
+            <div key={activeTab.id} className="h-full animate-in fade-in duration-150 print:h-auto">
+              <TabContentRenderer tab={activeTab} />
+            </div>
           </div>
         </main>
       </div>

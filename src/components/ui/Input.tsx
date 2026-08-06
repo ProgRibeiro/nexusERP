@@ -14,11 +14,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const generatedId = id || fallbackId;
 
     return (
-      <div className="w-full flex flex-col gap-1.5">
+      <div className="w-full flex flex-col gap-2">
         {label && (
           <label
             htmlFor={generatedId}
-            className="text-xs font-medium text-zinc-500 dark:text-zinc-450 block"
+            className="block text-[11px] font-bold tracking-[0.01em] text-slate-600 dark:text-zinc-400"
           >
             {label}
           </label>
@@ -32,7 +32,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             id={generatedId}
             ref={ref}
-            className={`w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm placeholder-zinc-400 text-zinc-800 dark:text-zinc-150 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors duration-150 ${
+            className={`min-h-10 w-full rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-sm text-slate-900 shadow-[inset_0_1px_1px_rgba(15,23,42,.025)] outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:border-zinc-600 dark:focus:border-blue-600 ${
               icon ? "pl-9" : ""
             } ${error ? "border-danger focus:ring-danger/20 focus:border-danger" : ""} ${className}`}
             {...props}

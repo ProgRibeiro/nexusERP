@@ -19,6 +19,7 @@ SERVER_NAME="${NEXUS_SERVER_NAME:-_}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@erp.local}"
 ADMIN_NAME="${ADMIN_NAME:-Administrador}"
 GENERATED_ADMIN_PASSWORD=false
+AUTO_UPDATE="${NEXUS_AUTO_UPDATE:-false}"
 
 if [[ ! "$SERVER_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
   echo "NEXUS_SERVER_NAME contém caracteres inválidos." >&2
@@ -45,6 +46,7 @@ if ! id nexus >/dev/null 2>&1; then
   useradd --system --create-home --home-dir /home/nexus --shell /bin/bash nexus
 fi
 install -d -o nexus -g nexus -m 0750 "$ROOT" "$ROOT/releases" "$ROOT/slots" "$ROOT/shared" "$ROOT/shared/uploads" "$ROOT/shared/backups" "$ROOT/shared/npm-cache"
+install -d -o nexus -g www-data -m 0750 /var/cache/nexus-erp /var/cache/nexus-erp/static
 
 echo "[3/8] Preparando PostgreSQL..."
 systemctl enable --now postgresql
@@ -108,12 +110,24 @@ echo "[5/8] Instalando serviços systemd e Nginx..."
 install -o root -g root -m 0644 "$SOURCE/deploy/nexus-erp@.service" /etc/systemd/system/nexus-erp@.service
 install -o root -g root -m 0644 "$SOURCE/deploy/nexus-erp-blue.env" /etc/nexus-erp-blue.env
 install -o root -g root -m 0644 "$SOURCE/deploy/nexus-erp-green.env" /etc/nexus-erp-green.env
+install -o root -g root -m 0644 "$SOURCE/deploy/nexus-erp-update.service" /etc/systemd/system/nexus-erp-update.service
+install -o root -g root -m 0644 "$SOURCE/deploy/nexus-erp-update.timer" /etc/systemd/system/nexus-erp-update.timer
+if [[ ! -f /etc/nexus-erp-update.env ]]; then
+  umask 027
+  cat > /etc/nexus-erp-update.env <<EOF
+DEPLOY_BRANCH=$BRANCH
+DRAIN_SECONDS=30
+EOF
+  chown root:root /etc/nexus-erp-update.env
+  chmod 0644 /etc/nexus-erp-update.env
+fi
 for unit in "$SOURCE"/deploy/nexus-erp-backup-*.service "$SOURCE"/deploy/nexus-erp-backup-*.timer; do
   install -o root -g root -m 0644 "$unit" "/etc/systemd/system/$(basename "$unit")"
 done
 chmod 0755 \
   "$SOURCE/deploy/run-backup.sh" \
   "$SOURCE/deploy/update-linux.sh" \
+  "$SOURCE/deploy/update-status.sh" \
   "$SOURCE/deploy/rollback-linux.sh" \
   "$SOURCE/deploy/check-linux.sh"
 
@@ -147,6 +161,13 @@ runuser -u nexus --preserve-environment -- env ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_
 
 echo "[8/8] Ativando backups e verificando a instalação..."
 systemctl enable --now nexus-erp-backup-hourly.timer nexus-erp-backup-daily.timer nexus-erp-backup-weekly.timer
+if [[ "$AUTO_UPDATE" == "true" ]]; then
+  systemctl enable --now nexus-erp-update.timer
+  echo "Atualização automática habilitada: o Git será verificado a cada 5 minutos."
+else
+  systemctl disable --now nexus-erp-update.timer 2>/dev/null || true
+  echo "Atualização automática desabilitada; use deploy/update-linux.sh manualmente."
+fi
 bash "$SOURCE/deploy/check-linux.sh"
 
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"

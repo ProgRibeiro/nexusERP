@@ -32,7 +32,10 @@ export const clientCreateSchema = z.object({
   stateRegistration: z.string().trim().optional(),
   municipalRegistration: z.string().trim().optional(),
   email: z.string().trim().email("E-mail inválido."),
-  phone: z.string().trim().min(8, "Telefone inválido."),
+  phone: z.string().trim().refine(
+    (value) => value.replace(/\D/g, "").length >= 8,
+    "Telefone inválido. Informe pelo menos 8 números, incluindo o DDD quando disponível.",
+  ),
   whatsapp: z.string().trim().optional(),
   segment: z.string().trim().optional(),
   origin: z.string().trim().optional(),

@@ -59,31 +59,33 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
   };
 
   return (
-    <div className="relative flex min-h-[100dvh] w-screen select-none items-center justify-center overflow-hidden bg-[#061020] p-3 font-sans text-zinc-900 sm:p-6">
-      <div className="pointer-events-none absolute -left-40 top-[-18rem] h-[38rem] w-[38rem] rounded-full bg-blue-600/20 blur-[120px]" />
-      <div className="pointer-events-none absolute -bottom-64 right-[-12rem] h-[42rem] w-[42rem] rounded-full bg-cyan-500/10 blur-[140px]" />
+    <div className="relative flex min-h-[100dvh] w-screen select-none items-center justify-center overflow-hidden bg-[#041022] p-3 font-sans text-zinc-900 sm:p-6 lg:p-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_15%,rgba(37,99,235,.24),transparent_28rem),radial-gradient(circle_at_88%_85%,rgba(56,189,248,.12),transparent_30rem)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(rgba(148,163,184,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,.08)_1px,transparent_1px)] [background-size:48px_48px]" />
 
-      <div className="relative z-10 grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-white shadow-[0_32px_90px_rgba(1,8,23,.45)] lg:grid-cols-[1.05fr_.95fr]">
-        <aside className="relative hidden min-h-[650px] flex-col justify-between overflow-hidden bg-[linear-gradient(145deg,#07152d_0%,#0c2758_62%,#0e4bb5_145%)] p-10 text-white lg:flex">
-          <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_center,rgba(255,255,255,.13)_1px,transparent_1px)] [background-size:28px_28px]" />
+      <div className="relative z-10 grid w-full max-w-[1180px] overflow-hidden rounded-[30px] border border-white/15 bg-white shadow-[0_45px_120px_rgba(0,6,20,.55)] ring-1 ring-white/5 lg:grid-cols-[1.15fr_.85fr]">
+        <aside className="relative hidden min-h-[720px] flex-col justify-between overflow-hidden p-10 text-white lg:flex xl:p-12">
+          <Image src="/brand/nx-login-hero.webp" alt="Infraestrutura predial integrada pelo NX ERP" fill priority unoptimized sizes="(min-width: 1024px) 58vw, 0px" className="object-cover object-center" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,12,29,.96)_0%,rgba(4,19,45,.79)_45%,rgba(5,22,48,.30)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(4,12,27,.16),rgba(3,11,26,.72))]" />
           <div className="relative">
             <div className="flex items-center gap-3">
-              <Image src="/icons/icon-192.png" width={48} height={48} alt="NX ERP" className="h-12 w-12 rounded-2xl ring-1 ring-white/20" priority />
+              <Image src="/icons/icon-192.png" width={52} height={52} alt="NX ERP" className="h-[52px] w-[52px] rounded-2xl shadow-2xl ring-1 ring-white/25" priority />
               <div>
-                <p className="text-lg font-black tracking-tight">NX ERP</p>
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-blue-200/70">Nexus operacional</p>
+                <p className="text-xl font-black tracking-[-0.03em]">NX ERP</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-200/70">Nexus operacional</p>
               </div>
             </div>
 
-            <div className="mt-20 max-w-md">
-              <span className="inline-flex items-center gap-2 rounded-lg border border-blue-300/15 bg-blue-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-blue-100">
+            <div className="mt-24 max-w-[31rem]">
+              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100 backdrop-blur-md">
                 <Sparkles size={13} /> Central de gestão integrada
               </span>
-              <h1 className="mt-6 text-4xl font-black leading-[1.08] tracking-[-0.04em]">Sua operação inteira, organizada em um só lugar.</h1>
-              <p className="mt-5 max-w-sm text-sm leading-6 text-blue-100/70">Comercial, ordens de serviço, preventivas, patrimônio, fiscal e financeiro conectados do orçamento ao recebimento.</p>
+              <h1 className="mt-7 text-[2.7rem] font-black leading-[1.03] tracking-[-0.055em] xl:text-[3.15rem]">Toda a operação.<br /><span className="bg-gradient-to-r from-blue-300 to-cyan-200 bg-clip-text text-transparent">Uma única visão.</span></h1>
+              <p className="mt-6 max-w-md text-sm leading-6 text-blue-100/75">Comercial, ordens de serviço, preventivas, patrimônio, fiscal e financeiro conectados do orçamento ao recebimento.</p>
             </div>
 
-            <div className="mt-10 grid gap-3">
+            <div className="mt-11 grid max-w-md gap-3 rounded-2xl border border-white/10 bg-slate-950/25 p-4 backdrop-blur-md">
               {["Fluxos operacionais com histórico completo", "Acesso responsivo no computador, tablet e celular", "Dados centralizados no seu servidor local"].map((item) => (
                 <div key={item} className="flex items-center gap-3 text-xs font-semibold text-blue-50/85">
                   <CheckCircle2 size={16} className="shrink-0 text-cyan-300" /> {item}
@@ -92,13 +94,14 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
             </div>
           </div>
 
-          <div className="relative flex items-center justify-between border-t border-white/10 pt-5 text-[10px] font-bold uppercase tracking-wider text-blue-100/55">
+          <div className="relative flex items-center justify-between border-t border-white/10 pt-5 text-[9px] font-black uppercase tracking-[0.14em] text-blue-100/60">
             <span className="flex items-center gap-2"><ShieldCheck size={14} className="text-emerald-300" /> Ambiente protegido</span>
             <span className="flex items-center gap-2"><Wifi size={14} className="text-cyan-300" /> Servidor local</span>
           </div>
         </aside>
 
-        <main className="flex min-h-[620px] flex-col justify-center bg-white p-6 sm:p-10 lg:p-12">
+        <main className="relative flex min-h-[650px] flex-col justify-center bg-[linear-gradient(160deg,#ffffff_0%,#f8fbff_58%,#eef5ff_100%)] p-6 sm:p-10 lg:p-12 xl:p-14">
+          <div className="pointer-events-none absolute right-[-6rem] top-[-7rem] h-64 w-64 rounded-full bg-blue-100/70 blur-3xl" />
           <div className="mx-auto w-full max-w-sm">
             <div className="mb-8 flex items-center gap-3 lg:hidden">
               <Image src="/icons/icon-192.png" width={44} height={44} alt="NX ERP" className="h-11 w-11 rounded-xl" priority />
@@ -106,8 +109,8 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
             </div>
 
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">Acesso corporativo</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">Bem-vindo de volta</h2>
+              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-blue-600">Acesso corporativo seguro</p>
+              <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-slate-950">Bem-vindo de volta</h2>
               <p className="mt-2 text-sm text-slate-500">Entre com sua conta para continuar a operação.</p>
             </div>
 
@@ -128,7 +131,7 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
                 </button>
               </div>
 
-              <Button variant="primary" type="submit" className="!h-12 w-full !rounded-xl !font-black !shadow-lg !shadow-blue-600/20" loading={loading}>Acessar o NX ERP</Button>
+              <Button variant="primary" type="submit" className="!h-12 w-full !rounded-xl !font-black !shadow-[0_14px_28px_rgba(37,99,235,.25)]" loading={loading}>Acessar o NX ERP</Button>
             </form>
 
             <div className="mt-7 space-y-3 border-t border-slate-200 pt-5">

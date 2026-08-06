@@ -10,6 +10,7 @@ export async function GET() {
       status: "ok",
       database: "ok",
       release: process.env.APP_RELEASE || "local",
+      slot: process.env.APP_SLOT || "local",
       timestamp: new Date().toISOString(),
     });
   } catch {

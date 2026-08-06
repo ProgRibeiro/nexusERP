@@ -72,6 +72,8 @@ internet, use domínio, HTTPS, firewall e uma VPN ou controle de acesso adequado
 └── active-slot         slot atendido pelo Nginx
 
 /etc/nexus-erp.env      banco, sessão e credenciais externas
+/etc/nexus-erp-update.env branch acompanhado e tempo de drenagem
+/var/cache/nexus-erp/static chunks das telas preservados entre releases
 ```
 
 Proteja uma cópia de `/etc/nexus-erp.env`; ele não é substituído nas
@@ -118,12 +120,21 @@ dados. Após restaurar, rode a verificação descrita abaixo.
 
 ## 4. Atualizar sem interromper o servidor
 
-Depois de publicar uma atualização no branch `main`:
+Depois de enviar a atualização ao Git, publique pelo terminal do Linux:
 
 ```bash
 cd /opt/nexus-erp/source
 sudo bash deploy/update-linux.sh
 ```
+
+O script já executa `git fetch` no branch configurado; `git pull` não é
+obrigatório. Não rode `npm install`, migrações ou reinícios diretamente no slot
+ativo. As portas `3001` (blue) e `3002` (green) são internas: uma atende os usuários pelo
+Nginx e a outra funciona como porta de upgrade. Elas alternam a cada publicação
+e nunca devem ser liberadas no firewall. O público usa somente `80/443`.
+
+O timer automático é instalado, mas fica desabilitado por padrão. Caso queira
+ativá-lo futuramente: `sudo systemctl enable --now nexus-erp-update.timer`.
 
 O atualizador:
 
@@ -136,6 +147,12 @@ O atualizador:
 7. troca o Nginx e testa novamente pelo endereço público local;
 8. volta automaticamente ao slot anterior se a troca falhar;
 9. mantém as cinco releases mais recentes.
+
+Consulte slots, portas, commit ativo e resultado da última tentativa com:
+
+```bash
+sudo bash /opt/nexus-erp/source/deploy/update-status.sh
+```
 
 Use migrações de banco no padrão expand/contract. O código novo deve continuar
 compatível com o banco durante o rollback; remoções de colunas e tabelas devem
@@ -193,7 +210,11 @@ journalctl -u nexus-erp@$(cat /opt/nexus-erp/active-slot) -n 200 --no-pager
 journalctl -u nginx -n 100 --no-pager
 curl -fsS http://127.0.0.1/api/health
 nginx -t
+sudo bash deploy/update-status.sh
 ```
+
+O procedimento operacional completo está em
+[docs/ATUALIZACAO_SEM_PERDA.md](./docs/ATUALIZACAO_SEM_PERDA.md).
 
 Antes de liberar o ERP para a equipe, confirme login, criação de cliente,
 orçamento, aprovação, geração e conclusão de OS, lançamento fiscal, upload e
