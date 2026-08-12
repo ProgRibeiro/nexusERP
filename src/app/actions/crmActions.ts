@@ -23,12 +23,14 @@ export interface LeadDTO {
   ownerName: string | null;
   notes: string | null;
   createdAt: Date;
+  updatedAt: Date;
   activities: {
     id: string;
     type: string;
     description: string;
     date: Date;
     done: boolean;
+    notes: string | null;
   }[];
 }
 
@@ -78,12 +80,14 @@ export async function getCrmPipeline(): Promise<PipelineStageDTO[]> {
         ownerName: lead.owner?.name || null,
         notes: lead.notes,
         createdAt: lead.createdAt,
+        updatedAt: lead.updatedAt,
         activities: lead.activities.map((act) => ({
           id: act.id,
           type: act.type,
           description: act.description,
           date: act.date,
           done: act.done,
+          notes: act.notes,
         })),
       })),
     }));
@@ -105,6 +109,7 @@ export async function createLead(data: {
   source?: string;
   ownerId?: string;
   notes?: string;
+  closePrediction?: Date | null;
 }) {
   try {
     const session = await requirePermission("crm.write");
@@ -129,6 +134,7 @@ export async function createLead(data: {
         source: data.source || null,
         ownerId: data.ownerId || null,
         notes: data.notes || null,
+        closePrediction: data.closePrediction || null,
         pipelineStageId: firstStage.id,
         status: "NOVO",
       },
@@ -149,6 +155,59 @@ export async function createLead(data: {
     return { success: true, lead };
   } catch (error: any) {
     logger.error("Erro ao criar lead:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/** Atualiza os dados comerciais sem alterar a etapa atual do funil. */
+export async function updateLead(data: {
+  id: string;
+  name: string;
+  email?: string;
+  phone: string;
+  company?: string;
+  value: number;
+  source?: string;
+  ownerId?: string;
+  notes?: string;
+  closePrediction?: Date | null;
+}) {
+  try {
+    const session = await requirePermission("crm.write");
+    crmLeadCreateSchema.parse(data);
+
+    const previous = await prisma.lead.findUnique({ where: { id: data.id } });
+    if (!previous) throw new Error("Oportunidade não encontrada.");
+
+    const lead = await prisma.lead.update({
+      where: { id: data.id },
+      data: {
+        name: data.name,
+        email: data.email || null,
+        phone: data.phone,
+        company: data.company || null,
+        value: data.value,
+        source: data.source || null,
+        ownerId: data.ownerId || null,
+        notes: data.notes || null,
+        closePrediction: data.closePrediction || null,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "EDICAO",
+        entity: "Lead",
+        entityId: lead.id,
+        changesJson: JSON.stringify({ before: previous, after: lead }),
+      },
+    });
+
+    revalidatePath("/crm");
+    return { success: true, lead };
+  } catch (error: any) {
+    logger.error("Erro ao atualizar lead:", error);
     return { success: false, error: error.message };
   }
 }
@@ -262,6 +321,31 @@ export async function addCrmActivity(data: {
     return { success: true, activity };
   } catch (error: any) {
     logger.error("Erro ao adicionar atividade:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/** Marca um compromisso como concluído ou reabre o follow-up. */
+export async function setCrmActivityDone(activityId: string, done: boolean) {
+  try {
+    const session = await requirePermission("crm.write");
+    const activity = await prisma.crmActivity.update({
+      where: { id: activityId },
+      data: { done },
+    });
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "EDICAO",
+        entity: "CrmActivity",
+        entityId: activity.id,
+        changesJson: JSON.stringify({ done }),
+      },
+    });
+    revalidatePath("/crm");
+    return { success: true, activity };
+  } catch (error: any) {
+    logger.error("Erro ao atualizar atividade CRM:", error);
     return { success: false, error: error.message };
   }
 }

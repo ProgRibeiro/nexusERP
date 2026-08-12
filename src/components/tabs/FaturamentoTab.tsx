@@ -264,9 +264,9 @@ export default function FaturamentoTab() {
   return (
     <div className="space-y-6 pb-10">
       <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="bg-gradient-to-r from-slate-950 to-blue-900 p-6 text-white">
+        <div className="bg-[#090a0c] p-6 text-white">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-            <div><div className="flex items-center gap-2 text-xs font-bold text-blue-200"><FileSpreadsheet size={15} /> Espelho para emissão externa</div><h2 className="mt-2 text-2xl font-black">OS concluídas aguardando nota fiscal</h2><p className="mt-1 max-w-3xl text-sm text-blue-100/75">O ERP organiza e confere os dados. A emissão acontece no seu sistema fiscal; depois, registre aqui o número da nota.</p></div>
+            <div><div className="flex items-center gap-2 text-xs font-bold text-[#d4af37]"><FileSpreadsheet size={15} /> Espelho para emissão externa</div><h2 className="mt-2 text-2xl font-black text-white">OS concluídas aguardando nota fiscal</h2><p className="mt-1 max-w-3xl text-sm text-zinc-400">O ERP organiza e confere os dados. A emissão acontece no seu sistema fiscal; depois, registre aqui o número da nota.</p></div>
             <div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => void loadData()}><RefreshCw size={14} /> Atualizar</Button>{hasPermission("faturamento.write") && <Button variant="primary" loading={actionLoading} onClick={exportSpreadsheet}><Download size={15} /> Baixar planilha ({selectedRows.length})</Button>}</div>
           </div>
         </div>
@@ -279,8 +279,8 @@ export default function FaturamentoTab() {
       </section>
 
       <div className="flex gap-1 overflow-x-auto rounded-xl border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
-        <button onClick={() => setActiveTab("mirror")} className={`rounded-lg px-4 py-2 text-xs font-bold ${activeTab === "mirror" ? "bg-blue-600 text-white" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>Espelho das OS ({rows.length})</button>
-        <button onClick={() => setActiveTab("history")} className={`rounded-lg px-4 py-2 text-xs font-bold ${activeTab === "history" ? "bg-blue-600 text-white" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>Notas registradas ({invoices.length})</button>
+        <button onClick={() => setActiveTab("mirror")} className={`rounded-lg px-4 py-2 text-xs font-bold ${activeTab === "mirror" ? "bg-[#d4af37] text-[#0b0c0e]" : "text-zinc-400 hover:bg-white/[.05] hover:text-white"}`}>Espelho das OS ({rows.length})</button>
+        <button onClick={() => setActiveTab("history")} className={`rounded-lg px-4 py-2 text-xs font-bold ${activeTab === "history" ? "bg-[#d4af37] text-[#0b0c0e]" : "text-zinc-400 hover:bg-white/[.05] hover:text-white"}`}>Notas registradas ({invoices.length})</button>
       </div>
 
       {activeTab === "mirror" ? <Card className="space-y-4 p-0 overflow-hidden">

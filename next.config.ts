@@ -5,9 +5,9 @@ const nextConfig: NextConfig = {
   // uma versão anterior e evita misturar Server Actions de releases distintas.
   deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   experimental: {
-    // Fotos de evidência são comprimidas no navegador e enviadas uma a uma.
-    // O limite padrão de Server Actions (1 MB) é insuficiente para fotos de campo.
-    serverActions: { bodySizeLimit: "8mb" },
+    // As evidências são comprimidas no navegador e enviadas em um único lote.
+    // O limite comporta até 20 imagens otimizadas sem aceitar arquivos brutos.
+    serverActions: { bodySizeLimit: "12mb" },
   },
   async headers() {
     return [
@@ -23,6 +23,16 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "Content-Type", value: "application/manifest+json" },
           { key: "Cache-Control", value: "public, max-age=3600" },
+        ],
+      },
+      {
+        // As fotos já são otimizadas antes do envio e recebem nome único.
+        // O cache longo evita baixar novamente a mesma evidência ao alternar
+        // abas, abrir o relatório ou gerar a impressão.
+        source: "/uploads/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
         ],
       },
     ];

@@ -18,7 +18,14 @@ interface OverlayProps {
  * Shared chrome for Modal and Drawer: backdrop scrim, scroll-lock, Escape-to-close,
  * and the header (title + close button). Modal/Drawer only differ in positioning.
  */
-export function Overlay({ isOpen, onClose, title, children, containerClassName, panelClassName }: OverlayProps) {
+export function Overlay({
+  isOpen,
+  onClose,
+  title,
+  children,
+  containerClassName,
+  panelClassName,
+}: OverlayProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -48,13 +55,18 @@ export function Overlay({ isOpen, onClose, title, children, containerClassName, 
         onClick={onClose}
       />
       <div
-        className={`relative z-10 flex flex-col border border-white/80 bg-white/[.98] shadow-[0_35px_90px_rgba(2,8,23,.28)] ring-1 ring-slate-950/5 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/[.98] dark:ring-white/5 ${panelClassName}`}
+        className={`relative z-10 flex flex-col border border-[#e9e1cf] bg-white/[.98] shadow-[0_35px_90px_rgba(2,8,23,.28)] ring-1 ring-slate-950/5 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/[.98] dark:ring-white/5 ${panelClassName}`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-[linear-gradient(180deg,#ffffff,#f8fafc)] px-5 py-[18px] dark:border-zinc-800 dark:bg-none dark:bg-zinc-900">
-          <div className="flex items-center gap-3"><span className="h-8 w-1 rounded-full bg-gradient-to-b from-blue-500 to-cyan-400" /><h3 className="text-base font-black tracking-tight text-zinc-950 dark:text-white">{title}</h3></div>
+        <div className="flex shrink-0 items-center justify-between border-b border-[#e9e1cf] bg-[linear-gradient(180deg,#ffffff,#faf4e5)] px-5 py-[18px] dark:border-zinc-800 dark:bg-none dark:bg-zinc-900">
+          <div className="flex items-center gap-3">
+            <span className="h-8 w-1 rounded-full bg-gradient-to-b from-[#d4af37] to-[#b88d1b]" />
+            <h3 className="text-base font-black tracking-tight text-zinc-950 dark:text-white">
+              {title}
+            </h3>
+          </div>
           <button
             onClick={onClose}
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-red-900 dark:hover:bg-red-950/30"
+            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-[#d4af37]/45 hover:bg-[#f8f0db] hover:text-[#6f5411] dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-[#d4af37]/40 dark:hover:bg-[#2d2513]"
           >
             <X size={16} />
           </button>

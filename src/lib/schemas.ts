@@ -44,12 +44,14 @@ export const clientCreateSchema = z.object({
 });
 
 export const quoteItemSchema = z.object({
-  type: z.enum(["SERVICO", "PRODUTO", "PECAS", "MAO_DE_OBRA", "DESLOCAMENTO", "IMPOSTO"]),
+  type: z.enum(["SERVICO", "TERCEIRIZADO", "PRODUTO", "PECAS", "MAO_DE_OBRA", "DESLOCAMENTO", "IMPOSTO"]),
   description: z.string().trim().min(1, "Descrição do item é obrigatória."),
   quantity: z.number().positive("Quantidade deve ser maior que zero."),
   unit: z.string().trim().min(1),
   unitPrice: z.number().nonnegative("Preço unitário não pode ser negativo."),
   costPrice: z.number().nonnegative("Custo não pode ser negativo."),
+  markupPercentage: z.number().nonnegative("Margem não pode ser negativa.").max(10000, "Margem informada é muito alta.").optional().default(0),
+  supplierId: z.string().trim().optional(),
   discount: z.number().nonnegative("Desconto não pode ser negativo."),
 });
 
@@ -64,6 +66,7 @@ export const quoteCreateSchema = z.object({
   notes: z.string().trim().optional(),
   discount: z.number().nonnegative().optional(),
   tax: z.number().nonnegative().optional(),
+  finalValueOverride: z.number().positive().nullable().optional(),
 });
 
 export const osScheduleSchema = z.object({
@@ -89,6 +92,7 @@ export const payBillSchema = z.object({
 });
 
 export const crmLeadCreateSchema = z.object({
+  id: z.string().trim().optional(),
   name: z.string().trim().min(2, "Nome é obrigatório."),
   email: z.string().trim().email("E-mail inválido.").optional().or(z.literal("")),
   phone: z.string().trim().min(8, "Telefone inválido."),
@@ -97,6 +101,7 @@ export const crmLeadCreateSchema = z.object({
   source: z.string().trim().optional(),
   ownerId: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  closePrediction: z.coerce.date().nullable().optional(),
 });
 
 export const contractItemSchema = z.object({

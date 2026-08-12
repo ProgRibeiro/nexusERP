@@ -36,13 +36,18 @@ async function authorizedVisit(visitId: string) {
 }
 
 function recommendedTemplateCode(
+  serviceCategory: string,
   serviceType: string,
   links: Array<{ storeAsset: { category: string } | null; clientEquipment: { type: string } | null }>,
 ) {
-  const terms = [serviceType, ...links.flatMap((link) => [link.storeAsset?.category || "", link.clientEquipment?.type || ""])]
+  const terms = [serviceCategory, serviceType, ...links.flatMap((link) => [link.storeAsset?.category || "", link.clientEquipment?.type || ""])]
     .join(" ")
     .toUpperCase();
+  if (/ILUMINA|LAMPADA|LUMINARIA|DRIVER|REATOR/.test(terms)) return "CHECKLIST_ILUMINACAO";
   if (/ELETR|QUADRO|ILUMINA|DISJUNTOR/.test(terms)) return "CHECKLIST_ELETRICA";
+  if (/HIDRAUL|VAZAMENTO|TORNEIRA|REGISTRO|TUBULAC|RALO/.test(terms)) return "CHECKLIST_HIDRAULICA";
+  if (/CIVIL|PINTURA|ALVENARIA|GESSO|PISO|FORRO/.test(terms)) return "CHECKLIST_CIVIL";
+  if (/REFRIG|CAMARA FRIA|EXPOSITOR/.test(terms)) return "CHECKLIST_REFRIGERACAO";
   if (/HVAC|CLIMAT|REFRIG|AR CONDICIONADO|PMOC|PREVENTIVA/.test(terms)) return "CHECKLIST_HVAC";
   return "CHECKLIST_GERAL";
 }
@@ -75,7 +80,7 @@ async function ensureVisitSubmission(visitId: string, userId: string) {
     },
   });
   if (!visit) throw new Error("Visita não encontrada.");
-  const code = recommendedTemplateCode(visit.serviceOrder.type, visit.serviceOrder.serviceOrderAssets);
+  const code = recommendedTemplateCode(visit.serviceOrder.serviceCategory, visit.serviceOrder.type, visit.serviceOrder.serviceOrderAssets);
   const version = await publishedVersion(code);
   if (!version) throw new Error("Nenhum formulário de campo publicado foi encontrado.");
 

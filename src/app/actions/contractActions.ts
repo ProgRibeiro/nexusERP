@@ -254,6 +254,8 @@ export async function triggerRecurrencyBilling(contractId: string, userId: strin
           status: "CRIADA",
           priority: "MEDIA",
           type: "PREVENTIVA",
+          operationKind: "VISITA_PREVENTIVA",
+          referenceMonth: new Date().toISOString().slice(0, 7),
           problemReported: `Preventiva automática gerada conforme contrato recorrente ${contract.code}.\n\nServiços previstos:\n${contract.items
             .map((i) => `- ${i.description} (${i.quantity}x)`)
             .join("\n")}`,

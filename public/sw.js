@@ -1,4 +1,4 @@
-const VERSION = "nx-erp-shell-v4";
+const VERSION = "nx-erp-shell-v5";
 const SAFE_STATIC_FILES = [
   "/manifest.webmanifest",
   "/offline.html",
@@ -17,7 +17,10 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== VERSION).map((key) => caches.delete(key))))
+      // Remove também versões que tenham armazenado chunks do Next. Chunks
+      // são versionados pelo próprio framework e jamais devem sobreviver a
+      // uma publicação ou recompilação do Turbopack.
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("nx-erp-") && key !== VERSION).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });
@@ -28,7 +31,11 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (SAFE_STATIC_FILES.includes(url.pathname) || url.pathname.startsWith("/_next/static/")) {
+  // O Next/Turbopack gerencia seus próprios chunks. Interceptá-los causa
+  // mistura entre factories de módulos de builds diferentes.
+  if (url.pathname.startsWith("/_next/") || url.pathname.startsWith("/api/")) return;
+
+  if (SAFE_STATIC_FILES.includes(url.pathname)) {
     event.respondWith(
       caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
         if (response.ok) caches.open(VERSION).then((cache) => cache.put(event.request, response.clone()));

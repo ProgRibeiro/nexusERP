@@ -18,14 +18,28 @@ const PASSTHROUGH_PREFIXES = [
   "/favicon.ico",
   "/api",
   "/portal/loja",
+  "/portal/prestador",
   "/manifest.webmanifest",
   "/sw.js",
   "/offline.html",
   "/icons",
+  // Evidências são arquivos estáticos com nomes aleatórios. Elas precisam
+  // carregar também no relatório/PDF, onde a requisição da tag <img> pode
+  // não carregar o cookie usado pela navegação principal.
+  "/uploads",
 ];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Compatibilidade com bancos e backups anteriores à rota dinâmica de
+  // uploads. O arquivo continua no mesmo diretório; apenas a leitura passa
+  // pelo endpoint que enxerga imagens criadas depois do `next build`.
+  if (pathname.startsWith("/uploads/")) {
+    const uploadUrl = request.nextUrl.clone();
+    uploadUrl.pathname = `/api${pathname}`;
+    return NextResponse.rewrite(uploadUrl);
+  }
 
   if (PASSTHROUGH_PREFIXES.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();

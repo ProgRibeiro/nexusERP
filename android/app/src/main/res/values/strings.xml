@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NX ERP</string>
+    <string name="title_activity_main">NX ERP</string>
+    <string name="package_name">com.nxerp.app</string>
+    <string name="custom_url_scheme">com.nxerp.app</string>
+</resources>

@@ -25,9 +25,13 @@ import {
   Briefcase,
   Network,
   ClipboardCheck,
+  HardHat,
   X,
 } from "lucide-react";
-import { getNavigationIndicators, NavigationIndicators } from "@/app/actions/navigationActions";
+import {
+  getNavigationIndicators,
+  NavigationIndicators,
+} from "@/app/actions/navigationActions";
 
 interface MenuItem {
   title: string;
@@ -46,7 +50,13 @@ export default function Sidebar() {
   const { hasPermission, user, logout } = useAuth();
   const { activeTabId, openTab, sidebarOpen, setSidebarOpen } = useWorkspace();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [indicators, setIndicators] = useState<NavigationIndicators>({ os: 0, faturamento: 0, fiscalErrors: 0, overdue: 0, stock: 0 });
+  const [indicators, setIndicators] = useState<NavigationIndicators>({
+    os: 0,
+    faturamento: 0,
+    fiscalErrors: 0,
+    overdue: 0,
+    stock: 0,
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem("nx_sidebar_collapsed") === "true";
@@ -58,7 +68,11 @@ export default function Sidebar() {
     };
     void load();
     const timer = window.setInterval(load, 60_000);
-    return () => { active = false; window.clearTimeout(restoreTimer); window.clearInterval(timer); };
+    return () => {
+      active = false;
+      window.clearTimeout(restoreTimer);
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -77,42 +91,132 @@ export default function Sidebar() {
     {
       name: "Comercial",
       items: [
-        { title: "CRM / Funil", href: "/crm", icon: Flame, permission: "crm.read" },
-        { title: "Clientes", href: "/clientes", icon: Users, permission: "clients.read" },
-        { title: "Orçamentos", href: "/orcamentos", icon: FileText, permission: "quotes.read" },
-        { title: "Propostas Preventivas", href: "/orcamentos?tab=preventiva", icon: FileSignature, permission: "quotes.write" },
-        { title: "Central de Preventivas", href: "/preventivas", icon: ClipboardCheck, permission: "quotes.read" },
+        {
+          title: "CRM / Funil",
+          href: "/crm",
+          icon: Flame,
+          permission: "crm.read",
+        },
+        {
+          title: "Clientes",
+          href: "/clientes",
+          icon: Users,
+          permission: "clients.read",
+        },
+        {
+          title: "Orçamentos",
+          href: "/orcamentos",
+          icon: FileText,
+          permission: "quotes.read",
+        },
+        {
+          title: "Propostas Preventivas",
+          href: "/orcamentos?tab=preventiva",
+          icon: FileSignature,
+          permission: "quotes.write",
+        },
+        {
+          title: "Central de Preventivas",
+          href: "/preventivas",
+          icon: ClipboardCheck,
+          permission: "quotes.read",
+        },
       ],
     },
     {
       name: "Operação",
       items: [
-        { title: "Ordens de Serviço", href: "/ordens-servico", icon: Wrench, permission: "os.read", indicator: "os" },
-        { title: "Agenda", href: "/agenda", icon: Calendar, permission: "os.read" },
-        { title: "Área do Técnico", href: "/execucao", icon: Smartphone, permission: "os.execute" },
-        { title: "Relatórios", href: "/relatorios", icon: BarChart3, permission: "os.read" },
+        {
+          title: "Ordens de Serviço",
+          href: "/ordens-servico",
+          icon: Wrench,
+          permission: "os.read",
+          indicator: "os",
+        },
+        {
+          title: "Agenda",
+          href: "/agenda",
+          icon: Calendar,
+          permission: "os.read",
+        },
+        {
+          title: "Prestadores",
+          href: "/prestadores",
+          icon: HardHat,
+          permission: "os.read",
+        },
+        {
+          title: "Área do Técnico",
+          href: "/execucao",
+          icon: Smartphone,
+          permission: "os.execute",
+        },
+        {
+          title: "Relatórios",
+          href: "/relatorios",
+          icon: BarChart3,
+          permission: "os.read",
+        },
       ],
     },
     {
       name: "Fiscal",
       items: [
-        { title: "Painel Fiscal", href: "/faturamento", icon: Receipt, permission: "faturamento.read", indicator: "faturamento" },
+        {
+          title: "Painel Fiscal",
+          href: "/faturamento",
+          icon: Receipt,
+          permission: "faturamento.read",
+          indicator: "faturamento",
+        },
       ],
     },
     {
       name: "Financeiro",
       items: [
-        { title: "Financeiro Geral", href: "/financeiro", icon: DollarSign, permission: "financeiro.read", indicator: "overdue" },
+        {
+          title: "Financeiro Geral",
+          href: "/financeiro",
+          icon: DollarSign,
+          permission: "financeiro.read",
+          indicator: "overdue",
+        },
       ],
     },
     {
       name: "Gestão",
       items: [
-        { title: "Teia de Dados", href: "/teia", icon: Network, permission: "clients.read" },
-        { title: "Estoque / Peças", href: "/estoque", icon: Package, permission: "estoque.read", indicator: "stock" },
-        { title: "Serviços", href: "/servicos", icon: Briefcase, permission: "estoque.read" },
-        { title: "Contratos", href: "/contratos", icon: FileSignature, permission: "contratos.read" },
-        { title: "Configurações", href: "/configuracoes", icon: Settings, permission: "admin.all" },
+        {
+          title: "Teia de Dados",
+          href: "/teia",
+          icon: Network,
+          permission: "clients.read",
+        },
+        {
+          title: "Estoque / Peças",
+          href: "/estoque",
+          icon: Package,
+          permission: "estoque.read",
+          indicator: "stock",
+        },
+        {
+          title: "Serviços",
+          href: "/servicos",
+          icon: Briefcase,
+          permission: "estoque.read",
+        },
+        {
+          title: "Contratos",
+          href: "/contratos",
+          icon: FileSignature,
+          permission: "contratos.read",
+        },
+        {
+          title: "Configurações",
+          href: "/configuracoes",
+          icon: Settings,
+          permission: "admin.all",
+        },
       ],
     },
   ];
@@ -167,163 +271,198 @@ export default function Sidebar() {
       )}
 
       <aside
-        className={`fixed xl:sticky left-0 top-0 h-[100dvh] overflow-visible bg-[radial-gradient(circle_at_15%_0%,rgba(37,99,235,.22),transparent_18rem),linear-gradient(180deg,#071328_0%,#091a37_52%,#06101f_100%)] text-chrome-200 border-r border-white/8 flex flex-col justify-between transition-all duration-300 select-none z-45 shrink-0 shadow-[16px_0_45px_rgba(2,8,23,.16)] ${
+        className={`fixed xl:sticky left-0 top-0 h-[100dvh] overflow-visible bg-[radial-gradient(circle_at_8%_-10%,rgba(212,175,55,.26),transparent_18rem),radial-gradient(circle_at_92%_10%,rgba(255,255,255,.05),transparent_22rem),linear-gradient(180deg,#111216_0%,#14161b_54%,#0c0d10_100%)] text-chrome-200 border-r border-[#d4af37]/20 flex flex-col justify-between transition-all duration-300 select-none z-45 shrink-0 shadow-[16px_0_45px_rgba(0,0,0,.26)] ${
           isCollapsed ? "w-[286px] xl:w-[76px]" : "w-[286px] xl:w-[272px]"
         } ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
         }`}
       >
-      {/* Collapse button */}
-      <button
-        onClick={toggleCollapsed}
-        className="absolute -right-3.5 top-7 z-10 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 shadow-md transition hover:border-blue-500 hover:bg-blue-600 hover:text-white xl:flex"
-      >
-        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-      </button>
+        {/* Collapse button */}
+        <button
+          onClick={toggleCollapsed}
+          className="absolute -right-3.5 top-7 z-10 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#d4af37]/35 bg-[#15161a] text-[#d4af37] shadow-md transition hover:border-[#d4af37] hover:bg-[#d4af37] hover:text-[#101113] xl:flex"
+        >
+          {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
 
-      <div className="flex flex-col h-full overflow-hidden">
-        {/* Header/Logo */}
-        <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-white/8 px-4">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <Image src="/icons/icon-192.png" width={38} height={38} alt="NX ERP" className="h-[38px] w-[38px] shrink-0 rounded-xl shadow-lg shadow-blue-950/40 ring-1 ring-white/15" priority />
-            {!isCollapsed && (
-              <div className="min-w-0">
-                <span className="block truncate text-sm font-black tracking-tight text-white">NX ERP</span>
-                <span className="block truncate text-[9px] font-bold uppercase tracking-[0.18em] text-blue-300/70">Gestão integrada</span>
-              </div>
-            )}
+        <div className="flex flex-col h-full overflow-hidden">
+          {/* Header/Logo */}
+          <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-white/8 px-4">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <Image
+                src="/icons/icon-192.png"
+                width={38}
+                height={38}
+                alt="NX ERP"
+                className="h-[38px] w-[38px] shrink-0 rounded-xl shadow-lg shadow-black/45 ring-1 ring-[#d4af37]/35"
+                priority
+              />
+              {!isCollapsed && (
+                <div className="min-w-0">
+                  <span className="block truncate text-sm font-black tracking-tight text-white">
+                    NX ERP
+                  </span>
+                  <span className="block truncate text-[9px] font-bold uppercase tracking-[0.18em] text-[#e5c35e]/80">
+                    Gestão integrada
+                  </span>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white xl:hidden"
+              aria-label="Fechar menu"
+            >
+              <X size={17} />
+            </button>
           </div>
-          <button type="button" onClick={() => setSidebarOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white xl:hidden" aria-label="Fechar menu">
-            <X size={17} />
-          </button>
-        </div>
 
-        {/* Simulator Profile Panel */}
-        {user && !isCollapsed && (
-          <div className="mx-3 my-3 flex shrink-0 flex-col gap-2 rounded-2xl border border-white/8 bg-white/[0.045] p-3.5 transition-all">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 truncate">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-blue-400/15 bg-blue-500/10 text-xs font-black uppercase text-blue-200">
-                  {user.name.slice(0, 2)}
+          {/* Simulator Profile Panel */}
+          {user && !isCollapsed && (
+            <div className="mx-3 my-3 flex shrink-0 flex-col gap-2 rounded-2xl border border-white/8 bg-white/[0.045] p-3.5 transition-all">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 truncate">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/15 text-xs font-black uppercase text-[#f0cd62]">
+                    {user.name.slice(0, 2)}
+                  </div>
+                  <div className="truncate">
+                    <p className="truncate text-xs font-bold text-slate-100">
+                      {user.name}
+                    </p>
+                    <p className="truncate text-[10px] text-slate-500">
+                      {user.email}
+                    </p>
+                  </div>
                 </div>
-                <div className="truncate">
-                  <p className="truncate text-xs font-bold text-slate-100">{user.name}</p>
-                  <p className="truncate text-[10px] text-slate-500">{user.email}</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="shrink-0 cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                  title="Sair do Sistema"
+                >
+                  <LogOut size={13} />
+                </button>
               </div>
+              <div className="mt-1">
+                <span
+                  className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${getRoleBadgeColor(user.roleName)}`}
+                >
+                  {user.roleName}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Scrollable Navigation */}
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4 pt-2 scrollbar-none">
+            {/* Dashboard Item */}
+            {hasPermission("dashboard.view") && (
               <button
                 type="button"
-                onClick={logout}
-                className="shrink-0 cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                title="Sair do Sistema"
+                onClick={() => {
+                  openTab("dashboard", "Dashboard");
+                  setSidebarOpen(false);
+                }}
+                className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
+                  isLinkActive("/")
+                    ? "bg-[#d4af37] text-[#111216] shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#f0d37f]/25"
+                    : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+                }`}
+                title="Dashboard"
               >
-                <LogOut size={13} />
+                <LayoutDashboard
+                  size={16}
+                  className={`shrink-0 transition-transform group-hover:scale-105 ${
+                    isLinkActive("/")
+                      ? "text-[#111216]"
+                      : "text-slate-400 group-hover:text-[#f0cd62]"
+                  }`}
+                />
+                {!isCollapsed && <span>Dashboard</span>}
               </button>
-            </div>
-            <div className="mt-1">
-              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${getRoleBadgeColor(user.roleName)}`}>
-                {user.roleName}
-              </span>
+            )}
+
+            {/* Grouped Sections */}
+            {sections.map((section) => {
+              const filteredItems = section.items.filter((item) =>
+                hasPermission(item.permission),
+              );
+
+              if (filteredItems.length === 0) return null;
+
+              return (
+                <div key={section.name} className="flex flex-col gap-0.5 mt-4">
+                  {!isCollapsed ? (
+                    <span className="mb-1.5 block px-3.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
+                      {section.name}
+                    </span>
+                  ) : (
+                    <div className="my-2 border-t border-white/8" />
+                  )}
+
+                  {filteredItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = isLinkActive(item.href);
+                    return (
+                      <button
+                        type="button"
+                        key={item.href}
+                        onClick={() => {
+                          const [path, query] = item.href.slice(1).split("?");
+                          const params = query
+                            ? Object.fromEntries(new URLSearchParams(query))
+                            : undefined;
+                          openTab(path, item.title, params);
+                          setSidebarOpen(false);
+                        }}
+                        className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
+                          isActive
+                            ? "bg-[#d4af37] text-[#111216] shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#f0d37f]/25"
+                            : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+                        }`}
+                        title={item.title}
+                      >
+                        <Icon
+                          size={16}
+                          className={`shrink-0 transition-transform group-hover:scale-105 ${
+                            isActive
+                              ? "text-[#111216]"
+                              : "text-slate-400 group-hover:text-[#f0cd62]"
+                          }`}
+                        />
+                        {!isCollapsed && (
+                          <span className="truncate">{item.title}</span>
+                        )}
+                        {item.indicator && indicators[item.indicator] > 0 && (
+                          <span
+                            className={`${isCollapsed ? "absolute right-1 top-1" : "ml-auto"} min-w-5 rounded-full bg-orange-500 px-1.5 py-0.5 text-center text-[9px] font-black text-white`}
+                          >
+                            {indicators[item.indicator] > 99
+                              ? "99+"
+                              : indicators[item.indicator]}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </nav>
+        </div>
+
+        {!isCollapsed && (
+          <div className="shrink-0 border-t border-white/8 p-4">
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-400/[0.05] px-3 py-2.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,.10)]" />
+              <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                <ShieldCheck size={11} className="text-emerald-400" /> Sistema
+                conectado
+              </p>
             </div>
           </div>
         )}
-
-        {/* Scrollable Navigation */}
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4 pt-2 scrollbar-none">
-          {/* Dashboard Item */}
-          {hasPermission("dashboard.view") && (
-            <button
-              type="button"
-              onClick={() => {
-                openTab("dashboard", "Dashboard");
-                setSidebarOpen(false);
-              }}
-              className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
-                isLinkActive("/")
-                  ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_10px_24px_rgba(1,8,23,.28)] ring-1 ring-blue-300/15"
-                  : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
-              }`}
-              title="Dashboard"
-            >
-              <LayoutDashboard
-                size={16}
-                className={`shrink-0 transition-transform group-hover:scale-105 ${
-                  isLinkActive("/") ? "text-white" : "text-slate-400 group-hover:text-blue-200"
-                }`}
-              />
-              {!isCollapsed && <span>Dashboard</span>}
-            </button>
-          )}
-
-          {/* Grouped Sections */}
-          {sections.map((section) => {
-            const filteredItems = section.items.filter((item) =>
-              hasPermission(item.permission)
-            );
-
-            if (filteredItems.length === 0) return null;
-
-            return (
-              <div key={section.name} className="flex flex-col gap-0.5 mt-4">
-                {!isCollapsed ? (
-                  <span className="mb-1.5 block px-3.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
-                    {section.name}
-                  </span>
-                ) : (
-                  <div className="my-2 border-t border-white/8" />
-                )}
-
-                {filteredItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = isLinkActive(item.href);
-                  return (
-                    <button
-                      type="button"
-                      key={item.href}
-                      onClick={() => {
-                        const [path, query] = item.href.slice(1).split("?");
-                        const params = query ? Object.fromEntries(new URLSearchParams(query)) : undefined;
-                        openTab(path, item.title, params);
-                        setSidebarOpen(false);
-                      }}
-                      className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
-                        isActive
-                          ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-[0_10px_24px_rgba(1,8,23,.28)] ring-1 ring-blue-300/15"
-                          : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
-                      }`}
-                      title={item.title}
-                    >
-                      <Icon
-                        size={16}
-                        className={`shrink-0 transition-transform group-hover:scale-105 ${
-                          isActive ? "text-white" : "text-slate-400 group-hover:text-blue-200"
-                        }`}
-                      />
-                      {!isCollapsed && <span className="truncate">{item.title}</span>}
-                      {item.indicator && indicators[item.indicator] > 0 && (
-                        <span className={`${isCollapsed ? "absolute right-1 top-1" : "ml-auto"} min-w-5 rounded-full bg-orange-500 px-1.5 py-0.5 text-center text-[9px] font-black text-white`}>
-                          {indicators[item.indicator] > 99 ? "99+" : indicators[item.indicator]}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </nav>
-      </div>
-
-      {!isCollapsed && (
-        <div className="shrink-0 border-t border-white/8 p-4">
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-400/[0.05] px-3 py-2.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,.10)]" />
-            <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
-              <ShieldCheck size={11} className="text-emerald-400" /> Sistema conectado
-            </p>
-          </div>
-        </div>
-      )}
       </aside>
     </>
   );

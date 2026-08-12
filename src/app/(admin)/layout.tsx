@@ -28,6 +28,7 @@ import ServicosTab from "@/components/tabs/ServicosTab";
 import DataGraphTab from "@/components/tabs/DataGraphTab";
 import PreventiveCentralTab from "@/components/tabs/PreventiveCentralTab";
 import PreventiveProposalsTab from "@/components/tabs/PreventiveProposalsTab";
+import PrestadoresTab from "@/components/tabs/PrestadoresTab";
 import { ToastProvider } from "@/components/ui/Toast";
 
 function TabContentRenderer({ tab }: { tab: Tab }) {
@@ -63,6 +64,8 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
       return <EstoqueTab newRecord={tab.params?.new === "true"} requestId={tab.params?.requestId} />;
     case "servicos":
       return <ServicosTab />;
+    case "prestadores":
+      return <PrestadoresTab />;
     case "teia":
       return <DataGraphTab />;
     case "contratos":
@@ -98,7 +101,7 @@ function WorkspaceContainer() {
         </div>
 
         {/* Viewport principal: a navegação fica exclusivamente na barra lateral. */}
-        <main className="app-workspace relative flex-1 overflow-y-auto overflow-x-hidden p-3 pb-28 sm:p-4 sm:pb-28 lg:p-5 xl:p-7 xl:pb-8 2xl:p-8 print:block print:overflow-visible print:p-0 print:bg-white">
+        <main className="app-workspace relative flex-1 overflow-y-auto overflow-x-hidden p-3 pb-28 sm:p-4 sm:pb-28 lg:p-5 xl:p-7 xl:pb-28 2xl:p-8 2xl:pb-28 print:block print:overflow-visible print:p-0 print:bg-white">
           <div className={`w-full mx-auto min-h-full print:max-w-none print:min-h-0 ${["preventivas", "orcamentos"].includes(activeTab.type) ? "max-w-[1800px]" : "max-w-7xl"}`}>
             <div key={activeTab.id} className="h-full animate-in fade-in duration-150 print:h-auto">
               <TabContentRenderer tab={activeTab} />

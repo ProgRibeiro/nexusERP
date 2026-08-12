@@ -32,24 +32,39 @@ import PwaInstallButton from "./PwaInstallButton";
 
 // Badge color shown next to each global search result type.
 const SEARCH_RESULT_BADGE: Record<SearchResult["type"], string> = {
-  cliente: "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-450 border-blue-100 dark:border-blue-900/40",
+  cliente:
+    "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-450 border-blue-100 dark:border-blue-900/40",
   lead: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/40",
-  equipamento: "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-400 border-cyan-100 dark:border-cyan-900/40",
+  equipamento:
+    "bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-400 border-cyan-100 dark:border-cyan-900/40",
   os: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-450 border-emerald-100 dark:border-emerald-900/40",
-  orcamento: "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-450 border-amber-100 dark:border-amber-900/40",
+  orcamento:
+    "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-450 border-amber-100 dark:border-amber-900/40",
   nota: "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-450 border-purple-100 dark:border-purple-900/40",
-  receber: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40",
-  pagar: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-100 dark:border-rose-900/40",
-  contrato: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-450 border-indigo-100 dark:border-indigo-900/40",
-  produto: "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-450 border-orange-100 dark:border-orange-900/40",
-  usuario: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
+  receber:
+    "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40",
+  pagar:
+    "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border-rose-100 dark:border-rose-900/40",
+  contrato:
+    "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-450 border-indigo-100 dark:border-indigo-900/40",
+  produto:
+    "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-450 border-orange-100 dark:border-orange-900/40",
+  usuario:
+    "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700",
 };
 
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, users, switchUser } = useAuth();
-  const { darkMode, toggleDarkMode, openTab, activeTab, sidebarOpen, setSidebarOpen } = useWorkspace();
+  const {
+    darkMode,
+    toggleDarkMode,
+    openTab,
+    activeTab,
+    sidebarOpen,
+    setSidebarOpen,
+  } = useWorkspace();
 
   const [notifications, setNotifications] = useState<NotificationDTO[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -66,29 +81,116 @@ export default function Header() {
     const requestId = () => String(Date.now());
     if (activeTab?.type === "clientes" && activeTab.params?.id) {
       return [
-        { label: "Orçamento para este cliente", color: "bg-amber-500", run: () => openTab("orcamentos", "Novo orçamento", { new: "true", clientId: activeTab.params.id, requestId: requestId() }) },
-        { label: "OS deste cliente", color: "bg-emerald-500", run: () => openTab("ordens-servico", "OS do cliente", { clientId: activeTab.params.id }) },
-        { label: "Cobrança para este cliente", color: "bg-cyan-500", run: () => openTab("financeiro", "Nova cobrança", { tab: "receber", new: "true", type: "RECEITA", clientId: activeTab.params.id, requestId: requestId() }) },
+        {
+          label: "Orçamento para este cliente",
+          color: "bg-amber-500",
+          run: () =>
+            openTab("orcamentos", "Novo orçamento", {
+              new: "true",
+              clientId: activeTab.params.id,
+              requestId: requestId(),
+            }),
+        },
+        {
+          label: "OS deste cliente",
+          color: "bg-emerald-500",
+          run: () =>
+            openTab("ordens-servico", "OS do cliente", {
+              clientId: activeTab.params.id,
+            }),
+        },
+        {
+          label: "Cobrança para este cliente",
+          color: "bg-cyan-500",
+          run: () =>
+            openTab("financeiro", "Nova cobrança", {
+              tab: "receber",
+              new: "true",
+              type: "RECEITA",
+              clientId: activeTab.params.id,
+              requestId: requestId(),
+            }),
+        },
       ];
     }
     if (activeTab?.type === "ordens-servico" && activeTab.params?.id) {
       return [
-        { label: "Adicionar material", color: "bg-orange-500", run: () => openTab("ordens-servico", activeTab.title, { id: activeTab.params.id, section: "materials" }) },
-        { label: "Gerar relatório", color: "bg-blue-500", run: () => openTab("ordens-servico", activeTab.title, { id: activeTab.params.id, section: "relatorio" }) },
-        { label: "Abrir controle fiscal", color: "bg-purple-500", run: () => openTab("faturamento", "Painel Fiscal") },
+        {
+          label: "Adicionar material",
+          color: "bg-orange-500",
+          run: () =>
+            openTab("ordens-servico", activeTab.title, {
+              id: activeTab.params.id,
+              section: "materials",
+            }),
+        },
+        {
+          label: "Gerar relatório",
+          color: "bg-blue-500",
+          run: () =>
+            openTab("ordens-servico", activeTab.title, {
+              id: activeTab.params.id,
+              section: "relatorio",
+            }),
+        },
+        {
+          label: "Abrir controle fiscal",
+          color: "bg-purple-500",
+          run: () => openTab("faturamento", "Painel Fiscal"),
+        },
       ];
     }
     if (activeTab?.type === "financeiro") {
       return [
-        { label: "Nova conta a receber", color: "bg-emerald-500", run: () => openTab("financeiro", "Nova receita", { tab: "receber", new: "true", type: "RECEITA", requestId: requestId() }) },
-        { label: "Nova conta a pagar", color: "bg-rose-500", run: () => openTab("financeiro", "Nova despesa", { tab: "pagar", new: "true", type: "DESPESA", requestId: requestId() }) },
+        {
+          label: "Nova conta a receber",
+          color: "bg-emerald-500",
+          run: () =>
+            openTab("financeiro", "Nova receita", {
+              tab: "receber",
+              new: "true",
+              type: "RECEITA",
+              requestId: requestId(),
+            }),
+        },
+        {
+          label: "Nova conta a pagar",
+          color: "bg-rose-500",
+          run: () =>
+            openTab("financeiro", "Nova despesa", {
+              tab: "pagar",
+              new: "true",
+              type: "DESPESA",
+              requestId: requestId(),
+            }),
+        },
       ];
     }
     if (activeTab?.type === "estoque") {
-      return [{ label: "Novo produto ou peça", color: "bg-orange-500", run: () => openTab("estoque", "Estoque", { new: "true", requestId: requestId() }) }];
+      return [
+        {
+          label: "Novo produto ou peça",
+          color: "bg-orange-500",
+          run: () =>
+            openTab("estoque", "Estoque", {
+              new: "true",
+              requestId: requestId(),
+            }),
+        },
+      ];
     }
     if (activeTab?.type === "contratos") {
-      return [{ label: "Novo contrato", color: "bg-purple-500", run: () => openTab("contratos", "Contratos", { new: "true", requestId: requestId() }) }];
+      return [
+        {
+          label: "Novo contrato",
+          color: "bg-purple-500",
+          run: () =>
+            openTab("contratos", "Contratos", {
+              new: "true",
+              requestId: requestId(),
+            }),
+        },
+      ];
     }
     return [];
   }, [activeTab, openTab]);
@@ -146,12 +248,16 @@ export default function Header() {
     if (path.startsWith("/crm")) return "Pipeline Comercial & CRM";
     if (path.startsWith("/clientes")) return "Gestão de Clientes e Prontuários";
     if (path.startsWith("/orcamentos")) return "Propostas e Orçamentos";
-    if (path.startsWith("/ordens-servico")) return "Controle de Ordens de Serviço";
-    if (path.startsWith("/faturamento")) return "Faturamento e Emissão de Notas";
+    if (path.startsWith("/ordens-servico"))
+      return "Controle de Ordens de Serviço";
+    if (path.startsWith("/faturamento"))
+      return "Faturamento e Emissão de Notas";
     if (path.startsWith("/financeiro")) return "Financeiro Integrado";
     if (path.startsWith("/estoque")) return "Controle de Estoque & Peças";
-    if (path.startsWith("/contratos")) return "Gestão de Contratos de Manutenção";
-    if (path.startsWith("/configuracoes")) return "Configurações & Logs de Auditoria";
+    if (path.startsWith("/contratos"))
+      return "Gestão de Contratos de Manutenção";
+    if (path.startsWith("/configuracoes"))
+      return "Configurações & Logs de Auditoria";
     return "NX ERP";
   };
 
@@ -174,7 +280,7 @@ export default function Header() {
     if (!notif.read) {
       await markNotificationAsRead(notif.id);
       setNotifications((prev) =>
-        prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
+        prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)),
       );
     }
     setIsNotifOpen(false);
@@ -220,24 +326,38 @@ export default function Header() {
   };
 
   return (
-    <header className="relative z-30 flex h-[68px] shrink-0 select-none items-center justify-between gap-2 border-b border-slate-200/75 bg-white/82 px-3 shadow-[0_8px_30px_rgba(15,23,42,.035)] backdrop-blur-2xl sm:px-4 lg:h-[76px] lg:px-7 dark:border-zinc-800/80 dark:bg-zinc-950/84">
+    <header className="relative z-30 flex h-[68px] shrink-0 select-none items-center justify-between gap-2 border-b border-[#d9d0bc]/90 bg-[#fffdf7]/86 px-3 shadow-[0_8px_30px_rgba(18,18,18,.06)] backdrop-blur-2xl sm:px-4 lg:h-[76px] lg:px-7 dark:border-[#2d2f35] dark:bg-[#111216]/88">
       {/* Title & Mobile Menu Toggle */}
       <div className="flex items-center gap-3 shrink-0">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-blue-900 dark:hover:bg-blue-950/40 xl:hidden"
+          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm hover:border-[#d4af37]/45 hover:bg-[#f6ebc8] hover:text-[#6f5614] dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-[#d4af37]/50 dark:hover:bg-[#2b250f] xl:hidden"
           title="Menu Lateral"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" />
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2.5}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
           </svg>
         </button>
         <div className="min-w-0">
-          <p className="hidden text-[8px] font-black uppercase tracking-[0.28em] text-blue-600 sm:block dark:text-blue-400">NX Workspace</p>
+          <p className="hidden text-[8px] font-black uppercase tracking-[0.28em] text-[#b3881f] sm:block dark:text-[#d4af37]">
+            NX Workspace
+          </p>
           <h1 className="max-w-[35vw] truncate text-sm font-black leading-tight tracking-[-0.025em] text-zinc-950 sm:max-w-[42vw] lg:max-w-none lg:text-xl dark:text-white">
             {activeTab?.title || getPageTitle(pathname)}
           </h1>
-          <p className="mt-0.5 hidden text-[10px] font-medium text-zinc-500 2xl:block">{getPageTitle(pathname)} · operação integrada em tempo real</p>
+          <p className="mt-0.5 hidden text-[10px] font-medium text-zinc-500 2xl:block">
+            {getPageTitle(pathname)} · operação integrada em tempo real
+          </p>
         </div>
       </div>
 
@@ -259,8 +379,10 @@ export default function Header() {
                 setIsSearchOpen(false);
               }
             }}
-            onFocus={() => searchQuery.trim().length >= 2 && setIsSearchOpen(true)}
-            className="h-11 w-full rounded-2xl border border-slate-200/90 bg-slate-50/80 py-2 pl-10 pr-8 text-xs text-zinc-800 shadow-[inset_0_1px_1px_rgba(15,23,42,.02)] outline-none transition-all duration-200 placeholder:text-zinc-400 hover:border-slate-300 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:focus:border-blue-700 dark:focus:bg-zinc-900"
+            onFocus={() =>
+              searchQuery.trim().length >= 2 && setIsSearchOpen(true)
+            }
+            className="h-11 w-full rounded-2xl border border-[#ded6c2] bg-[#f9f4e7]/85 py-2 pl-10 pr-8 text-xs text-zinc-800 shadow-[inset_0_1px_1px_rgba(15,23,42,.02)] outline-none transition-all duration-200 placeholder:text-zinc-400 hover:border-[#ceb978] focus:border-[#d4af37] focus:bg-white focus:ring-4 focus:ring-[#d4af37]/18 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:focus:border-[#d4af37] dark:focus:bg-zinc-900"
           />
           {searchQuery && (
             <button
@@ -295,7 +417,10 @@ export default function Header() {
                     setIsSearchOpen(false);
                     setSearchQuery("");
                     // Open in custom tab
-                    const { tabType, params } = getSearchResultTarget(result.type, result.id);
+                    const { tabType, params } = getSearchResultTarget(
+                      result.type,
+                      result.id,
+                    );
                     openTab(tabType, result.title, params);
                   }}
                   className="w-full text-left px-4 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 flex items-start justify-between border-b border-zinc-50 dark:border-zinc-800/40 last:border-0 transition-all cursor-pointer"
@@ -318,11 +443,13 @@ export default function Header() {
             </div>
           )}
 
-          {isSearchOpen && searchResults.length === 0 && searchQuery.trim().length >= 2 && (
-            <div className="absolute left-0 mt-2 w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-6 text-center text-xs text-zinc-400 dark:text-zinc-500">
-              Nenhum resultado encontrado para &quot;{searchQuery}&quot;
-            </div>
-          )}
+          {isSearchOpen &&
+            searchResults.length === 0 &&
+            searchQuery.trim().length >= 2 && (
+              <div className="absolute left-0 mt-2 w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-6 text-center text-xs text-zinc-400 dark:text-zinc-500">
+                Nenhum resultado encontrado para &quot;{searchQuery}&quot;
+              </div>
+            )}
         </div>
       </div>
 
@@ -330,7 +457,7 @@ export default function Header() {
         <PwaInstallButton />
         <button
           onClick={() => setIsPaletteOpen(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 xl:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:border-[#d4af37]/45 hover:bg-[#f6ebc8] hover:text-[#6f5614] dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-[#d4af37]/45 dark:hover:bg-[#2b250f] xl:hidden"
           title="Busca global"
           aria-label="Abrir busca global"
         >
@@ -343,7 +470,9 @@ export default function Header() {
           title="Atalhos rápidos (Ctrl + K)"
         >
           <Keyboard size={15} />
-          <span className="text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">Ctrl + K</span>
+          <span className="text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">
+            Ctrl + K
+          </span>
         </button>
 
         {/* Theme Light / Dark Switch */}
@@ -359,7 +488,7 @@ export default function Header() {
         <div className="relative">
           <button
             onClick={() => setIsNewOpen(!isNewOpen)}
-            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-gradient-to-b from-blue-500 to-blue-600 px-4 text-xs font-black text-white shadow-[0_8px_18px_rgba(37,99,235,.22)] transition-all hover:-translate-y-0.5 hover:from-blue-600 hover:to-blue-700 hover:shadow-[0_12px_24px_rgba(37,99,235,.28)]"
+            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-[#141519] shadow-[0_10px_20px_rgba(86,64,7,.28)] transition-all hover:-translate-y-0.5 hover:bg-[#c79d28] hover:shadow-[0_14px_28px_rgba(86,64,7,.35)]"
           >
             <Plus size={15} />
             <span className="hidden sm:inline">Novo</span>
@@ -369,24 +498,34 @@ export default function Header() {
             <div className="absolute right-0 mt-2 w-56 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
               <div className="px-4 py-1.5 border-b border-zinc-100 dark:border-zinc-800 mb-1">
                 <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                  {contextualNewItems.length ? "Ações nesta tela" : "Criar novo registro"}
+                  {contextualNewItems.length
+                    ? "Ações nesta tela"
+                    : "Criar novo registro"}
                 </p>
               </div>
               {contextualNewItems.map((item) => (
                 <button
                   key={item.label}
-                  onClick={() => { setIsNewOpen(false); item.run(); }}
+                  onClick={() => {
+                    setIsNewOpen(false);
+                    item.run();
+                  }}
                   className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${item.color}`} />
                   {item.label}
                 </button>
               ))}
-              {contextualNewItems.length > 0 && <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />}
+              {contextualNewItems.length > 0 && (
+                <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+              )}
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  openTab("crm", "CRM / Funil", { new: "true", requestId: String(Date.now()) });
+                  openTab("crm", "CRM / Funil", {
+                    new: "true",
+                    requestId: String(Date.now()),
+                  });
                 }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
@@ -396,7 +535,10 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  openTab("clientes", "Clientes", { new: "true", requestId: String(Date.now()) });
+                  openTab("clientes", "Clientes", {
+                    new: "true",
+                    requestId: String(Date.now()),
+                  });
                 }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
@@ -406,7 +548,10 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  openTab("orcamentos", "Orçamentos", { new: "true", requestId: String(Date.now()) });
+                  openTab("orcamentos", "Orçamentos", {
+                    new: "true",
+                    requestId: String(Date.now()),
+                  });
                 }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
@@ -416,7 +561,10 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  openTab("ordens-servico", "Ordens de Serviço", { new: "true", requestId: String(Date.now()) });
+                  openTab("ordens-servico", "Ordens de Serviço", {
+                    new: "true",
+                    requestId: String(Date.now()),
+                  });
                 }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
@@ -426,7 +574,12 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  openTab("financeiro", "Financeiro", { tab: "pagar", new: "true", type: "DESPESA", requestId: String(Date.now()) });
+                  openTab("financeiro", "Financeiro", {
+                    tab: "pagar",
+                    new: "true",
+                    type: "DESPESA",
+                    requestId: String(Date.now()),
+                  });
                 }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
@@ -436,7 +589,12 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  openTab("financeiro", "Nova cobrança", { tab: "receber", new: "true", type: "RECEITA", requestId: String(Date.now()) });
+                  openTab("financeiro", "Nova cobrança", {
+                    tab: "receber",
+                    new: "true",
+                    type: "RECEITA",
+                    requestId: String(Date.now()),
+                  });
                 }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
@@ -446,7 +604,10 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  openTab("estoque", "Estoque", { new: "true", requestId: String(Date.now()) });
+                  openTab("estoque", "Estoque", {
+                    new: "true",
+                    requestId: String(Date.now()),
+                  });
                 }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
@@ -456,7 +617,10 @@ export default function Header() {
               <button
                 onClick={() => {
                   setIsNewOpen(false);
-                  openTab("contratos", "Contratos", { new: "true", requestId: String(Date.now()) });
+                  openTab("contratos", "Contratos", {
+                    new: "true",
+                    requestId: String(Date.now()),
+                  });
                 }}
                 className="w-full text-left px-4 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2 cursor-pointer"
               >
@@ -492,7 +656,9 @@ export default function Header() {
                     key={u.email}
                     onClick={() => handleUserSwitch(u.email)}
                     className={`w-full text-left px-4 py-2.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/80 flex flex-col gap-0.5 transition-all cursor-pointer ${
-                      user?.email === u.email ? "bg-zinc-50/50 dark:bg-zinc-800/40" : ""
+                      user?.email === u.email
+                        ? "bg-zinc-50/50 dark:bg-zinc-800/40"
+                        : ""
                     }`}
                   >
                     <div className="flex justify-between items-center w-full">
@@ -501,13 +667,15 @@ export default function Header() {
                       </span>
                       <span
                         className={`text-[8px] px-2 py-0.5 rounded font-bold uppercase tracking-wide ${getRoleColorClass(
-                          u.roleName
+                          u.roleName,
                         )}`}
                       >
                         {u.roleName}
                       </span>
                     </div>
-                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">{u.email}</span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
+                      {u.email}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -549,7 +717,10 @@ export default function Header() {
               <div className="overflow-y-auto flex-1 py-1 scrollbar-none">
                 {notifications.length === 0 ? (
                   <div className="p-8 text-center text-zinc-400 flex flex-col items-center gap-2">
-                    <Bell size={20} className="text-zinc-300 dark:text-zinc-700" />
+                    <Bell
+                      size={20}
+                      className="text-zinc-300 dark:text-zinc-700"
+                    />
                     <p className="text-xs font-semibold">Nenhuma notificação</p>
                   </div>
                 ) : (
@@ -568,7 +739,9 @@ export default function Header() {
                         <div className="flex justify-between items-start gap-1">
                           <p
                             className={`text-xs truncate ${
-                              !notif.read ? "font-bold text-zinc-900 dark:text-white" : "text-zinc-650 dark:text-zinc-350"
+                              !notif.read
+                                ? "font-bold text-zinc-900 dark:text-white"
+                                : "text-zinc-650 dark:text-zinc-350"
                             }`}
                           >
                             {notif.title}
@@ -591,7 +764,10 @@ export default function Header() {
       </div>
 
       {/* Command Palette Overlay */}
-      <CommandPalette isOpen={isPaletteOpen} onClose={() => setIsPaletteOpen(false)} />
+      <CommandPalette
+        isOpen={isPaletteOpen}
+        onClose={() => setIsPaletteOpen(false)}
+      />
     </header>
   );
 }

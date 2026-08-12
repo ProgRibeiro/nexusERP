@@ -4,94 +4,88 @@
    This app toggles dark mode manually (adds/removes a "dark" class on
    <html>), so `dark:` must instead match that class — otherwise every
    dark: utility in the app is inert unless the OS itself is in dark mode. */
+
 @custom-variant dark (&:where(.dark, .dark *));
-
 :root {
-  --background: #F2F6FB;
-  --foreground: #111827;
-  --card: #FFFFFF;
-  --card-hover: #FAFBFC;
-  --border: #DDE4EE;
-  --text-muted: #6B7280;
-
-  --primary: #2563EB;
-  --primary-hover: #1D4ED8;
-  --brand-navy: #071328;
-  --brand-navy-soft: #0B1C3A;
-  --brand-blue: #2563EB;
-  --brand-cyan: #38BDF8;
-  --success: #16A34A;
-  --warning: #F97316;
-  --danger: #DC2626;
-  --cancelled: #9CA3AF;
-
-  --radius-card-large: 22px;
-  --radius-card-small: 14px;
-  --radius-input: 12px;
-
-  /* Premium Light Mode Zinc Colors */
-  --zinc-50: #f9fafb;
-  --zinc-100: #f3f4f6;
-  --zinc-150: #eef0f3;
-  --zinc-200: #e5e7eb;
-  --zinc-250: #dadde2;
-  --zinc-300: #d1d5db;
-  --zinc-350: #bec3cc;
-  --zinc-400: #9ca3af;
-  --zinc-450: #858c99;
-  --zinc-500: #6b7280;
-  --zinc-550: #555b66;
-  --zinc-600: #4b5563;
-  --zinc-650: #3b424e;
-  --zinc-700: #374151;
-  --zinc-750: #2b323c;
-  --zinc-800: #1f2937;
-  --zinc-850: #19202c;
-  --zinc-900: #111827;
-  --zinc-950: #030712;
-
-  /* Fixed dark "chrome" scale — same values as the light-mode zinc scale
+    --background: #f7f6f1;
+    --foreground: #161616;
+    --card: #ffffff;
+    --card-hover: #fcfbf8;
+    --border: #e6dfcf;
+    --text-muted: #6d685b;
+    --primary: #d4af37;
+    --primary-hover: #b88d1b;
+    --brand-navy: #0f1114;
+    --brand-navy-soft: #171a1f;
+    --brand-blue: #d4af37;
+    --brand-cyan: #f0cd62;
+    --success: #16a34a;
+    --warning: #f97316;
+    --danger: #dc2626;
+    --cancelled: #9ca3af;
+    --radius-card-large: 22px;
+    --radius-card-small: 14px;
+    --radius-input: 12px;
+    /* Premium Light Mode Zinc Colors */
+    --zinc-50: #f9fafb;
+    --zinc-100: #f3f4f6;
+    --zinc-150: #eef0f3;
+    --zinc-200: #e5e7eb;
+    --zinc-250: #dadde2;
+    --zinc-300: #d1d5db;
+    --zinc-350: #bec3cc;
+    --zinc-400: #9ca3af;
+    --zinc-450: #858c99;
+    --zinc-500: #6b7280;
+    --zinc-550: #555b66;
+    --zinc-600: #4b5563;
+    --zinc-650: #3b424e;
+    --zinc-700: #374151;
+    --zinc-750: #2b323c;
+    --zinc-800: #1f2937;
+    --zinc-850: #19202c;
+    --zinc-900: #111827;
+    --zinc-950: #030712;
+    /* Fixed dark "chrome" scale — same values as the light-mode zinc scale
      above, but NEVER redefined under .dark. The zinc-* scale intentionally
      inverts under dark mode (see .dark block) so plain text-zinc-* classes
      stay readable in both themes without dark: prefixes; but surfaces that
      must always look the same regardless of theme (e.g. the sidebar) need
      to opt out of that inversion, hence this separate scale. */
-  --chrome-50: #f9fafb;
-  --chrome-100: #f3f4f6;
-  --chrome-150: #eef0f3;
-  --chrome-200: #e5e7eb;
-  --chrome-250: #dadde2;
-  --chrome-300: #d1d5db;
-  --chrome-350: #bec3cc;
-  --chrome-400: #9ca3af;
-  --chrome-450: #858c99;
-  --chrome-500: #6b7280;
-  --chrome-550: #555b66;
-  --chrome-600: #4b5563;
-  --chrome-650: #3b424e;
-  --chrome-700: #374151;
-  --chrome-750: #2b323c;
-  --chrome-800: #1f2937;
-  --chrome-850: #19202c;
-  --chrome-900: #111827;
-  --chrome-950: #030712;
+    --chrome-50: #f9fafb;
+    --chrome-100: #f3f4f6;
+    --chrome-150: #eef0f3;
+    --chrome-200: #e5e7eb;
+    --chrome-250: #dadde2;
+    --chrome-300: #d1d5db;
+    --chrome-350: #bec3cc;
+    --chrome-400: #9ca3af;
+    --chrome-450: #858c99;
+    --chrome-500: #6b7280;
+    --chrome-550: #555b66;
+    --chrome-600: #4b5563;
+    --chrome-650: #3b424e;
+    --chrome-700: #374151;
+    --chrome-750: #2b323c;
+    --chrome-800: #1f2937;
+    --chrome-850: #19202c;
+    --chrome-900: #111827;
+    --chrome-950: #030712;
 }
 
 .dark {
-  --background: #0F172A;
-  --foreground: #F9FAFB;
-  --card: #111827;
-  --card-hover: #1F2937;
-  --border: #374151;
-  --text-muted: #9CA3AF;
-
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --success: #22c55e;
-  --warning: #f97316;
-  --danger: #ef4444;
-
-  /* The zinc-* scale is intentionally NOT redefined here. Now that `dark:`
+    --background: #0f1012;
+    --foreground: #f7f3e8;
+    --card: #17181c;
+    --card-hover: #1f2025;
+    --border: #2d2f35;
+    --text-muted: #aaa08a;
+    --primary: #d4af37;
+    --primary-hover: #e0bf59;
+    --success: #22c55e;
+    --warning: #f97316;
+    --danger: #ef4444;
+    /* The zinc-* scale is intentionally NOT redefined here. Now that `dark:`
      utilities actually match the .dark class (see @custom-variant above),
      every component already themes itself explicitly via paired classes
      like `bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-150` —
@@ -101,106 +95,101 @@
 }
 
 @theme {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-hover: var(--color-card-hover);
-  --color-border: var(--border);
-  --color-text-muted: var(--text-muted);
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-danger: var(--danger);
-  --color-cancelled: var(--cancelled);
-
-  /* Linear/Notion-like tightened radius scale. This overrides Tailwind's
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-hover: var(--color-card-hover);
+    --color-border: var(--border);
+    --color-text-muted: var(--text-muted);
+    --color-primary: var(--primary);
+    --color-primary-hover: var(--primary-hover);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-danger: var(--danger);
+    --color-cancelled: var(--cancelled);
+    /* Linear/Notion-like tightened radius scale. This overrides Tailwind's
      default --radius-* tokens, so every existing rounded-sm/md/lg/xl/2xl/3xl
      utility across the app shrinks to the new scale without touching call sites. */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
-  --radius-2xl: 14px;
-  --radius-3xl: 18px;
-  --radius-card-lg: var(--radius-card-large);
-  --radius-card-sm: var(--radius-card-small);
-  --radius-input: var(--radius-input);
-
-  /* Mapping custom zinc palette variables */
-  --color-zinc-50: var(--zinc-50);
-  --color-zinc-100: var(--zinc-100);
-  --color-zinc-150: var(--zinc-150);
-  --color-zinc-200: var(--zinc-200);
-  --color-zinc-250: var(--zinc-250);
-  --color-zinc-300: var(--zinc-300);
-  --color-zinc-350: var(--zinc-350);
-  --color-zinc-400: var(--zinc-400);
-  --color-zinc-450: var(--zinc-450);
-  --color-zinc-500: var(--zinc-500);
-  --color-zinc-550: var(--zinc-550);
-  --color-zinc-600: var(--zinc-600);
-  --color-zinc-650: var(--zinc-650);
-  --color-zinc-700: var(--zinc-700);
-  --color-zinc-750: var(--zinc-750);
-  --color-zinc-800: var(--zinc-800);
-  --color-zinc-850: var(--zinc-850);
-  --color-zinc-900: var(--zinc-900);
-  --color-zinc-950: var(--zinc-950);
-
-  /* Mapping fixed chrome palette (theme-invariant, see :root above) */
-  --color-chrome-50: var(--chrome-50);
-  --color-chrome-100: var(--chrome-100);
-  --color-chrome-150: var(--chrome-150);
-  --color-chrome-200: var(--chrome-200);
-  --color-chrome-250: var(--chrome-250);
-  --color-chrome-300: var(--chrome-300);
-  --color-chrome-350: var(--chrome-350);
-  --color-chrome-400: var(--chrome-400);
-  --color-chrome-450: var(--chrome-450);
-  --color-chrome-500: var(--chrome-500);
-  --color-chrome-550: var(--chrome-550);
-  --color-chrome-600: var(--chrome-600);
-  --color-chrome-650: var(--chrome-650);
-  --color-chrome-700: var(--chrome-700);
-  --color-chrome-750: var(--chrome-750);
-  --color-chrome-800: var(--chrome-800);
-  --color-chrome-850: var(--chrome-850);
-  --color-chrome-900: var(--chrome-900);
-  --color-chrome-950: var(--chrome-950);
-
-  --font-sans: var(--font-geist-sans), "Inter", sans-serif;
-  --font-mono: var(--font-geist-mono), monospace;
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 12px;
+    --radius-2xl: 14px;
+    --radius-3xl: 18px;
+    --radius-card-lg: var(--radius-card-large);
+    --radius-card-sm: var(--radius-card-small);
+    --radius-input: var(--radius-input);
+    /* Mapping custom zinc palette variables */
+    --color-zinc-50: var(--zinc-50);
+    --color-zinc-100: var(--zinc-100);
+    --color-zinc-150: var(--zinc-150);
+    --color-zinc-200: var(--zinc-200);
+    --color-zinc-250: var(--zinc-250);
+    --color-zinc-300: var(--zinc-300);
+    --color-zinc-350: var(--zinc-350);
+    --color-zinc-400: var(--zinc-400);
+    --color-zinc-450: var(--zinc-450);
+    --color-zinc-500: var(--zinc-500);
+    --color-zinc-550: var(--zinc-550);
+    --color-zinc-600: var(--zinc-600);
+    --color-zinc-650: var(--zinc-650);
+    --color-zinc-700: var(--zinc-700);
+    --color-zinc-750: var(--zinc-750);
+    --color-zinc-800: var(--zinc-800);
+    --color-zinc-850: var(--zinc-850);
+    --color-zinc-900: var(--zinc-900);
+    --color-zinc-950: var(--zinc-950);
+    /* Mapping fixed chrome palette (theme-invariant, see :root above) */
+    --color-chrome-50: var(--chrome-50);
+    --color-chrome-100: var(--chrome-100);
+    --color-chrome-150: var(--chrome-150);
+    --color-chrome-200: var(--chrome-200);
+    --color-chrome-250: var(--chrome-250);
+    --color-chrome-300: var(--chrome-300);
+    --color-chrome-350: var(--chrome-350);
+    --color-chrome-400: var(--chrome-400);
+    --color-chrome-450: var(--chrome-450);
+    --color-chrome-500: var(--chrome-500);
+    --color-chrome-550: var(--chrome-550);
+    --color-chrome-600: var(--chrome-600);
+    --color-chrome-650: var(--chrome-650);
+    --color-chrome-700: var(--chrome-700);
+    --color-chrome-750: var(--chrome-750);
+    --color-chrome-800: var(--chrome-800);
+    --color-chrome-850: var(--chrome-850);
+    --color-chrome-900: var(--chrome-900);
+    --color-chrome-950: var(--chrome-950);
+    --font-sans: var(--font-geist-sans), "Inter", sans-serif;
+    --font-mono: var(--font-geist-mono), monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-  overscroll-behavior: none;
-  text-rendering: optimizeLegibility;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background: radial-gradient( circle at 88% -12%, rgba(212, 175, 55, 0.14), transparent 24rem), radial-gradient(circle at 7% 8%, rgba(21, 23, 28, 0.08), transparent 22rem), var(--background);
+    color: var(--foreground);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    overscroll-behavior: none;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 @media (display-mode: standalone) {
-  body {
-    padding-top: env(safe-area-inset-top);
-    background: #0b1833;
-  }
-
-  .app-shell {
-    height: calc(100dvh - env(safe-area-inset-top));
-  }
+    body {
+        padding-top: env(safe-area-inset-top);
+        background: #111216;
+    }
+    .app-shell {
+        height: calc(100dvh - env(safe-area-inset-top));
+    }
 }
 
 @media (max-width: 767px) {
-  /* Impede o zoom automático do Safari ao focar campos menores que 16px. */
-  input,
-  select,
-  textarea {
-    font-size: 16px !important;
-  }
+    /* Impede o zoom automático do Safari ao focar campos menores que 16px. */
+    input,
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
 }
 
 button,
@@ -208,7 +197,7 @@ a,
 input,
 select,
 textarea {
-  -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent;
 }
 
 button:focus-visible,
@@ -216,128 +205,397 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.75);
-  outline-offset: 2px;
+    outline: 2px solid rgba(212, 175, 55, 0.85);
+    outline-offset: 2px;
 }
 
 ::selection {
-  background: rgba(37, 99, 235, 0.2);
-  color: inherit;
+    background: rgba(212, 175, 55, 0.25);
+    color: inherit;
 }
 
 .app-workspace {
-  background-color: #f2f6fb;
-  background-image:
-    radial-gradient(circle at 7% -6%, rgba(37, 99, 235, 0.12), transparent 30rem),
-    radial-gradient(circle at 96% 2%, rgba(56, 189, 248, 0.09), transparent 28rem),
-    radial-gradient(circle at 55% 110%, rgba(99, 102, 241, 0.05), transparent 34rem),
-    linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
-  background-size: auto, auto, auto, 40px 40px, 40px 40px;
-  background-attachment: local;
+    background-color: #f5f2ea;
+    background-image: radial-gradient( circle at 7% -6%, rgba(212, 175, 55, 0.18), transparent 30rem), radial-gradient( circle at 96% 2%, rgba(20, 22, 27, 0.08), transparent 28rem), radial-gradient( circle at 55% 110%, rgba(212, 175, 55, 0.08), transparent 34rem), linear-gradient(rgba(105, 98, 82, 0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(105, 98, 82, 0.045) 1px, transparent 1px);
+    background-size: auto, auto, auto, 40px 40px, 40px 40px;
+    background-attachment: local;
 }
 
 .dark .app-workspace {
-  background-color: #060c18;
-  background-image:
-    radial-gradient(circle at 8% -10%, rgba(37, 99, 235, 0.14), transparent 30rem),
-    radial-gradient(circle at 95% 0%, rgba(14, 165, 233, 0.06), transparent 24rem),
-    radial-gradient(circle at 55% 110%, rgba(99, 102, 241, 0.05), transparent 34rem),
-    linear-gradient(rgba(148, 163, 184, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.022) 1px, transparent 1px);
-  background-size: auto, auto, auto, 40px 40px, 40px 40px;
+    background-color: #090a0c;
+    background-image: radial-gradient(circle at 12% -12%, rgba(212, 175, 55, 0.16), transparent 32rem), radial-gradient(circle at 92% 4%, rgba(240, 205, 98, 0.07), transparent 27rem), linear-gradient(135deg, transparent 0 68%, rgba(212, 175, 55, 0.018) 68% 68.15%, transparent 68.15%), linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+    background-size: auto, auto, auto, 48px 48px, 48px 48px;
 }
 
 @media (max-width: 640px) {
-  input,
-  select,
-  textarea {
-    font-size: 16px !important;
-  }
-
-  .app-workspace {
-    background-image: radial-gradient(circle at 50% -10%, rgba(59, 130, 246, 0.1), transparent 22rem);
-  }
+    input,
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
+    .app-workspace {
+        background-image: radial-gradient( circle at 50% -10%, rgba(212, 175, 55, 0.18), transparent 22rem);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
+
+/* Fluidez adaptativa: ativada apenas durante long tasks ou em aparelhos com
+   poucos núcleos. Preserva layout e cores, removendo somente pintura cara. */
+.performance-lite .app-workspace,
+.performance-lite body {
+    background-attachment: scroll !important;
+}
+
+.performance-lite .app-shell :where(*) {
+    scroll-behavior: auto !important;
+}
+
+.performance-lite .app-shell :where(.backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-xl, .backdrop-blur-2xl) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+
+.performance-lite .app-workspace :where(.shadow-premium, [class*="shadow-["]) {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18) !important;
+}
+
+.performance-lite .app-workspace :where(.animate-in, .animate-pulse, .animate-bounce) {
+    animation: none !important;
+}
+
+.performance-lite .app-workspace :where(button, a, input, select, textarea, [class*="transition-"]) {
+    transition-duration: 80ms !important;
+}
+
+@media (max-width: 767px) {
+    .app-workspace {
+        background-size: auto !important;
+    }
+
+    .app-shell :where(.backdrop-blur-2xl) {
+        -webkit-backdrop-filter: blur(8px) !important;
+        backdrop-filter: blur(8px) !important;
+    }
+}
+
 
 /* Flat surface helper (formerly glassmorphism) — kept as a class so existing
    call sites don't need to change while modules are migrated module-by-module.
    Renders as a plain opaque surface with a hairline border, no blur. */
+
 .glass-panel {
-  background: var(--card);
-  border: 1px solid var(--border);
+    background: var(--card);
+    border: 1px solid var(--border);
 }
 
 .dark .glass-panel {
-  background: var(--card);
-  border: 1px solid var(--border);
+    background: linear-gradient(145deg, rgba(27, 28, 32, 0.98), rgba(16, 17, 20, 0.98));
+    border: 1px solid rgba(212, 175, 55, 0.14);
 }
+
 
 /* Backdrop scrim used behind modals/drawers only */
+
 .overlay-scrim {
-  background: rgba(3, 10, 25, 0.58);
-  backdrop-filter: blur(8px) saturate(120%);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
+    background: rgba(3, 10, 25, 0.58);
+    backdrop-filter: blur(8px) saturate(120%);
+    -webkit-backdrop-filter: blur(8px) saturate(120%);
 }
 
+
 /* Custom smooth scrollbar */
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+    width: 6px;
+    height: 6px;
 }
+
 ::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.3);
-  border-radius: 9999px;
+    background: rgba(156, 163, 175, 0.3);
+    border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.5);
+    background: rgba(156, 163, 175, 0.5);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(75, 85, 99, 0.4);
+    background: rgba(75, 85, 99, 0.4);
 }
+
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(75, 85, 99, 0.6);
+    background: rgba(75, 85, 99, 0.6);
 }
+
 
 /* Subtle single-layer shadow — replaces the earlier heavier "premium" shadow.
    Kept as the same class name so unmigrated files still get a consistent,
    flatter look until they're touched directly. */
+
 .shadow-premium {
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.055), 0 2px 5px rgba(15, 23, 42, 0.025);
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.055), 0 2px 5px rgba(15, 23, 42, 0.025);
 }
 
 .dark .shadow-premium {
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 20px 46px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
+/* Acabamento institucional inspirado nos materiais impressos da marca. */
+.dark .brand-surface {
+    background: linear-gradient(145deg, rgba(27, 28, 32, 0.98), rgba(14, 15, 18, 0.98));
+    border-color: rgba(212, 175, 55, 0.16);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.brand-gold-rule {
+    height: 2px;
+    background: linear-gradient(90deg, #b4871d, #f0cd62 46%, transparent 100%);
+}
+
+/* Documentos são artefatos claros, mesmo dentro do workspace escuro.
+   Este limite impede que propostas, relatórios e folhas A4 herdem cores da UI. */
+.dark .app-workspace .document-surface {
+    color-scheme: light;
+    background: #ffffff !important;
+    color: #18181b !important;
+    border-color: #dedbd3 !important;
+}
+
+.dark .app-workspace .document-surface :where(.bg-white, [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"]) {
+    background-color: #ffffff !important;
+}
+
+.dark .app-workspace .document-surface :where(.bg-zinc-50, .bg-slate-50, [class~="bg-zinc-50/80"], [class~="bg-zinc-50/60"], [class~="bg-slate-50/80"]) {
+    background-color: #fafafa !important;
+}
+
+.dark .app-workspace .document-surface :where(
+    .text-zinc-950, .text-zinc-900, .text-zinc-850, .text-zinc-800,
+    .text-zinc-700, .text-zinc-600, .text-slate-950, .text-slate-900,
+    .text-slate-800, .text-slate-700, .text-slate-600
+) {
+    color: #27272a !important;
+}
+
+.dark .app-workspace .document-surface :where(.text-zinc-500, .text-zinc-400, .text-slate-500, .text-slate-400) {
+    color: #71717a !important;
+}
+
+.dark .app-workspace .document-surface :where(.border-zinc-100, .border-zinc-200, .border-slate-200) {
+    border-color: #e4e4e7 !important;
+}
+
+.dark .app-workspace .document-surface :where([class~="bg-blue-50"], [class~="bg-blue-100"]) {
+    background-color: #eff6ff !important;
+}
+
+.dark .app-workspace .document-surface :where([class~="text-blue-500"], [class~="text-blue-600"], [class~="text-blue-700"]) {
+    color: #1d4ed8 !important;
+}
+
+.dark .app-workspace .document-surface :where([class~="border-blue-100"], [class~="border-blue-200"], [class~="border-blue-500"]) {
+    border-color: #bfdbfe !important;
+}
+
+.dark .app-workspace .document-surface :where(.text-white) {
+    color: #ffffff !important;
+}
+
+.dark .app-workspace .document-surface :where(input, textarea, select) {
+    background: #ffffff !important;
+    color: #18181b !important;
+    border-color: #d4d4d8 !important;
+}
+
+/* Prévia comercial integrada ao visual do ERP. A folha deixa de parecer um
+   elemento externo, mas mantém contraste editorial de documento. */
+.dark .app-workspace .quote-screen-preview {
+    color-scheme: dark;
+    background: linear-gradient(145deg, #18191c, #111214) !important;
+    color: #f4f1e8 !important;
+    border-color: rgba(212, 175, 55, 0.22) !important;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.dark .app-workspace .quote-screen-preview :where(.bg-white, [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"]) {
+    background-color: #18191c !important;
+}
+
+.dark .app-workspace .quote-screen-preview :where(.bg-zinc-50, .bg-slate-50, [class~="bg-zinc-50/80"], [class~="bg-zinc-50/60"], [class~="bg-slate-50/80"]) {
+    background-color: rgba(255, 255, 255, 0.025) !important;
+}
+
+.dark .app-workspace .quote-screen-preview :where(
+    .text-zinc-950, .text-zinc-900, .text-zinc-850, .text-zinc-800,
+    .text-zinc-700, .text-zinc-600, .text-slate-950, .text-slate-900,
+    .text-slate-800, .text-slate-700, .text-slate-600
+) {
+    color: #f4f1e8 !important;
+}
+
+.dark .app-workspace .quote-screen-preview :where(.text-zinc-500, .text-zinc-400, .text-slate-500, .text-slate-400) {
+    color: #aaa69d !important;
+}
+
+.dark .app-workspace .quote-screen-preview :where(
+    [class~="text-blue-500"], [class~="text-blue-600"], [class~="text-blue-700"],
+    [class~="text-blue-800"], [class~="text-blue-900"]
+) {
+    color: #e0bb50 !important;
+}
+
+.dark .app-workspace .quote-screen-preview :where([class~="bg-blue-50"], [class~="bg-blue-100"], [class~="bg-blue-600"]) {
+    background-color: rgba(212, 175, 55, 0.1) !important;
+}
+
+.dark .app-workspace .quote-screen-preview :where(
+    .border-zinc-100, .border-zinc-200, .border-slate-200,
+    [class~="border-blue-100"], [class~="border-blue-200"], [class~="border-blue-500"]
+) {
+    border-color: rgba(212, 175, 55, 0.2) !important;
+}
+
+.dark .app-workspace .quote-screen-preview table tbody {
+    color: #e8e5dc;
+}
+
+.dark .app-workspace .quote-screen-preview table tbody tr {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+@media print {
+    .dark .app-workspace .quote-screen-preview {
+        color-scheme: light;
+        background: #ffffff !important;
+        color: #18181b !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+    }
+}
+
+
 /* Superfícies compartilhadas recebem profundidade e acabamento consistentes. */
+
 .app-workspace :where(.animate-in) {
-  animation-duration: 220ms;
+    animation-duration: 220ms;
 }
 
 .premium-accent-line {
-  background: linear-gradient(90deg, #2563eb, #38bdf8);
+    background: linear-gradient(90deg, #d4af37, #f0cd62);
 }
 
 @media (hover: hover) {
-  .app-workspace button,
-  .app-workspace a {
-    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
-    transition-duration: 180ms;
-  }
+    .app-workspace button,
+    .app-workspace a {
+        transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+        transition-duration: 180ms;
+    }
+}
+
+
+/* Harmonizacao global da paleta na area logada:
+   converte acentos frios remanescentes para dourado/grafite da marca. */
+
+.app-workspace {
+    --brand-accent-strong: #b88d1b;
+    --brand-accent-soft: #f7edd1;
+    --brand-accent-border: rgba(212, 175, 55, 0.45);
+}
+
+.app-workspace :where(.text-zinc-400, .text-zinc-500, .text-slate-400, .text-slate-500) {
+    color: #6d685b;
+}
+
+.dark .app-workspace :where(.text-zinc-400, .text-zinc-500, .text-slate-400, .text-slate-500) {
+    color: #b9ae95;
+}
+
+/* No tema institucional, acentos frios viram ouro sem criar placas claras
+   sobre o fundo preto. Cores semanticas (sucesso, alerta e erro) permanecem. */
+.dark .app-workspace :where(
+    [class~="text-blue-200"], [class~="text-blue-300"], [class~="text-blue-400"], [class~="text-blue-500"], [class~="text-blue-600"], [class~="text-blue-700"],
+    [class~="text-sky-500"], [class~="text-sky-600"], [class~="text-cyan-500"], [class~="text-cyan-600"],
+    [class~="text-indigo-500"], [class~="text-indigo-600"], [class~="text-purple-500"], [class~="text-purple-600"]
+) {
+    color: #e0bb50 !important;
+}
+
+.dark .app-workspace :where(
+    [class~="bg-blue-50"], [class~="bg-blue-100"], [class~="bg-blue-500"], [class~="bg-blue-600"], [class~="bg-blue-700"],
+    [class~="bg-sky-50"], [class~="bg-cyan-50"], [class~="bg-indigo-50"], [class~="bg-indigo-500"], [class~="bg-indigo-600"],
+    [class~="bg-purple-50"], [class~="bg-purple-500"], [class~="bg-purple-600"]
+) {
+    background-color: rgba(212, 175, 55, 0.11) !important;
+}
+
+.dark .app-workspace :where(
+    [class~="border-blue-100"], [class~="border-blue-200"], [class~="border-blue-300"], [class~="border-blue-400"], [class~="border-blue-500"],
+    [class~="border-indigo-100"], [class~="border-indigo-500"], [class~="border-purple-100"], [class~="border-purple-500"]
+) {
+    border-color: rgba(212, 175, 55, 0.34) !important;
+}
+
+.dark .app-workspace :where([class~="bg-gradient-to-r"], [class~="bg-gradient-to-br"], [class~="bg-gradient-to-b"]) {
+    background-image: linear-gradient(135deg, #17181b 0%, #090a0c 100%) !important;
+    background-color: #0c0d0f !important;
+}
+
+.dark .app-workspace :where(
+    input:not([type="checkbox"]):not([type="radio"]),
+    textarea,
+    select
+) {
+    background-color: rgba(12, 13, 15, 0.82);
+    border-color: #35332d;
+    color: #f4f0e5;
+}
+
+.dark .app-workspace :where(input, textarea)::placeholder {
+    color: #777268;
+}
+
+.dark .app-workspace :where(.bg-white, [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"]) {
+    background-color: rgba(24, 25, 28, 0.96);
+}
+
+.dark .app-workspace :where(.bg-zinc-50, .bg-slate-50, [class~="bg-zinc-50/80"], [class~="bg-zinc-50/60"], [class~="bg-slate-50/80"]) {
+    background-color: rgba(255, 255, 255, 0.025);
+}
+
+.dark .app-workspace :where(.border-zinc-100, .border-zinc-200, .border-slate-200) {
+    border-color: rgba(212, 175, 55, 0.12);
+}
+
+.app-workspace :where(input, textarea, select):focus,
+.app-workspace :where(input, textarea, select):focus {
+    border-color: #d4af37 !important;
+    box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.18) !important;
+}
+
+.app-workspace :where([class~="ring-blue-100"], [class~="ring-blue-500"], [class~="ring-indigo-500"], [class~="ring-purple-500"]) {
+    --tw-ring-color: rgba(212, 175, 55, 0.28) !important;
+}
+
+@media (max-width: 767px) {
+    .app-workspace :where( [class*="text-[8px]"], [class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[11px]"], [class*="text-xs"]) {
+        font-size: 11px !important;
+        line-height: 1.4 !important;
+    }
+    .app-workspace :where(button, a, input, select, textarea) {
+        min-height: 42px;
+    }
 }

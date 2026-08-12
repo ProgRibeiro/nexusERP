@@ -295,6 +295,7 @@ model Quote {
   discount           Decimal              @default(0.0) @db.Decimal(10, 2)
   tax                Decimal              @default(0.0) @db.Decimal(10, 2)
   total              Decimal              @default(0.0) @db.Decimal(10, 2)
+  finalValueOverride Decimal?             @db.Decimal(10, 2) // Valor final comercial definido manualmente
   costEstimate       Decimal              @default(0.0) @db.Decimal(10, 2)
   estimatedMargin    Decimal              @default(0.0) @db.Decimal(10, 2) // Lucro/Margem estimada
   notes              String?
@@ -308,6 +309,7 @@ model Quote {
   serviceOrders      ServiceOrder[]
   accountsReceivable AccountsReceivable[]
   emailDeliveries    ProposalEmail[]
+  providerJobs       ProviderJob[]
 }
 
 // Integração de envio corporativo. Os tokens são sempre persistidos
@@ -362,17 +364,21 @@ model ProposalEmail {
 }
 
 model QuoteItem {
-  id          String  @id @default(uuid())
-  quoteId     String
-  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  type        String // SERVICO, PRODUTO, MAO_DE_OBRA, DESLOCAMENTO, IMPOSTO
-  description String
-  quantity    Float   @default(1)
-  unit        String  @default("UN") // UN, HR, KM
-  unitPrice   Decimal @default(0.0) @db.Decimal(10, 2)
-  costPrice   Decimal @default(0.0) @db.Decimal(10, 2)
-  discount    Decimal @default(0.0) @db.Decimal(10, 2)
-  total       Decimal @default(0.0) @db.Decimal(10, 2)
+  id               String       @id @default(uuid())
+  quoteId          String
+  quote            Quote        @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  type             String // SERVICO, TERCEIRIZADO, PRODUTO, PECAS, MAO_DE_OBRA, DESLOCAMENTO, IMPOSTO
+  description      String
+  quantity         Float        @default(1)
+  unit             String       @default("UN") // UN, HR, KM
+  unitPrice        Decimal      @default(0.0) @db.Decimal(10, 2)
+  costPrice        Decimal      @default(0.0) @db.Decimal(10, 2)
+  markupPercentage Decimal      @default(0.0) @db.Decimal(7, 2)
+  discount         Decimal      @default(0.0) @db.Decimal(10, 2)
+  total            Decimal      @default(0.0) @db.Decimal(10, 2)
+  supplierId       String?
+  supplier         Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  providerJob      ProviderJob?
 }
 
 model QuoteVersion {
@@ -411,6 +417,7 @@ model ServiceOrder {
   status              String                      @default("CRIADA") // CRIADA, AGUARDANDO_AGENDAMENTO, AGENDADA, DESLOCAMENTO, EXECUCAO, PAUSADA, AGUARDANDO_PECA, AGUARDANDO_CLIENTE, RETORNO, CONCLUIDA, REVISAO, RELATORIO_ENVIADO, FATURAMENTO, FATURADA, CANCELADA
   priority            String                      @default("MEDIA") // BAIXA, MEDIA, ALTA, URGENTE
   type                String // INSTALACAO, PREVENTIVA, CORRETIVA, CONTRATO, VISITA_TECNICA, GARANTIA, RETORNO, EMERGENCIA, LAUDO_TECNICO, ORCAMENTO_TECNICO
+  serviceCategory     String                      @default("GERAL") // CLIMATIZACAO, ELETRICA, ILUMINACAO, HIDRAULICA, CIVIL, REFRIGERACAO, GERAL
   scheduledDate       DateTime?
   scheduledTime       String?
   problemReported     String?
@@ -429,6 +436,8 @@ model ServiceOrder {
   storeAssetId        String?
   storeAsset          StoreAsset?                 @relation(fields: [storeAssetId], references: [id], onDelete: SetNull)
   requestSource       String                      @default("INTERNO")
+  operationKind       String                      @default("AVULSA") // AVULSA, VISITA_PREVENTIVA, CHAMADO_CONTRATO
+  referenceMonth      String? // Competência operacional no formato YYYY-MM
   requesterName       String?
   requesterEmail      String?
   requesterPhone      String?
@@ -452,9 +461,12 @@ model ServiceOrder {
   contractId          String?
   contract            Contract?                   @relation(fields: [contractId], references: [id])
   formSubmissions     FormSubmission[]
+  providerJobs        ProviderJob[]
 
   @@index([storeProjectId])
   @@index([storeAssetId])
+  @@index([contractId, referenceMonth])
+  @@index([operationKind, referenceMonth])
 }
 
 model ServiceOrderItem {
@@ -826,8 +838,12 @@ model CompletionReport {
   id                    String       @id @default(uuid())
   serviceOrderId        String       @unique
   serviceOrder          ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  executedServices      String?
   clientFeedback        String?
   technicalObservations String?
+  pendingActions        String?
+  operationalResult     String       @default("OPERACIONAL")
+  clientRepresentative  String?
   warrantyTerms         String?      @default("Garantia de 90 dias nos serviços prestados.")
   approvedByClient      Boolean      @default(false)
   approvedAt            DateTime?
@@ -899,6 +915,7 @@ model AccountsPayable {
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
   transactions   FinancialTransaction[]
+  providerJob    ProviderJob?
 }
 
 model FinancialTransaction {
@@ -993,15 +1010,54 @@ model Service {
 }
 
 model Supplier {
-  id        String    @id @default(uuid())
-  name      String
-  cnpj      String    @unique
-  phone     String
-  email     String
-  notes     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  products  Product[]
+  id             String        @id @default(uuid())
+  name           String
+  cnpj           String        @unique
+  phone          String
+  email          String
+  portalEmail    String?       @unique
+  portalPassword String?
+  portalSalt     String?
+  portalActive   Boolean       @default(false)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  products       Product[]
+  quoteItems     QuoteItem[]
+  providerJobs   ProviderJob[]
+}
+
+// Execucao e custo de servicos realizados por parceiros. Estes dados sao
+// internos e nunca fazem parte do documento comercial enviado ao cliente.
+model ProviderJob {
+  id                String           @id @default(uuid())
+  supplierId        String
+  supplier          Supplier         @relation(fields: [supplierId], references: [id])
+  quoteId           String
+  quote             Quote            @relation(fields: [quoteId], references: [id])
+  quoteItemId       String           @unique
+  quoteItem         QuoteItem        @relation(fields: [quoteItemId], references: [id], onDelete: Cascade)
+  serviceOrderId    String
+  serviceOrder      ServiceOrder     @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  accountsPayableId String?          @unique
+  accountsPayable   AccountsPayable? @relation(fields: [accountsPayableId], references: [id], onDelete: SetNull)
+  description       String
+  quantity          Float            @default(1)
+  unit              String           @default("SERVIÇO")
+  costValue         Decimal          @db.Decimal(10, 2)
+  saleValue         Decimal          @db.Decimal(10, 2)
+  executionStatus   String           @default("PENDENTE") // PENDENTE, AGENDADO, EXECUCAO, CONCLUIDO, CANCELADO
+  paymentStatus     String           @default("BLOQUEADO") // BLOQUEADO, LIBERADO, PAGO, CANCELADO
+  scheduledDate     DateTime?
+  completedAt       DateTime?
+  paymentDueDate    DateTime?
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([supplierId, executionStatus])
+  @@index([serviceOrderId])
+  @@index([paymentStatus, paymentDueDate])
 }
 
 // 9. Contratos Recorrentes

@@ -9,6 +9,7 @@ import { saveBase64Asset, deleteUploadedAsset } from "@/lib/storage";
 import { osScheduleSchema } from "@/lib/schemas";
 import { nextServiceOrderCode } from "@/lib/sequences";
 import { createInitialVisit, nextVisitNumber, visitStatusFromLegacyOS } from "@/lib/visits";
+import { getServiceChecklistTemplate, inferServiceModality, SERVICE_MODALITIES } from "@/lib/serviceChecklistTemplates";
 import type { Prisma } from "@prisma/client";
 
 export interface OSPartsInput {
@@ -66,9 +67,11 @@ export async function createManualServiceOrder(data: {
   addressId: string;
   contactId?: string;
   type: string;
+  serviceCategory?: string;
   priority: string;
   problemReported: string;
   notes?: string;
+  referenceMonth?: string;
 }) {
   try {
     const session = await requirePermission("os.write");
@@ -77,8 +80,16 @@ export async function createManualServiceOrder(data: {
     if (!data.problemReported?.trim()) throw new Error("Descreva o serviço ou problema relatado.");
     const validTypes = ["INSTALACAO", "PREVENTIVA", "CORRETIVA", "CONTRATO", "VISITA_TECNICA", "GARANTIA", "RETORNO", "EMERGENCIA", "LAUDO_TECNICO"];
     const validPriorities = ["BAIXA", "MEDIA", "ALTA", "URGENTE"];
+    const validCategories = new Set(SERVICE_MODALITIES.map((item) => item.value));
     if (!validTypes.includes(data.type)) throw new Error("Tipo de serviço inválido.");
     if (!validPriorities.includes(data.priority)) throw new Error("Prioridade inválida.");
+    if (data.referenceMonth && !/^\d{4}-\d{2}$/.test(data.referenceMonth)) throw new Error("Competência mensal inválida.");
+    if (data.serviceCategory && !validCategories.has(data.serviceCategory as any)) throw new Error("Modalidade de serviço inválida.");
+    const serviceCategory = validCategories.has(data.serviceCategory as any)
+      ? data.serviceCategory!
+      : data.type === "PREVENTIVA"
+        ? "CLIMATIZACAO"
+        : inferServiceModality(data.problemReported);
 
     const client = await prisma.client.findUnique({
       where: { id: data.clientId },
@@ -89,7 +100,7 @@ export async function createManualServiceOrder(data: {
     if (data.contactId && (!client.contacts || !client.contacts.length)) throw new Error("O contato selecionado não pertence ao cliente.");
     if (data.contractId) {
       const contract = await prisma.contract.findFirst({
-        where: { id: data.contractId, clientId: data.clientId, status: "ATIVO" },
+        where: { id: data.contractId, clientId: data.clientId, status: { in: ["ATIVO", "PROVISORIO"] } },
         select: { id: true, addressId: true },
       });
       if (!contract) throw new Error("O contrato selecionado não pertence a este cliente ou não está ativo.");
@@ -108,10 +119,14 @@ export async function createManualServiceOrder(data: {
           addressId: data.addressId,
           contactId: data.contactId || null,
           type: data.type,
+          serviceCategory,
           priority: data.priority,
           status: "AGUARDANDO_AGENDAMENTO",
           problemReported: data.problemReported.trim(),
+          checklistJson: JSON.stringify(getServiceChecklistTemplate(serviceCategory)),
           notes: data.notes?.trim() || null,
+          operationKind: data.contractId ? (data.type === "PREVENTIVA" ? "VISITA_PREVENTIVA" : "CHAMADO_CONTRATO") : "AVULSA",
+          referenceMonth: data.contractId ? (data.referenceMonth || new Date().toISOString().slice(0, 7)) : null,
         },
       });
       await tx.serviceOrderStatusHistory.create({
@@ -147,6 +162,265 @@ export async function createManualServiceOrder(data: {
   } catch (error: any) {
     logger.error("Erro ao criar OS manual:", error);
     return { success: false, error: error.issues?.[0]?.message || error.message };
+  }
+}
+
+/**
+ * Registra um atendimento avulso que já aconteceu.
+ * O fluxo começa em CONCLUIDA, sem inventar agenda ou técnico, e abre o
+ * relatório final para conferência, fotos, aceite e envio ao faturamento.
+ */
+export async function createQuickCompletedServiceOrder(data: {
+  clientId: string;
+  addressId?: string;
+  contactId?: string;
+  type: string;
+  serviceCategory?: string;
+  priority?: string;
+  serviceDescription: string;
+  technicalDiagnosis: string;
+  value: number;
+  purchaseOrder?: string;
+  notes?: string;
+}) {
+  try {
+    const session = await requirePermission("os.write");
+    if (!data.clientId) throw new Error("Selecione o cliente.");
+    if (!data.serviceDescription?.trim()) throw new Error("Descreva o serviço executado.");
+    if (!data.technicalDiagnosis?.trim()) throw new Error("Informe o diagnóstico ou resultado do atendimento.");
+    const value = Number(data.value);
+    if (!Number.isFinite(value) || value < 0) throw new Error("Informe um valor válido para o atendimento.");
+
+    const validTypes = ["INSTALACAO", "PREVENTIVA", "CORRETIVA", "VISITA_TECNICA", "GARANTIA", "RETORNO", "EMERGENCIA", "LAUDO_TECNICO"];
+    const validCategories = new Set(SERVICE_MODALITIES.map((item) => item.value));
+    if (!validTypes.includes(data.type)) throw new Error("Tipo de serviço inválido.");
+    const serviceCategory = validCategories.has(data.serviceCategory as any)
+      ? data.serviceCategory!
+      : inferServiceModality(`${data.serviceDescription} ${data.technicalDiagnosis}`);
+
+    const client = await prisma.client.findUnique({
+      where: { id: data.clientId },
+      include: {
+        addresses: data.addressId ? { where: { id: data.addressId } } : false,
+        contacts: data.contactId ? { where: { id: data.contactId } } : false,
+      },
+    });
+    if (!client) throw new Error("Cliente não encontrado.");
+    if (data.addressId && (!client.addresses || !client.addresses.length)) throw new Error("O endereço selecionado não pertence ao cliente.");
+    if (data.contactId && (!client.contacts || !client.contacts.length)) throw new Error("O contato selecionado não pertence ao cliente.");
+
+    const now = new Date();
+    const os = await prisma.$transaction(async (tx) => {
+      const code = await nextServiceOrderCode(tx);
+      const created = await tx.serviceOrder.create({
+        data: {
+          code,
+          clientId: data.clientId,
+          addressId: data.addressId || null,
+          contactId: data.contactId || null,
+          type: data.type,
+          serviceCategory,
+          priority: data.priority || "MEDIA",
+          status: "CONCLUIDA",
+          operationKind: "AVULSA",
+          requestSource: "ATENDIMENTO_RAPIDO",
+          problemReported: data.serviceDescription.trim(),
+          technicalDiagnosis: data.technicalDiagnosis.trim(),
+          checklistJson: "[]",
+          purchaseOrder: data.purchaseOrder?.trim() || null,
+          notes: data.notes?.trim() || null,
+          completedAt: now,
+          items: {
+            create: {
+              description: data.serviceDescription.trim(),
+              quantity: 1,
+              unit: "SERVIÇO",
+              unitPrice: value,
+              total: value,
+            },
+          },
+          completionReport: {
+            create: {
+              executedServices: data.serviceDescription.trim(),
+              technicalObservations: data.technicalDiagnosis.trim(),
+              operationalResult: "OPERACIONAL",
+              warrantyTerms: "Garantia de 90 dias nos serviços prestados.",
+              approvedByClient: false,
+            },
+          },
+        },
+      });
+      await tx.serviceOrderStatusHistory.create({
+        data: {
+          serviceOrderId: created.id,
+          oldStatus: "NENHUM",
+          newStatus: "CONCLUIDA",
+          changedById: session.userId,
+          justification: "Atendimento avulso já realizado, registrado pelo fluxo rápido de relatório.",
+        },
+      });
+      await createInitialVisit(tx, {
+        serviceOrderId: created.id,
+        status: "CONCLUIDA",
+        kind: "ATENDIMENTO",
+        changedById: session.userId,
+      });
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          action: "CRIACAO",
+          entity: "OrdemServico",
+          entityId: created.id,
+          changesJson: JSON.stringify({ code: created.code, origin: "ATENDIMENTO_RAPIDO", value, clientId: data.clientId }),
+        },
+      });
+      return created;
+    });
+
+    revalidatePath("/ordens-servico");
+    revalidatePath("/faturamento");
+    revalidatePath("/");
+    return { success: true as const, os };
+  } catch (error: any) {
+    logger.error("Erro ao criar atendimento rápido:", error);
+    return { success: false as const, error: error.issues?.[0]?.message || error.message };
+  }
+}
+
+/**
+ * Consolida a operação mensal dos contratos por loja para a tela de OS.
+ * O contrato é a unidade operacional: uma loja, suas preventivas e chamados.
+ */
+export async function getContractOperationsOverview(referenceMonth?: string) {
+  try {
+    await requireAuth();
+    const month = /^\d{4}-\d{2}$/.test(referenceMonth || "") ? referenceMonth! : new Date().toISOString().slice(0, 7);
+    const contracts = await prisma.contract.findMany({
+      where: { status: { in: ["ATIVO", "PROVISORIO"] } },
+      include: {
+        client: { select: { id: true, name: true, fancyName: true, cpfCnpj: true } },
+        address: true,
+        contact: true,
+        items: true,
+        storeProjects: { include: { _count: { select: { assets: true } } } },
+        serviceOrders: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            type: true,
+            operationKind: true,
+            referenceMonth: true,
+            scheduledDate: true,
+            completedAt: true,
+            createdAt: true,
+            priority: true,
+            problemReported: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+      },
+      orderBy: [{ address: { label: "asc" } }, { code: "asc" }],
+    });
+
+    const closedStatuses = new Set(["CONCLUIDA", "CONCLUIDO", "RELATORIO_ENVIADO", "FATURAMENTO", "FATURADA", "FATURADO", "CANCELADA", "CANCELADO"]);
+    return contracts.map((contract) => {
+      const orders = contract.serviceOrders.map((order) => ({ ...order, status: normalizeOSStatus(order.status) }));
+      const monthOrders = orders.filter((order) => {
+        const inferred = (order.scheduledDate || order.createdAt).toISOString().slice(0, 7);
+        return (order.referenceMonth || inferred) === month;
+      });
+      const preventive = monthOrders.find((order) => order.operationKind === "VISITA_PREVENTIVA" || order.type === "PREVENTIVA") || null;
+      const calls = monthOrders.filter((order) => order.operationKind === "CHAMADO_CONTRATO" || order.type !== "PREVENTIVA");
+      const openCalls = orders.filter((order) => (order.operationKind === "CHAMADO_CONTRATO" || order.type !== "PREVENTIVA") && !closedStatuses.has(order.status));
+      const preventiveHistory = orders.filter((order) => order.operationKind === "VISITA_PREVENTIVA" || order.type === "PREVENTIVA");
+      const lastCompletedPreventive = preventiveHistory.find((order) => ["CONCLUIDA", "RELATORIO_ENVIADO", "FATURAMENTO", "FATURADA"].includes(order.status)) || null;
+      return {
+        id: contract.id,
+        code: contract.code,
+        status: contract.status,
+        value: Number(contract.value),
+        billingPeriod: contract.billingPeriod,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        client: contract.client,
+        address: contract.address,
+        contact: contract.contact,
+        items: contract.items.map((item) => ({ ...item, unitPrice: Number(item.unitPrice) })),
+        projectCount: contract.storeProjects.length,
+        assetCount: contract.storeProjects.reduce((sum, project) => sum + project._count.assets, 0),
+        referenceMonth: month,
+        preventive,
+        preventiveCount: preventiveHistory.length,
+        lastCompletedPreventive,
+        callsThisMonth: calls.length,
+        openCalls: openCalls.length,
+        recentOrders: orders.slice(0, 8),
+      };
+    });
+  } catch (error) {
+    logger.error("Erro ao consolidar operação dos contratos:", error);
+    return [];
+  }
+}
+
+/** Gera uma única OS preventiva para a competência da loja/contrato. */
+export async function createMonthlyContractPreventive(contractId: string, referenceMonth: string) {
+  try {
+    const session = await requirePermission("os.write");
+    if (!/^\d{4}-\d{2}$/.test(referenceMonth)) throw new Error("Competência mensal inválida.");
+    const contract = await prisma.contract.findUnique({
+      where: { id: contractId },
+      include: { address: true, contact: true, items: true, storeProjects: { orderBy: { createdAt: "asc" }, take: 1 } },
+    });
+    if (!contract || !["ATIVO", "PROVISORIO"].includes(contract.status)) throw new Error("Contrato ativo ou provisório não encontrado.");
+    if (!contract.addressId) throw new Error("Defina a loja/endereço do contrato antes de gerar a preventiva.");
+
+    const existing = await prisma.serviceOrder.findFirst({
+      where: { contractId, referenceMonth, OR: [{ operationKind: "VISITA_PREVENTIVA" }, { type: "PREVENTIVA" }] },
+    });
+    if (existing) return { success: true, serviceOrder: existing, created: false };
+
+    const description = contract.items.length
+      ? contract.items.map((item) => `• ${item.description} (${item.quantity}x)`).join("\n")
+      : "Executar visita preventiva mensal conforme escopo do contrato.";
+    const serviceCategory = inferServiceModality(description);
+    const serviceOrder = await prisma.$transaction(async (tx) => {
+      const code = await nextServiceOrderCode(tx);
+      const created = await tx.serviceOrder.create({
+        data: {
+          code,
+          clientId: contract.clientId,
+          contractId: contract.id,
+          addressId: contract.addressId,
+          contactId: contract.contactId,
+          storeProjectId: contract.storeProjects[0]?.id || null,
+          type: "PREVENTIVA",
+          operationKind: "VISITA_PREVENTIVA",
+          referenceMonth,
+          serviceCategory,
+          priority: "MEDIA",
+          status: "AGUARDANDO_AGENDAMENTO",
+          problemReported: `Visita preventiva mensal · competência ${referenceMonth}\n\n${description}`,
+          checklistJson: JSON.stringify(getServiceChecklistTemplate(serviceCategory)),
+          notes: `Cobertura vinculada ao contrato ${contract.code}.`,
+        },
+      });
+      await createInitialVisit(tx, { serviceOrderId: created.id, status: created.status, kind: "VISTORIA", changedById: session.userId });
+      await tx.serviceOrderStatusHistory.create({
+        data: { serviceOrderId: created.id, oldStatus: "NENHUM", newStatus: created.status, changedById: session.userId, justification: `Preventiva mensal ${referenceMonth} gerada pelo controle do contrato ${contract.code}.` },
+      });
+      await tx.auditLog.create({
+        data: { userId: session.userId, action: "CRIACAO", entity: "OrdemServico", entityId: created.id, changesJson: JSON.stringify({ origin: "CONTRATO_MENSAL", contractId, referenceMonth }) },
+      });
+      return created;
+    });
+    revalidatePath("/ordens-servico");
+    revalidatePath("/preventivas");
+    return { success: true, serviceOrder, created: true };
+  } catch (error: any) {
+    logger.error("Erro ao gerar preventiva mensal do contrato:", error);
+    return { success: false, error: error.message };
   }
 }
 
@@ -196,6 +470,8 @@ export async function getServiceOrders(filters?: {
       where,
       include: {
         client: true,
+        contract: { select: { id: true, code: true, status: true } },
+        address: { select: { id: true, label: true, city: true, state: true } },
         technicians: {
           include: {
             user: true,
@@ -245,7 +521,13 @@ export async function getServiceOrders(filters?: {
         status: normalizeOSStatus(os.status),
         priority: os.priority,
         type: os.type,
+        serviceCategory: os.serviceCategory,
+        operationKind: os.operationKind,
+        referenceMonth: os.referenceMonth,
+        contract: os.contract,
+        address: os.address,
         problemReported: os.problemReported,
+        createdAt: os.createdAt,
         scheduledDate: os.scheduledDate,
         scheduledTime: os.scheduledTime,
         technicians: os.technicians.map((t) => ({
@@ -281,6 +563,18 @@ export async function getServiceOrderDetails(id: string) {
         },
         address: true,
         contact: true,
+        contract: {
+          include: {
+            address: true,
+            contact: true,
+            items: true,
+            serviceOrders: {
+              select: { id: true, code: true, type: true, operationKind: true, referenceMonth: true, status: true, scheduledDate: true, completedAt: true, createdAt: true },
+              orderBy: { createdAt: "desc" },
+              take: 24,
+            },
+          },
+        },
         items: true,
         materials: {
           include: {
@@ -940,6 +1234,7 @@ export async function updateOSDetails(
     status?: string;
     problemReported?: string;
     technicalDiagnosis?: string;
+    serviceCategory?: string;
     checklistJson?: string;
     notes?: string;
   },
@@ -956,6 +1251,9 @@ export async function updateOSDetails(
     if (data.status && normalizeOSStatus(data.status) !== normalizeOSStatus(oldOS.status)) {
       throw new Error("Use as ações do fluxo da OS para alterar a etapa. O status não pode ser editado manualmente.");
     }
+    if (data.serviceCategory && !SERVICE_MODALITIES.some((item) => item.value === data.serviceCategory)) {
+      throw new Error("Modalidade de serviço inválida.");
+    }
 
     const updatedOS = await prisma.serviceOrder.update({
       where: { id: osId },
@@ -964,6 +1262,7 @@ export async function updateOSDetails(
         type: data.type !== undefined ? data.type : oldOS.type,
         problemReported: data.problemReported !== undefined ? data.problemReported : oldOS.problemReported,
         technicalDiagnosis: data.technicalDiagnosis !== undefined ? data.technicalDiagnosis : oldOS.technicalDiagnosis,
+        serviceCategory: data.serviceCategory !== undefined ? data.serviceCategory : oldOS.serviceCategory,
         checklistJson: data.checklistJson !== undefined ? data.checklistJson : oldOS.checklistJson,
         notes: data.notes !== undefined ? data.notes : oldOS.notes,
       }
@@ -977,16 +1276,80 @@ export async function updateOSDetails(
   }
 }
 
+export async function applyOSChecklistTemplate(osId: string, serviceCategory: string, preserveCompleted = true) {
+  try {
+    await requirePermission("os.write");
+    if (!SERVICE_MODALITIES.some((item) => item.value === serviceCategory)) throw new Error("Modalidade de serviço inválida.");
+    const os = await prisma.serviceOrder.findUnique({ where: { id: osId }, select: { checklistJson: true } });
+    if (!os) throw new Error("Ordem de serviço não encontrada.");
+
+    let existing: Array<{ label?: string; checked?: boolean }> = [];
+    try { existing = JSON.parse(os.checklistJson || "[]"); } catch { existing = []; }
+    const completedLabels = new Set(existing.filter((item) => item.checked).map((item) => item.label?.trim()).filter(Boolean));
+    const generated = getServiceChecklistTemplate(serviceCategory).map((item) => ({
+      ...item,
+      checked: preserveCompleted && completedLabels.has(item.label),
+    }));
+
+    const formCodeByCategory: Record<string, string> = {
+      CLIMATIZACAO: "CHECKLIST_HVAC",
+      ELETRICA: "CHECKLIST_ELETRICA",
+      ILUMINACAO: "CHECKLIST_ILUMINACAO",
+      HIDRAULICA: "CHECKLIST_HIDRAULICA",
+      CIVIL: "CHECKLIST_CIVIL",
+      REFRIGERACAO: "CHECKLIST_REFRIGERACAO",
+      GERAL: "CHECKLIST_GERAL",
+    };
+    const publishedVersion = await prisma.formVersion.findFirst({
+      where: { status: "PUBLICADO", template: { code: formCodeByCategory[serviceCategory], active: true } },
+      orderBy: { version: "desc" },
+    });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const serviceOrder = await tx.serviceOrder.update({
+        where: { id: osId },
+        data: { serviceCategory, checklistJson: JSON.stringify(generated) },
+      });
+      if (publishedVersion) {
+        const visits = await tx.serviceVisit.findMany({
+          where: { serviceOrderId: osId, status: { notIn: ["CONCLUIDA", "CANCELADA"] } },
+          select: { id: true },
+        });
+        for (const visit of visits) {
+          await tx.formSubmission.deleteMany({ where: { visitId: visit.id, status: "RASCUNHO" } });
+          await tx.formSubmission.upsert({
+            where: { visitId_versionId: { visitId: visit.id, versionId: publishedVersion.id } },
+            update: {},
+            create: { visitId: visit.id, serviceOrderId: osId, versionId: publishedVersion.id },
+          });
+        }
+      }
+      return serviceOrder;
+    });
+    revalidatePath("/ordens-servico");
+    revalidatePath("/execucao");
+    return { success: true as const, checklist: generated, serviceCategory: updated.serviceCategory };
+  } catch (error) {
+    logger.error("Erro ao aplicar modelo de checklist:", error);
+    return { success: false as const, error: error instanceof Error ? error.message : "Erro ao aplicar checklist." };
+  }
+}
+
 /**
  * Salva ou atualiza o relatório de conclusão de serviço (CompletionReport)
  */
 export async function saveOSCompletionReport(
   osId: string,
   reportData: {
+    executedServices?: string;
     clientFeedback?: string;
     technicalObservations?: string;
+    pendingActions?: string;
+    operationalResult?: string;
+    clientRepresentative?: string;
     warrantyTerms?: string;
     approvedByClient: boolean;
+    sendToBilling?: boolean;
   }
 ) {
   try {
@@ -997,31 +1360,53 @@ export async function saveOSCompletionReport(
     if (!["CONCLUIDA", "REVISAO", "RELATORIO_ENVIADO"].includes(currentStatus)) {
       throw new Error("Conclua a execução da OS antes de emitir o relatório final.");
     }
-    if (reportData.approvedByClient && !reportData.technicalObservations?.trim()) {
-      throw new Error("Informe o parecer técnico antes de registrar a aprovação do cliente.");
+    const clean = (value?: string | null) => value?.trim() || null;
+    const executedServices = clean(reportData.executedServices);
+    const technicalObservations = clean(reportData.technicalObservations);
+    const clientRepresentative = clean(reportData.clientRepresentative) || clean(currentOS.signatureName);
+    const operationalResult = ["OPERACIONAL", "OPERACIONAL_COM_RESSALVAS", "PENDENTE", "NAO_TESTADO"].includes(reportData.operationalResult || "")
+      ? reportData.operationalResult!
+      : "OPERACIONAL";
+    if (reportData.approvedByClient && !executedServices && !technicalObservations) {
+      throw new Error("Descreva os serviços executados ou informe o parecer técnico antes da aprovação.");
+    }
+    if (reportData.approvedByClient && !clientRepresentative) {
+      throw new Error("Informe o nome do responsável do cliente que aprovou o relatório.");
+    }
+    if (reportData.sendToBilling && !reportData.approvedByClient) {
+      throw new Error("Confirme o aceite/conferência do relatório antes de enviar ao faturamento.");
     }
 
     const report = await prisma.$transaction(async (tx) => {
       const saved = await tx.completionReport.upsert({
         where: { serviceOrderId: osId },
         update: {
-          clientFeedback: reportData.clientFeedback,
-          technicalObservations: reportData.technicalObservations,
-          warrantyTerms: reportData.warrantyTerms,
+          executedServices,
+          clientFeedback: clean(reportData.clientFeedback),
+          technicalObservations,
+          pendingActions: clean(reportData.pendingActions),
+          operationalResult,
+          clientRepresentative,
+          warrantyTerms: clean(reportData.warrantyTerms),
           approvedByClient: reportData.approvedByClient,
           approvedAt: reportData.approvedByClient ? new Date() : null,
         },
         create: {
           serviceOrderId: osId,
-          clientFeedback: reportData.clientFeedback,
-          technicalObservations: reportData.technicalObservations,
-          warrantyTerms: reportData.warrantyTerms || "Garantia de 90 dias nos serviços prestados.",
+          executedServices,
+          clientFeedback: clean(reportData.clientFeedback),
+          technicalObservations,
+          pendingActions: clean(reportData.pendingActions),
+          operationalResult,
+          clientRepresentative,
+          warrantyTerms: clean(reportData.warrantyTerms) || "Garantia de 90 dias nos serviços prestados.",
           approvedByClient: reportData.approvedByClient,
           approvedAt: reportData.approvedByClient ? new Date() : null,
         },
       });
       if (reportData.approvedByClient && ["CONCLUIDA", "REVISAO"].includes(currentStatus)) {
-        await tx.serviceOrder.update({ where: { id: osId }, data: { status: "RELATORIO_ENVIADO" } });
+        const finalStatus = reportData.sendToBilling ? "FATURAMENTO" : "RELATORIO_ENVIADO";
+        await tx.serviceOrder.update({ where: { id: osId }, data: { status: finalStatus } });
         await tx.serviceOrderStatusHistory.create({
           data: {
             serviceOrderId: osId,
@@ -1029,6 +1414,28 @@ export async function saveOSCompletionReport(
             newStatus: "RELATORIO_ENVIADO",
             changedById: session.userId,
             justification: "Relatório final aprovado pelo cliente.",
+          },
+        });
+        if (reportData.sendToBilling) {
+          await tx.serviceOrderStatusHistory.create({
+            data: {
+              serviceOrderId: osId,
+              oldStatus: "RELATORIO_ENVIADO",
+              newStatus: "FATURAMENTO",
+              changedById: session.userId,
+              justification: "Relatório aprovado e liberado diretamente para o controle fiscal.",
+            },
+          });
+        }
+      } else if (reportData.approvedByClient && reportData.sendToBilling && currentStatus === "RELATORIO_ENVIADO") {
+        await tx.serviceOrder.update({ where: { id: osId }, data: { status: "FATURAMENTO" } });
+        await tx.serviceOrderStatusHistory.create({
+          data: {
+            serviceOrderId: osId,
+            oldStatus: "RELATORIO_ENVIADO",
+            newStatus: "FATURAMENTO",
+            changedById: session.userId,
+            justification: "Relatório aprovado e liberado para o controle fiscal.",
           },
         });
       } else if (!reportData.approvedByClient && currentStatus === "RELATORIO_ENVIADO") {
@@ -1101,6 +1508,79 @@ export async function addOSPhoto(
   } catch (error: any) {
     logger.error("Erro ao adicionar foto:", error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Salva um lote inteiro com uma única autenticação, uma única ação de rede e
+ * uma transação de banco. Os arquivos são gravados com concorrência limitada
+ * para aproveitar disco/S3 sem saturar o servidor local.
+ */
+export async function addOSPhotos(
+  osId: string,
+  photos: Array<{ step: string; url: string; caption?: string }>,
+) {
+  try {
+    const session = await requirePermission("os.write");
+    const batch = photos.slice(0, 20);
+    if (!batch.length) throw new Error("Selecione ao menos uma foto.");
+
+    const order = await prisma.serviceOrder.findUnique({ where: { id: osId }, select: { id: true } });
+    if (!order) throw new Error("Ordem de serviço não encontrada.");
+    const visit = await prisma.serviceVisit.findFirst({
+      where: { serviceOrderId: osId },
+      orderBy: { number: "desc" },
+      select: { id: true },
+    });
+
+    const stored: Array<{ index: number; step: string; url: string; caption?: string }> = [];
+    const failed: Array<{ index: number; error: string }> = [];
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(5, batch.length) }, async () => {
+      while (cursor < batch.length) {
+        const index = cursor++;
+        const photo = batch[index];
+        try {
+          const url = await saveBase64Asset(photo.url, `os-${osId}`);
+          stored.push({ index, step: photo.step, url, caption: photo.caption });
+        } catch (error) {
+          failed.push({ index, error: error instanceof Error ? error.message : "Falha ao salvar arquivo." });
+        }
+      }
+    });
+    await Promise.all(workers);
+
+    if (stored.length) {
+      const capturedAt = new Date();
+      try {
+        await prisma.$transaction([
+          prisma.serviceOrderPhoto.createMany({
+            data: stored.map((photo) => ({ serviceOrderId: osId, step: photo.step, url: photo.url, caption: photo.caption })),
+          }),
+          prisma.evidence.createMany({
+            data: stored.map((photo) => ({
+              serviceOrderId: osId,
+              visitId: visit?.id || null,
+              authorId: session.userId,
+              kind: "FOTO",
+              stage: photo.step === "EVIDENCIA" ? "DIAGNOSTICO" : photo.step,
+              fileUrl: photo.url,
+              caption: photo.caption,
+              capturedAt,
+            })),
+          }),
+        ]);
+      } catch (error) {
+        await Promise.allSettled(stored.map((photo) => deleteUploadedAsset(photo.url)));
+        throw error;
+      }
+    }
+
+    revalidatePath("/ordens-servico");
+    return { success: stored.length > 0, saved: stored.length, failed };
+  } catch (error: any) {
+    logger.error("Erro ao adicionar lote de fotos:", error);
+    return { success: false, saved: 0, failed: photos.map((_, index) => ({ index, error: error.message })) };
   }
 }
 

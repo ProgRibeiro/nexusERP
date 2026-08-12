@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublicStorePortal = pathname.startsWith("/portal/loja/");
+  const isPublicStorePortal = pathname.startsWith("/portal/loja/") || pathname.startsWith("/portal/prestador");
   const [user, setUser] = useState<UserSession | null>(null);
   const [users, setUsers] = useState<UserSession[]>([]);
   const [loading, setLoading] = useState(!isPublicStorePortal);

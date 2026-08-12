@@ -900,6 +900,8 @@ export async function createStoreTicket(input: {
           storeProjectId: project?.id || asset?.projectId || null,
           storeAssetId: asset?.id || null,
           type: "CORRETIVA",
+          operationKind: "CHAMADO_CONTRATO",
+          referenceMonth: new Date().toISOString().slice(0, 7),
           priority: input.priority,
           status: "AGUARDANDO_AGENDAMENTO",
           requestSource: "CENTRAL_PREVENTIVA",

@@ -215,6 +215,16 @@ export async function processBilling(data: {
 
     // Usar transação para garantir integridade do faturamento
     const result = await prisma.$transaction(async (tx) => {
+      // Reserva atomica da OS. Em chamadas simultaneas, somente uma consegue
+      // trocar FATURAMENTO por FATURADA; a outra aborta sem criar NF/parcelas.
+      const claimed = await tx.serviceOrder.updateMany({
+        where: { id: data.osId, status: "FATURAMENTO" },
+        data: { status: "FATURADA" },
+      });
+      if (claimed.count !== 1) {
+        throw new Error("Esta OS já foi faturada ou está sendo processada por outro usuário.");
+      }
+
       // 1. Criar Nota Fiscal (Invoice)
       const invoice = await tx.invoice.create({
         data: {
@@ -232,7 +242,6 @@ export async function processBilling(data: {
       await tx.serviceOrder.update({
         where: { id: data.osId },
         data: {
-          status: "FATURADA",
           faturamentoStatus: "NF_EMITIDA",
           invoiceId: invoice.id,
         },

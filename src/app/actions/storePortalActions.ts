@@ -192,6 +192,8 @@ export async function createPublicStoreTicket(input: {
           storeProjectId: project?.id || asset?.projectId || null,
           storeAssetId: asset?.id || null,
           type: "CORRETIVA",
+          operationKind: "CHAMADO_CONTRATO",
+          referenceMonth: new Date().toISOString().slice(0, 7),
           status: "AGUARDANDO_AGENDAMENTO",
           priority,
           requestSource: "CLIENTE_PORTAL",

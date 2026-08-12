@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 export interface Tab {
@@ -49,13 +49,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     title: "",
     data: null
   });
-  const [darkMode, setDarkMode] = useState(false);
+  // A identidade principal da Nexus e escura; o tema claro continua disponivel
+  // pelo seletor e e respeitado quando ja foi escolhido pelo usuario.
+  const [darkMode, setDarkMode] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Initialize Theme from localStorage
   useEffect(() => {
     // Remove definitivamente o histórico da antiga barra de abas.
     localStorage.removeItem("nx_workspace_v1");
-    const isDark = localStorage.getItem("theme") === "dark";
+    const savedTheme = localStorage.getItem("theme");
+    const isDark = savedTheme !== "light";
     setTimeout(() => {
       setDarkMode(isDark);
     }, 0);
@@ -66,18 +69,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const toggleDarkMode = () => {
-    const newDark = !darkMode;
-    setDarkMode(newDark);
-    localStorage.setItem("theme", newDark ? "dark" : "light");
-    if (newDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  };
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode((current) => {
+      const newDark = !current;
+      localStorage.setItem("theme", newDark ? "dark" : "light");
+      document.documentElement.classList.toggle("dark", newDark);
+      return newDark;
+    });
+  }, []);
 
-  const openTab = (
+  const openTab = useCallback((
     type: string,
     title: string,
     params?: any,
@@ -107,23 +108,36 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       }
       router.push(`/${type}${query}`);
     }
-  };
+  }, [router]);
 
-  const openDrawer = (type: string, title: string, data?: any) => {
+  const openDrawer = useCallback((type: string, title: string, data?: any) => {
     setDrawer({
       isOpen: true,
       type,
       title,
       data
     });
-  };
+  }, []);
 
-  const closeDrawer = () => {
+  const closeDrawer = useCallback(() => {
     setDrawer((prev) => ({
       ...prev,
       isOpen: false
     }));
-  };
+  }, []);
+
+  const workspaceValue = useMemo(() => ({
+    activeTab,
+    activeTabId,
+    openTab,
+    drawer,
+    openDrawer,
+    closeDrawer,
+    darkMode,
+    toggleDarkMode,
+    sidebarOpen,
+    setSidebarOpen,
+  }), [activeTab, activeTabId, closeDrawer, darkMode, drawer, openDrawer, openTab, sidebarOpen, toggleDarkMode]);
 
   // Sync route changes with open tabs
   useEffect(() => {
@@ -154,6 +168,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     else if (type === "financeiro") title = "Financeiro";
     else if (type === "estoque") title = "Estoque";
     else if (type === "servicos") title = "Serviços";
+    else if (type === "prestadores") title = "Prestadores";
     else if (type === "teia") title = "Teia de Dados";
     else if (type === "agenda") title = "Agenda";
     else if (type === "contratos") title = "Contratos";
@@ -185,18 +200,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <WorkspaceContext.Provider
-      value={{
-        activeTab,
-        activeTabId,
-        openTab,
-        drawer,
-        openDrawer,
-        closeDrawer,
-        darkMode,
-        toggleDarkMode,
-        sidebarOpen,
-        setSidebarOpen
-      }}
+      value={workspaceValue}
     >
       {children}
     </WorkspaceContext.Provider>

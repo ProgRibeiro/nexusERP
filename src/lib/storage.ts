@@ -5,7 +5,11 @@ import path from "path";
 import { logger } from "./logger";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "public", "uploads");
-const PUBLIC_URL_PREFIX = "/uploads";
+// Arquivos criados depois do `next build` não entram no manifesto estático do
+// Next e, por isso, `/uploads/...` podia responder 404 apesar de o arquivo
+// existir no disco. A rota de API lê o diretório em tempo de execução.
+const PUBLIC_URL_PREFIX = "/api/uploads";
+const LEGACY_PUBLIC_URL_PREFIX = "/uploads";
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const MIME_TO_EXT: Record<string, string> = {
@@ -91,8 +95,10 @@ export async function deleteUploadedAsset(url: string | null | undefined): Promi
     return;
   }
 
-  if (!url.startsWith(`${PUBLIC_URL_PREFIX}/`)) return;
-  const fileName = url.slice(PUBLIC_URL_PREFIX.length + 1);
+  const localPrefix = [PUBLIC_URL_PREFIX, LEGACY_PUBLIC_URL_PREFIX]
+    .find((prefix) => url.startsWith(`${prefix}/`));
+  if (!localPrefix) return;
+  const fileName = url.slice(localPrefix.length + 1);
   if (!/^[a-zA-Z0-9_-]+\.[a-z0-9]+$/.test(fileName)) return;
   try {
     await fs.unlink(path.join(UPLOADS_DIR, fileName));

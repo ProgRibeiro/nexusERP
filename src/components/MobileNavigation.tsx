@@ -17,7 +17,7 @@ export default function MobileNavigation() {
   ];
 
   return (
-    <nav className="fixed inset-x-2 bottom-2 z-40 rounded-[22px] border border-white/80 bg-white/90 px-2 pb-[max(.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_18px_48px_rgba(15,23,42,.20)] ring-1 ring-slate-950/5 backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/90 dark:ring-white/5 xl:hidden print:hidden" aria-label="Navegação principal móvel">
+    <nav className="fixed inset-x-2 bottom-2 z-40 rounded-[22px] border border-white/80 bg-white/95 px-2 pb-[max(.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_12px_32px_rgba(15,23,42,.18)] ring-1 ring-slate-950/5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/95 dark:ring-white/5 xl:inset-x-auto xl:left-[calc(50%+8.5rem)] xl:w-[min(36rem,calc(100vw-19rem))] xl:-translate-x-1/2 print:hidden" aria-label="Navegação rápida">
       <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
         {items.map((item) => {
           const Icon = item.icon;

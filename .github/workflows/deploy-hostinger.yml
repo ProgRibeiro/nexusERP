@@ -1,0 +1,30 @@
+name: Deploy Hostinger VPS
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/erp-beta-linux
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -Eeuo pipefail
+            APP_ROOT="${APP_ROOT:-/var/www/nexus-erp}"
+            REPO_DIR="${REPO_DIR:-$APP_ROOT/repo}"
+            cd "$REPO_DIR"
+            BRANCH="${DEPLOY_BRANCH:-agent/erp-beta-linux}"
+            APP_DOMAIN="${APP_DOMAIN:-erp.seudominio.com.br}"
+            APP_BASE_URL="${APP_BASE_URL:-https://$APP_DOMAIN}"
+            export APP_ROOT REPO_DIR BRANCH APP_DOMAIN APP_BASE_URL
+            bash deploy/hostinger/deploy-hostinger-bluegreen.sh

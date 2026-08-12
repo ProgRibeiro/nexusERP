@@ -161,22 +161,30 @@ export async function receivePayment(data: {
       throw new Error(`O valor recebido (R$ ${data.receivedValue}) não pode ser maior que o saldo pendente (R$ ${rec.pendingValue}).`);
     }
 
-    const newReceived = Number(rec.receivedValue) + data.receivedValue;
-    const newPending = Number(rec.pendingValue) - data.receivedValue;
-    const newStatus = newPending <= 0.01 ? "PAGO" : "PARCIAL";
-
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Atualiza a Conta a Receber
-      const updatedRec = await tx.accountsReceivable.update({
-        where: { id: data.receivableId },
+      // A baixa precisa ser atomica: duas requisicoes simultaneas nao podem
+      // consumir o mesmo saldo pendente.
+      const claimed = await tx.accountsReceivable.updateMany({
+        where: {
+          id: data.receivableId,
+          pendingValue: { gte: data.receivedValue },
+          status: { not: "PAGO" },
+        },
         data: {
-          receivedValue: newReceived,
-          pendingValue: newPending,
-          status: newStatus,
-          paymentDate: newStatus === "PAGO" ? new Date() : null,
+          receivedValue: { increment: data.receivedValue },
+          pendingValue: { decrement: data.receivedValue },
           paymentMethod: data.paymentMethod,
           bankAccountId: data.bankAccountId,
         },
+      });
+      if (claimed.count !== 1) throw new Error("Esta cobrança já foi liquidada ou teve o saldo alterado por outro usuário.");
+
+      const claimedRec = await tx.accountsReceivable.findUniqueOrThrow({ where: { id: data.receivableId } });
+      const newPending = Number(claimedRec.pendingValue);
+      const newStatus = newPending <= 0.01 ? "PAGO" : "PARCIAL";
+      const updatedRec = await tx.accountsReceivable.update({
+        where: { id: data.receivableId },
+        data: { status: newStatus, paymentDate: newStatus === "PAGO" ? new Date() : null },
       });
 
       // 2. Lança a Transação de Caixa
@@ -194,13 +202,10 @@ export async function receivePayment(data: {
       });
 
       // 3. Atualiza o saldo da conta bancária
-      const bank = await tx.bankAccount.findUnique({ where: { id: data.bankAccountId } });
-      if (bank) {
-        await tx.bankAccount.update({
-          where: { id: data.bankAccountId },
-          data: { balance: Number(bank.balance) + data.receivedValue },
-        });
-      }
+      await tx.bankAccount.update({
+        where: { id: data.bankAccountId },
+        data: { balance: { increment: data.receivedValue } },
+      });
 
       return { updatedRec, transaction };
     });
@@ -214,8 +219,8 @@ export async function receivePayment(data: {
         entityId: data.receivableId,
         changesJson: JSON.stringify({
           received: data.receivedValue,
-          status: newStatus,
-          pending: newPending,
+          status: result.updatedRec.status,
+          pending: result.updatedRec.pendingValue,
         }),
       },
     });
@@ -252,15 +257,17 @@ export async function payBill(data: {
     if (pay.status === "PAGO") throw new Error("Esta conta já está paga.");
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Atualizar conta a pagar
-      const updatedPay = await tx.accountsPayable.update({
-        where: { id: data.payableId },
+      // Reserva atomica da conta para impedir dois pagamentos simultaneos.
+      const claimed = await tx.accountsPayable.updateMany({
+        where: { id: data.payableId, status: { not: "PAGO" } },
         data: {
           status: "PAGO",
           paymentDate: new Date(),
           paymentMethod: data.paymentMethod,
         },
       });
+      if (claimed.count !== 1) throw new Error("Esta conta já foi paga ou está sendo processada por outro usuário.");
+      const updatedPay = await tx.accountsPayable.findUniqueOrThrow({ where: { id: data.payableId } });
 
       // 2. Lançar transação de despesa
       const transaction = await tx.financialTransaction.create({
@@ -277,13 +284,10 @@ export async function payBill(data: {
       });
 
       // 3. Atualizar saldo da conta bancária (subtrair)
-      const bank = await tx.bankAccount.findUnique({ where: { id: data.bankAccountId } });
-      if (bank) {
-        await tx.bankAccount.update({
-          where: { id: data.bankAccountId },
-          data: { balance: Number(bank.balance) - Number(pay.value) },
-        });
-      }
+      await tx.bankAccount.update({
+        where: { id: data.bankAccountId },
+        data: { balance: { decrement: pay.value } },
+      });
 
       return { updatedPay, transaction };
     });

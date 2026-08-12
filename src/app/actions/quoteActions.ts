@@ -11,16 +11,21 @@ import { calculateProposalTax } from "@/lib/tax";
 import { loadTaxProfile } from "@/lib/taxProfile";
 import { nextServiceOrderCode } from "@/lib/sequences";
 import { createInitialVisit } from "@/lib/visits";
+import { getServiceChecklistTemplate, inferServiceModality } from "@/lib/serviceChecklistTemplates";
 
 export interface QuoteItemInput {
-  type: string; // SERVICO, PRODUTO, MAO_DE_OBRA, DESLOCAMENTO, IMPOSTO
+  type: string; // SERVICO, TERCEIRIZADO, PRODUTO, PECAS, MAO_DE_OBRA, DESLOCAMENTO, IMPOSTO
   description: string;
   quantity: number;
   unit: string;
   unitPrice: number;
   costPrice: number;
+  markupPercentage?: number;
+  supplierId?: string;
   discount: number;
 }
+
+const roundCurrency = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
 async function resolveClientRelations(clientId: string, addressId?: string, contactId?: string) {
   const client = await prisma.client.findUnique({
@@ -83,7 +88,7 @@ export async function getQuotes(search?: string) {
       clientId: q.clientId,
       clientName: q.client.name,
       status: q.status,
-      total: q.total,
+      total: Number(q.total),
       validUntil: q.validUntil,
       version: q.version,
       createdAt: q.createdAt,
@@ -117,7 +122,25 @@ export async function getQuoteDetails(id: string) {
       },
     });
 
-    return quote;
+    if (!quote) return null;
+
+    return {
+      ...quote,
+      subtotal: Number(quote.subtotal),
+      discount: Number(quote.discount),
+      tax: Number(quote.tax),
+      total: Number(quote.total),
+      costEstimate: Number(quote.costEstimate),
+      estimatedMargin: Number(quote.estimatedMargin),
+      items: quote.items.map((item) => ({
+        ...item,
+        unitPrice: Number(item.unitPrice),
+        costPrice: Number(item.costPrice),
+        markupPercentage: Number(item.markupPercentage),
+        discount: Number(item.discount),
+        total: Number(item.total),
+      })),
+    };
   } catch (error) {
     logger.error(`Erro ao obter orçamento ${id}:`, error);
     return null;
@@ -139,6 +162,7 @@ export async function createQuote(
     notes?: string;
     discount?: number;
     tax?: number;
+    finalValueOverride?: number | null;
   },
   items: QuoteItemInput[],
   userId: string
@@ -162,7 +186,11 @@ export async function createQuote(
 
     const itemsData = [];
     for (const item of items) {
-      const itemSubtotal = item.quantity * item.unitPrice;
+      const markupPercentage = item.type === "TERCEIRIZADO" ? Number(item.markupPercentage || 0) : 0;
+      const unitPrice = item.type === "TERCEIRIZADO"
+        ? roundCurrency(item.costPrice * (1 + (markupPercentage / 100)))
+        : item.unitPrice;
+      const itemSubtotal = item.quantity * unitPrice;
       const itemDiscount = item.quantity * item.discount;
       const itemTotal = itemSubtotal - itemDiscount;
 
@@ -174,8 +202,10 @@ export async function createQuote(
         description: item.description,
         quantity: item.quantity,
         unit: item.unit,
-        unitPrice: item.unitPrice,
+        unitPrice,
         costPrice: item.costPrice,
+        markupPercentage,
+        supplierId: item.type === "TERCEIRIZADO" ? item.supplierId || null : null,
         discount: item.discount,
         total: itemTotal,
       });
@@ -190,7 +220,7 @@ export async function createQuote(
             await prisma.service.create({
               data: {
                 name: item.description,
-                defaultPrice: item.unitPrice,
+                defaultPrice: unitPrice,
               }
             });
           }
@@ -205,8 +235,8 @@ export async function createQuote(
                 code: `P-${String(prodCount + 1).padStart(4, "0")}`,
                 name: item.description,
                 type: "PECA",
-                salePrice: item.unitPrice,
-                costPrice: item.costPrice || (item.unitPrice * 0.6),
+                salePrice: unitPrice,
+                costPrice: item.costPrice || (unitPrice * 0.6),
                 unit: item.unit || "UN",
                 stockQuantity: 0,
               }
@@ -222,7 +252,9 @@ export async function createQuote(
     const taxProfile = await loadTaxProfile();
     const calculation = calculateProposalTax(subtotal, discount, taxProfile.rate);
     const tax = calculation.tax;
-    const total = calculation.total;
+    const finalValueOverride = data.finalValueOverride == null ? null : roundCurrency(Number(data.finalValueOverride));
+    if (finalValueOverride !== null && finalValueOverride <= 0) throw new Error("O valor final personalizado deve ser maior que zero.");
+    const total = finalValueOverride ?? calculation.total;
     const estimatedMargin = total - costEstimate;
 
     const quote = await prisma.quote.create({
@@ -241,6 +273,7 @@ export async function createQuote(
         discount,
         tax,
         total,
+        finalValueOverride,
         costEstimate,
         estimatedMargin,
         items: {
@@ -380,13 +413,16 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
     // Validações obrigatórias
     if (!relations.addressId) throw new Error("O cliente precisa possuir um endereço cadastrado para gerar a OS.");
     if (quote.items.length === 0) throw new Error("O orçamento precisa conter pelo menos um item faturável.");
+    const unassignedProviderItem = quote.items.find((item) => item.type === "TERCEIRIZADO" && !item.supplierId);
+    if (unassignedProviderItem) throw new Error(`Selecione o prestador responsável por: ${unassignedProviderItem.description}.`);
 
     // Determinar o tipo de OS com base no tipo de serviço mais frequente ou padrão
-    const services = quote.items.filter((item) => item.type === "SERVICO");
-    const products = quote.items.filter((item) => item.type === "PRODUTO");
+    const services = quote.items.filter((item) => item.type === "SERVICO" || item.type === "TERCEIRIZADO");
+    const products = quote.items.filter((item) => item.type === "PRODUTO" || item.type === "PECAS");
 
     const hasInstallation = services.some((s) => s.description.toLowerCase().includes("instalação") || s.description.toLowerCase().includes("instalacao"));
     const osType = quote.proposalType === "PREVENTIVA" ? "PREVENTIVA" : hasInstallation ? "INSTALACAO" : "CORRETIVA";
+    const serviceCategory = inferServiceModality(quote.items.map((item) => `${item.description} ${item.type}`).join(" "));
     let preventiveChecklist: Array<{ id: string; label: string; group?: string; checked: boolean }> = [];
     if (quote.proposalType === "PREVENTIVA" && quote.preventivePlanJson) {
       try {
@@ -410,7 +446,8 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
           status: "CRIADA",
           priority: "MEDIA",
           type: osType,
-          checklistJson: JSON.stringify(preventiveChecklist),
+          serviceCategory,
+          checklistJson: JSON.stringify(preventiveChecklist.length ? preventiveChecklist : getServiceChecklistTemplate(serviceCategory)),
           problemReported: `Serviço gerado a partir do Orçamento ${quote.code}.\n\nItens vendidos:\n${quote.items
             .map((i) => `- ${i.description} (${i.quantity}x)`)
             .join("\n")}\n\nObservações gerais: ${quote.notes || "Sem observações."}`,
@@ -440,6 +477,23 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
     if (osItems.length > 0) {
       await prisma.serviceOrderItem.createMany({
         data: osItems,
+      });
+    }
+
+    const outsourcedItems = quote.items.filter((item) => item.type === "TERCEIRIZADO" && item.supplierId);
+    if (outsourcedItems.length > 0) {
+      await prisma.providerJob.createMany({
+        data: outsourcedItems.map((item) => ({
+          supplierId: item.supplierId!,
+          quoteId: quote.id,
+          quoteItemId: item.id,
+          serviceOrderId: os.id,
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit,
+          costValue: Number(item.costPrice) * item.quantity,
+          saleValue: Number(item.total),
+        })),
       });
     }
 
@@ -752,6 +806,7 @@ export async function updateQuote(
     notes?: string;
     discount?: number;
     tax?: number;
+    finalValueOverride?: number | null;
   },
   items: QuoteItemInput[],
   userId: string
@@ -769,7 +824,11 @@ export async function updateQuote(
     let costEstimate = 0;
     const itemsData: any[] = [];
     for (const item of items) {
-      const itemSubtotal = item.quantity * item.unitPrice;
+      const markupPercentage = item.type === "TERCEIRIZADO" ? Number(item.markupPercentage || 0) : 0;
+      const unitPrice = item.type === "TERCEIRIZADO"
+        ? roundCurrency(item.costPrice * (1 + (markupPercentage / 100)))
+        : item.unitPrice;
+      const itemSubtotal = item.quantity * unitPrice;
       const itemDiscount = item.quantity * (item.discount || 0);
       const itemTotal = itemSubtotal - itemDiscount;
 
@@ -781,8 +840,10 @@ export async function updateQuote(
         description: item.description,
         quantity: item.quantity,
         unit: item.unit || "UN",
-        unitPrice: item.unitPrice,
+        unitPrice,
         costPrice: item.costPrice || 0.0,
+        markupPercentage,
+        supplierId: item.type === "TERCEIRIZADO" ? item.supplierId || null : null,
         discount: item.discount || 0.0,
         total: itemTotal
       });
@@ -792,7 +853,9 @@ export async function updateQuote(
     const taxProfile = await loadTaxProfile();
     const calculation = calculateProposalTax(subtotal, discount, taxProfile.rate);
     const tax = calculation.tax;
-    const total = calculation.total;
+    const finalValueOverride = data.finalValueOverride == null ? null : roundCurrency(Number(data.finalValueOverride));
+    if (finalValueOverride !== null && finalValueOverride <= 0) throw new Error("O valor final personalizado deve ser maior que zero.");
+    const total = finalValueOverride ?? calculation.total;
 
     // Deletar os itens antigos e criar os novos em uma transação do Prisma
     const quote = await prisma.$transaction(async (tx) => {
@@ -805,9 +868,9 @@ export async function updateQuote(
       const updated = await tx.quote.update({
         where: { id: quoteId },
         data: {
-          clientId: data.clientId,
-          addressId: relations.addressId || null,
-          contactId: relations.contactId || null,
+          client: { connect: { id: data.clientId } },
+          address: relations.addressId ? { connect: { id: relations.addressId } } : { disconnect: true },
+          contact: relations.contactId ? { connect: { id: relations.contactId } } : { disconnect: true },
           validUntil,
           warrantyDays: data.warrantyDays || 90,
           executionTerm: data.executionTerm,
@@ -816,7 +879,9 @@ export async function updateQuote(
           discount,
           tax,
           total,
+          finalValueOverride,
           costEstimate,
+          estimatedMargin: total - costEstimate,
           notes: data.notes,
           items: {
             create: itemsData

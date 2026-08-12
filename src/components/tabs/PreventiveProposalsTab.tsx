@@ -92,11 +92,11 @@ function initialForm(): PreventiveProposalInput {
 
 function SectionTitle({ number, title, description }: { number: number; title: string; description: string }) {
   return (
-    <div className="flex items-start gap-3 border-b border-zinc-100 pb-4 dark:border-zinc-800">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">{number}</span>
+    <div className="flex items-start gap-3 border-b border-[#d4af37]/15 pb-4">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d4af37] text-xs font-black text-[#0b0c0e]">{number}</span>
       <div>
-        <h2 className="text-sm font-black text-zinc-900 dark:text-zinc-100">{title}</h2>
-        <p className="mt-0.5 text-xs text-zinc-500">{description}</p>
+        <h2 className="text-sm font-black text-white">{title}</h2>
+        <p className="mt-0.5 text-xs text-[#aaa69d]">{description}</p>
       </div>
     </div>
   );
@@ -288,18 +288,19 @@ export default function PreventiveProposalsTab() {
 
   return (
     <div className="space-y-5 pb-12">
-      <header className="print:hidden flex flex-col gap-4 rounded-2xl bg-gradient-to-br from-slate-950 via-blue-950 to-blue-800 p-5 text-white shadow-lg sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+      <header className="print:hidden relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-[#d4af37]/25 bg-[#090a0c] p-5 text-white shadow-[0_22px_55px_rgba(0,0,0,.38)] sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+        <span className="pointer-events-none absolute -bottom-24 -right-12 h-56 w-56 rounded-full border border-[#d4af37]/35" />
         <div className="flex items-start gap-4">
-          <div className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/15"><ClipboardCheck size={24} /></div>
+          <div className="rounded-2xl bg-[#d4af37]/10 p-3 text-[#e3bd50] ring-1 ring-[#d4af37]/25"><ClipboardCheck size={24} /></div>
           <div>
-            <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-blue-200"><Sparkles size={12} /> Operação recorrente</div>
+            <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#d4af37]"><Sparkles size={12} /> Operação recorrente</div>
             <h1 className="text-xl font-black sm:text-2xl">Central de manutenção preventiva</h1>
-            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-blue-100/80 sm:text-sm">Escolha a loja, acompanhe contratos, organize projetos e mapeie todo o patrimônio técnico em uma planta 2D.</p>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#b9b6af] sm:text-sm">Escolha a loja, acompanhe contratos, organize projetos e mapeie todo o patrimônio técnico em uma planta 2D.</p>
           </div>
         </div>
-        <div className="flex rounded-xl bg-black/20 p-1 ring-1 ring-white/10">
-          <button type="button" onClick={() => setView("builder")} className={`rounded-lg px-4 py-2 text-xs font-bold transition ${view === "builder" ? "bg-white text-blue-900 shadow" : "text-blue-100 hover:bg-white/10"}`}>Nova proposta</button>
-          <button type="button" onClick={() => setView("history")} className={`rounded-lg px-4 py-2 text-xs font-bold transition ${view === "history" ? "bg-white text-blue-900 shadow" : "text-blue-100 hover:bg-white/10"}`}>Histórico ({proposals.length})</button>
+        <div className="relative flex rounded-xl bg-[#151619] p-1 ring-1 ring-[#d4af37]/20">
+          <button type="button" onClick={() => setView("builder")} className={`rounded-lg px-4 py-2 text-xs font-bold transition ${view === "builder" ? "bg-[#d4af37] text-[#0b0c0e] shadow" : "text-zinc-300 hover:bg-white/[.06] hover:text-white"}`}>Nova proposta</button>
+          <button type="button" onClick={() => setView("history")} className={`rounded-lg px-4 py-2 text-xs font-bold transition ${view === "history" ? "bg-[#d4af37] text-[#0b0c0e] shadow" : "text-zinc-300 hover:bg-white/[.06] hover:text-white"}`}>Histórico ({proposals.length})</button>
         </div>
       </header>
 
@@ -329,17 +330,17 @@ export default function PreventiveProposalsTab() {
       ) : (
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,0.75fr)]">
           <div className="print:hidden space-y-5">
-            <Card className="space-y-5">
+            <Card className="space-y-5 border-[#d4af37]/15 bg-[#111216] text-white dark:bg-[#111216]">
               <SectionTitle number={1} title="Escolha um modelo técnico" description="O modelo preenche escopo, entregas, inclusões e exclusões. Tudo continua editável." />
               <div className="grid gap-3 sm:grid-cols-2">
                 {preventiveTemplates.map((template) => {
                   const active = form.templateId === template.id;
                   return (
-                    <button key={template.id} type="button" onClick={() => applyTemplate(template.id)} className={`relative rounded-xl border p-4 text-left transition ${active ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 dark:bg-blue-950/30 dark:ring-blue-900" : "border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"}`}>
-                      {active && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white"><Check size={12} /></span>}
-                      <p className="pr-7 text-sm font-black text-zinc-900 dark:text-zinc-100">{template.name}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-zinc-500">{template.description}</p>
-                      <p className="mt-3 text-[10px] font-bold uppercase tracking-wide text-blue-600">{template.scope.length} atividades prontas</p>
+                    <button key={template.id} type="button" onClick={() => applyTemplate(template.id)} className={`relative rounded-xl border p-4 text-left transition ${active ? "border-[#d4af37] bg-[#d4af37]/10 ring-1 ring-[#d4af37]/35" : "border-white/10 bg-[#15171b] hover:border-[#d4af37]/35 hover:bg-[#191a1e]"}`}>
+                      {active && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#d4af37] text-[#0b0c0e]"><Check size={12} /></span>}
+                      <p className="pr-7 text-sm font-black text-white">{template.name}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-[#aaa69d]">{template.description}</p>
+                      <p className="mt-3 text-[10px] font-bold uppercase tracking-wide text-[#d4af37]">{template.scope.length} atividades prontas</p>
                     </button>
                   );
                 })}

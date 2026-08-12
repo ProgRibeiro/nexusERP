@@ -64,7 +64,7 @@ async function loginAsAdminForTests() {
 import { getClients, createClient, addClientContact, addClientAddress, addClientEquipment } from "../app/actions/clientActions";
 import { getCrmPipeline, createLead, moveLead, addCrmActivity, convertLeadToQuote } from "../app/actions/crmActions";
 import { getQuotes, createQuote, updateQuoteStatus, approveAndConvertQuote } from "../app/actions/quoteActions";
-import { getServiceOrders, scheduleServiceOrder, updateOSStatus } from "../app/actions/osActions";
+import { getServiceOrders, scheduleServiceOrder, updateOSStatus, saveOSCompletionReport } from "../app/actions/osActions";
 import { getTechnicianOS, makeOSCheckin, makeOSStartExecution, submitTechnicalExecution } from "../app/actions/executionActions";
 import { getBillingQueue, processBilling } from "../app/actions/billingActions";
 import { getReceivables, getPayables, getBankAccounts, getTransactions, createPayable, payBill, receivePayment } from "../app/actions/financialActions";
@@ -204,6 +204,7 @@ async function runSuite() {
   // 4. Proposta e Conversão em OS
   let quoteId = "";
   let serviceOrderId = "";
+  let serviceOrderCode = "";
   await test("Orçamentos e Conversão em OS", async () => {
     const admin = await getUserByEmail("admin@erp.com");
     if (!admin) throw new Error("Admin offline.");
@@ -255,6 +256,7 @@ async function runSuite() {
     const approveRes = await approveAndConvertQuote(quoteId, admin.id);
     if (!approveRes.success || !approveRes.os) throw new Error(approveRes.error || "Falha ao aprovar orçamento.");
     serviceOrderId = (approveRes.os as any).id;
+    serviceOrderCode = (approveRes.os as any).code;
     console.log(`  - Orçamento aprovado. OS gerada com ID: ${serviceOrderId}`);
   });
 
@@ -311,6 +313,17 @@ async function runSuite() {
 
   // 7. Faturamento Fiscal (NFS-e)
   await test("Faturamento Fiscal e Emissão de NFS-e", async () => {
+    const reviewRes = await saveOSCompletionReport(serviceOrderId, {
+      executedServices: "Limpeza preventiva, substituição de filtro e testes operacionais.",
+      technicalObservations: "Equipamento entregue em funcionamento normal.",
+      operationalResult: "OPERACIONAL",
+      clientRepresentative: "Gerente do Shopping",
+      approvedByClient: true,
+      sendToBilling: true,
+    });
+    if (!reviewRes.success) throw new Error(reviewRes.error || "Falha ao revisar e liberar o relatório.");
+    console.log("  - Relatório técnico revisado, aprovado e liberado para faturamento.");
+
     const billingQueue = await getBillingQueue();
     const itemInQueue = billingQueue.find((q) => q.id === serviceOrderId);
     if (!itemInQueue) throw new Error("OS finalizada não apareceu na fila de faturamento.");
@@ -337,7 +350,7 @@ async function runSuite() {
   await test("Financeiro e Extrato de Caixa", async () => {
     const receivables = await getReceivables();
     const invoiceReceivable = receivables.find(
-      (r) => (r.clientName.includes("Teste") || r.osCode) && r.pendingValue > 0
+      (r) => r.osCode === serviceOrderCode && r.pendingValue > 0
     );
     if (!invoiceReceivable) throw new Error("Parcela a receber do faturamento pendente não encontrada.");
     console.log(`  - Conta a receber localizada: ${invoiceReceivable.totalValue} (Pendente: ${invoiceReceivable.pendingValue})`);
@@ -348,6 +361,7 @@ async function runSuite() {
     const bankAccounts = await getBankAccounts();
     const bank = bankAccounts[0];
     if (!bank) throw new Error("Nenhuma conta bancária disponível.");
+    const transactionsBefore = await getTransactions();
 
     // Receber pagamento
     const payRes = await receivePayment({
@@ -383,6 +397,20 @@ async function runSuite() {
     });
     if (!spendRes.success) throw new Error(spendRes.error || "Falha ao pagar despesa.");
     console.log("  - Despesa paga e baixada do caixa.");
+
+    const transactionsAfter = await getTransactions();
+    if (transactionsAfter.length < transactionsBefore.length + 2) {
+      throw new Error("Recebimento e pagamento não geraram os dois lançamentos esperados no extrato.");
+    }
+    const settledReceivable = (await getReceivables()).find((item) => item.id === invoiceReceivable.id);
+    if (!settledReceivable || settledReceivable.pendingValue !== 0) {
+      throw new Error("A conta a receber permaneceu com saldo após a liquidação.");
+    }
+    const settledPayable = (await getPayables()).find((item) => item.id === payableId);
+    if (!settledPayable || settledPayable.status !== "PAGO") {
+      throw new Error("A conta a pagar não ficou marcada como paga.");
+    }
+    console.log("  - Extrato, baixa do recebível e liquidação do pagável conferidos.");
   });
 
   // 9. Estoque e Peças
