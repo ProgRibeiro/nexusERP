@@ -152,11 +152,18 @@ nginx -t
 systemctl daemon-reload
 systemctl enable --now nginx
 
-# Expõe somente SSH e o proxy web. PostgreSQL e os slots Node continuam
-# vinculados ao loopback e nunca devem ser liberados no firewall.
+# Expõe somente SSH (preservando regras locais pré-existentes ou CIDR específico) e Nginx Web.
+# PostgreSQL e os slots Node continuam vinculados ao loopback e nunca devem ser liberados no firewall.
 ufw default deny incoming
 ufw default allow outgoing
-ufw allow OpenSSH
+
+if [[ -n "${NEXUS_SSH_ALLOWED_CIDR:-}" ]]; then
+  ufw allow from "$NEXUS_SSH_ALLOWED_CIDR" to any port 22 proto tcp
+elif ufw status 2>/dev/null | grep -qE '22(/tcp)?.*ALLOW'; then
+  echo "Preservando regras SSH existentes do UFW..."
+else
+  ufw allow OpenSSH
+fi
 ufw allow 'Nginx Full'
 ufw --force enable
 
@@ -199,17 +206,21 @@ fi
 bash "$SOURCE/deploy/check-linux.sh"
 
 if [[ -n "$LETSENCRYPT_EMAIL" ]]; then
-  echo "Solicitando certificado HTTPS para $DOMAIN e $WWW_DOMAIN..."
+  echo "Solicitando certificado HTTPS..."
+  CERTBOT_DOMAINS=(-d "$DOMAIN")
+  if [[ "$WWW_DOMAIN" != "$DOMAIN" ]]; then
+    CERTBOT_DOMAINS+=(-d "$WWW_DOMAIN")
+  fi
   if certbot --nginx --non-interactive --agree-tos --redirect \
-      --email "$LETSENCRYPT_EMAIL" -d "$DOMAIN" -d "$WWW_DOMAIN"; then
+      --email "$LETSENCRYPT_EMAIL" "${CERTBOT_DOMAINS[@]}"; then
     certbot renew --dry-run || echo "AVISO: valide depois a renovação com: sudo certbot renew --dry-run" >&2
   else
-    echo "AVISO: SSL ainda não foi emitido. Confirme o DNS e execute:" >&2
-    echo "sudo certbot --nginx -d $DOMAIN -d $WWW_DOMAIN" >&2
+    echo "AVISO: SSL direto não foi emitido (ou você está utilizando Cloudflare Tunnel)." >&2
   fi
 else
-  echo "SSL não solicitado: informe LETSENCRYPT_EMAIL após o DNS estar propagado."
+  echo "SSL não solicitado (Cloudflare Tunnel atua na borda ou Let's Encrypt manual)."
 fi
+
 
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
