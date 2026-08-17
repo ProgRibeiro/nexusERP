@@ -31,6 +31,7 @@ import {
   HandCoins,
   Loader2,
   Package,
+  Plus,
   Receipt,
   RefreshCw,
   Search,
@@ -144,6 +145,7 @@ export default function DashboardTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [clientFilter, setClientFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
@@ -508,6 +510,25 @@ export default function DashboardTab() {
         )}
       </section>
 
+      <section className="grid gap-3 md:grid-cols-3">
+        {[
+          { title: "Novo cliente", helper: "Cadastre em poucos passos", icon: Users, color: "bg-blue-500", run: () => openTab("clientes", "Novo cliente", { new: "true", requestId: String(Date.now()) }) },
+          { title: "Novo orçamento", helper: "Monte e envie uma proposta", icon: FileText, color: "bg-[#d4af37] text-black", run: () => openTab("orcamentos", "Novo orçamento", { new: "true", requestId: String(Date.now()) }) },
+          { title: "Novo serviço", helper: "Abra uma ordem de serviço", icon: Wrench, color: "bg-emerald-500", run: () => openTab("ordens-servico", "Novo serviço", { new: "true", requestId: String(Date.now()) }) },
+        ].map((action) => <button key={action.title} onClick={action.run} className={`${panel} group flex min-h-28 items-center gap-4 p-4 text-left transition hover:-translate-y-0.5 hover:border-[#d4af37]/50`}><span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg ${action.color}`}><action.icon size={21}/></span><span className="min-w-0 flex-1"><strong className="block text-sm font-black">{action.title}</strong><span className="mt-1 block text-[10px] text-zinc-500">{action.helper}</span></span><Plus size={18} className="text-zinc-500 transition group-hover:text-[#d4af37]"/></button>)}
+      </section>
+
+      <section className={`${panel} p-5`}>
+        <div className="mb-4 flex items-center justify-between"><div><h3 className="font-black">O que precisa de atenção</h3><p className="text-xs text-zinc-500">Somente as prioridades mais importantes de hoje.</p></div><span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-black text-red-600 dark:bg-red-950/30">{pendencias.reduce((sum, item) => sum + item.value, 0)}</span></div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{pendencias.filter((item) => item.value > 0).slice(0,4).map((item) => <button key={item.label} onClick={() => navigate(item.link,item.label)} className="flex items-center gap-3 rounded-xl border border-zinc-100 p-3 text-left transition hover:border-[#d4af37]/45 dark:border-white/[.06]"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.danger ? tones.red : tones.slate}`}><item.icon size={16}/></span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{item.label}</span><span className="text-[10px] text-zinc-500">{item.action}</span></span><strong>{item.value}</strong></button>)}</div>
+        {!pendencias.some((item) => item.value > 0) && <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 p-4 text-sm font-bold text-emerald-500"><CheckCircle2 size={19}/> Tudo em dia. Nenhuma pendência crítica.</div>}
+      </section>
+
+      <button type="button" onClick={() => setShowAdvanced((value) => !value)} className="mx-auto flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/70 px-5 py-3 text-xs font-bold text-zinc-600 transition hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/[.03] dark:text-zinc-400">
+        <BarChart3 size={15}/>{showAdvanced ? "Ocultar indicadores completos" : "Ver indicadores e relatórios completos"}<ChevronRight size={14} className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}/>
+      </button>
+
+      {showAdvanced && <>
       <section>
         <div className="mb-3 flex items-end justify-between">
           <div>
@@ -1092,6 +1113,7 @@ export default function DashboardTab() {
           </div>
         </section>
       </div>
+      </>}
     </div>
   );
 }

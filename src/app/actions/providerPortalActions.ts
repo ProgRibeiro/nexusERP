@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db";
 import { decryptSession, encryptSession, SESSION_MAX_AGE_SECONDS } from "@/lib/session";
+import { assertLoginAllowed, clearLoginFailures, registerLoginFailure } from "@/lib/loginThrottle";
 
 const COOKIE = "nx_provider_session";
 const cleanDocument = (value: string) => value.replace(/\D/g, "");
@@ -65,10 +66,13 @@ export async function registerProviderPortal(data: { name: string; document: str
 }
 
 export async function loginProviderPortal(email: string, password: string) {
+  try { await assertLoginAllowed(`provider:${email}`); } catch (error) { return { success:false,error:error instanceof Error?error.message:"Acesso temporariamente bloqueado." }; }
   const provider = await prisma.supplier.findUnique({ where: { portalEmail: email.trim().toLowerCase() } });
   if (!provider || !provider.portalActive || !provider.portalPassword || !provider.portalSalt || !matches(password, provider.portalSalt, provider.portalPassword)) {
+    await registerLoginFailure(`provider:${email}`);
     return { success: false, error: "E-mail ou senha inválidos." };
   }
+  await clearLoginFailures(`provider:${email}`);
   await setProviderSession(provider);
   return { success: true };
 }

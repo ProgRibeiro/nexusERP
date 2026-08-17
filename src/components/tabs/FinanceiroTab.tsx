@@ -45,6 +45,7 @@ import {
   HandCoins,
 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
+import { calculateSimples, SimplesAnnex } from "@/lib/simplesNacional";
 
 interface FinanceiroTabProps {
   defaultTab?: string;
@@ -67,6 +68,7 @@ export default function FinanceiroTab({
   const { openTab } = useWorkspace();
   const { toast } = useToast();
   const [insights, setInsights] = useState<Insight[]>([]);
+  const [simplesAnnex, setSimplesAnnex] = useState<SimplesAnnex>("III");
 
   const [activeSubTab, setActiveSubTab] = useState<
     "visao" | "receber" | "pagar" | "extrato" | "dre"
@@ -367,6 +369,13 @@ export default function FinanceiroTab({
     .filter((p) => ["ABERTO", "PENDENTE", "VENCIDO"].includes(p.status))
     .reduce((acc, p) => acc + p.value, 0);
   const overdueCount = receivables.filter((r) => r.status === "VENCIDO").length;
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+  const rbt12 = receivables.filter((r) => new Date(r.issueDate) >= twelveMonthsAgo && r.status !== "CANCELADO").reduce((sum, r) => sum + r.totalValue, 0);
+  const currentMonthRevenue = receivables.filter((r) => { const d = new Date(r.issueDate); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && r.status !== "CANCELADO"; }).reduce((sum, r) => sum + r.totalValue, 0);
+  const payroll12 = payables.filter((p) => new Date(p.dueDate) >= twelveMonthsAgo && p.category === "FOLHA" && p.status !== "CANCELADO").reduce((sum, p) => sum + p.value, 0);
+  const factorR = rbt12 > 0 ? payroll12 / rbt12 : 0;
+  const simples = calculateSimples(rbt12, currentMonthRevenue, simplesAnnex);
 
   return (
     <div className="financeiro-tab space-y-6 select-none animate-in fade-in duration-200">
@@ -452,10 +461,21 @@ export default function FinanceiroTab({
         </Card>
       </div>
 
+      <Card className="overflow-hidden p-0 shadow-premium">
+        <div className="flex flex-col gap-4 border-b border-zinc-200 bg-gradient-to-r from-emerald-50 to-white p-5 dark:border-zinc-800 dark:from-emerald-950/20 dark:to-zinc-900 md:flex-row md:items-center md:justify-between">
+          <div><p className="text-sm font-black">Evolução do Simples Nacional</p><p className="mt-1 text-[11px] text-zinc-500">Estimativa pelo faturamento acumulado dos últimos 12 meses e pelo anexo selecionado.</p></div>
+          <Select label="Anexo de tributação" value={simplesAnnex} onChange={(e)=>setSimplesAnnex(e.target.value as SimplesAnnex)} options={[{value:"III",label:"Anexo III — serviços"},{value:"IV",label:"Anexo IV — serviços/obras"},{value:"V",label:"Anexo V — serviços profissionais"}]}/>
+        </div>
+        <div className="grid grid-cols-2 gap-px bg-zinc-200 dark:bg-zinc-800 md:grid-cols-6">
+          {[['RBT12',formatCurrency(rbt12)],['Faixa',`${simples.bracket}ª faixa`],['Alíquota nominal',`${simples.nominalRate.toFixed(2)}%`],['Parcela a deduzir',formatCurrency(simples.deduction)],['Alíquota efetiva',`${simples.effectiveRate.toFixed(2)}%`],['DAS estimado no mês',formatCurrency(simples.taxEstimate)]].map(([label,value])=><div key={label} className="bg-white p-4 dark:bg-zinc-900"><span className="text-[9px] font-bold uppercase text-zinc-400">{label}</span><strong className="mt-1 block text-sm">{value}</strong></div>)}
+        </div>
+        <div className="space-y-3 p-5"><div className="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-emerald-500" style={{width:`${Math.min(100,(rbt12/simples.limit)*100)}%`}}/></div><div className="flex flex-wrap justify-between gap-2 text-[10px] text-zinc-500"><span>{formatCurrency(simples.remaining)} até a próxima faixa</span><span>Fator R: {(factorR*100).toFixed(2)}% {factorR >= .28 ? '· pode enquadrar no Anexo III, conforme atividade' : '· abaixo de 28%; algumas atividades ficam no Anexo V'}</span></div>{simples.exceeded&&<p className="rounded-lg bg-red-50 p-3 text-xs font-bold text-red-600">RBT12 acima de R$ 4,8 milhões: possível desenquadramento do Simples. Confirme imediatamente com a contabilidade.</p>}<p className="text-[10px] leading-relaxed text-zinc-400">Estimativa gerencial. O anexo depende do CNAE, natureza do serviço, fator R, retenções e regras vigentes; confira o PGDAS-D e seu contador antes do recolhimento.</p></div>
+      </Card>
+
       {/* Main Tabs Container */}
       <Card className="p-0 overflow-hidden shadow-premium">
         {/* Tab switch */}
-        <div className="border-b border-zinc-150 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30 px-6 py-2 flex gap-1 overflow-x-auto scrollbar-none">
+        <div className="hidden">
           {[
             { id: "visao", label: "Visão Geral" },
             { id: "receber", label: "Contas a Receber" },
@@ -486,7 +506,7 @@ export default function FinanceiroTab({
           ) : (
             <>
               {/* Visão Geral */}
-              {activeSubTab === "visao" && (
+              {true && (
                 <div className="space-y-6">
                   {/* Bank Accounts */}
                   <div>
@@ -584,7 +604,7 @@ export default function FinanceiroTab({
               )}
 
               {/* Contas a Receber */}
-              {activeSubTab === "receber" && (
+              {true && (
                 <div className="space-y-4">
                   {receivables.length === 0 ? (
                     <p className="text-xs text-zinc-400 text-center py-6">
@@ -667,7 +687,7 @@ export default function FinanceiroTab({
               )}
 
               {/* Contas a Pagar */}
-              {activeSubTab === "pagar" && (
+              {true && (
                 <div className="space-y-4">
                   {payables.length === 0 ? (
                     <p className="text-xs text-zinc-400 text-center py-6">
@@ -752,7 +772,7 @@ export default function FinanceiroTab({
               )}
 
               {/* Extrato Completo */}
-              {activeSubTab === "extrato" && (
+              {true && (
                 <div className="space-y-4">
                   {transactions.length === 0 ? (
                     <p className="text-xs text-zinc-400 text-center py-6">
@@ -808,7 +828,7 @@ export default function FinanceiroTab({
               )}
 
               {/* DRE Gerencial */}
-              {activeSubTab === "dre" && (
+              {true && (
                 <div className="space-y-4">
                   <div className="bg-zinc-50 dark:bg-zinc-800/20 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs leading-relaxed text-zinc-500 dark:text-zinc-455">
                     <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1">

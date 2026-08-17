@@ -90,6 +90,7 @@ export default function OrdensServicoTab({
   const [createMode, setCreateMode] = useState<"OPERACIONAL" | "RAPIDO">(
     "OPERACIONAL",
   );
+  const [showAdvancedFields, setShowAdvancedFields] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<any[]>([]);
@@ -119,10 +120,7 @@ export default function OrdensServicoTab({
     if (!isCreateOpen) return;
     getClients().then((list) => {
       setClients(list);
-      setForm((current) => ({
-        ...current,
-        clientId: current.clientId || list[0]?.id || "",
-      }));
+      setForm((current) => ({ ...current, clientId: current.clientId }));
     });
   }, [isCreateOpen]);
 
@@ -499,6 +497,7 @@ export default function OrdensServicoTab({
                     variant="secondary"
                     onClick={() => {
                       setCreateMode("RAPIDO");
+                      setShowAdvancedFields(false);
                       setIsCreateOpen(true);
                     }}
                     className="h-11 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300"
@@ -508,6 +507,7 @@ export default function OrdensServicoTab({
                   <Button
                     onClick={() => {
                       setCreateMode("OPERACIONAL");
+                      setShowAdvancedFields(false);
                       setIsCreateOpen(true);
                     }}
                     className="h-11"
@@ -978,7 +978,7 @@ export default function OrdensServicoTab({
         title={
           createMode === "RAPIDO"
             ? "Registrar Atendimento Rápido"
-            : "Nova Ordem de Serviço"
+            : "Nova OS rápida"
         }
         size="lg"
       >
@@ -996,11 +996,7 @@ export default function OrdensServicoTab({
                 </span>
               </span>
             ) : (
-              <>
-                A OS manual será criada como{" "}
-                <strong>aguardando agendamento</strong>. Depois você define
-                data, horário e equipe técnica.
-              </>
+              <span className="flex items-start gap-2"><Zap size={16} className="mt-0.5 shrink-0"/><span>Escolha o cliente, confirme o endereço e descreva o serviço. A OS será criada como <strong>aguardando agendamento</strong>.</span></span>
             )}
           </div>
           <Select
@@ -1020,7 +1016,7 @@ export default function OrdensServicoTab({
               label: `${client.name} · ${client.cpfCnpj || "Sem documento"}`,
             }))}
           />
-          {createMode === "OPERACIONAL" && (
+          {createMode === "OPERACIONAL" && showAdvancedFields && (
             <div className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50/80 to-blue-50/80 p-4 dark:border-indigo-950 dark:from-indigo-950/20 dark:to-blue-950/20">
               <div className="mb-3 flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white">
@@ -1116,7 +1112,7 @@ export default function OrdensServicoTab({
                   ]
             }
           />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {(createMode === "RAPIDO" || showAdvancedFields) && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select
               label="Tipo de serviço *"
               value={form.type}
@@ -1147,8 +1143,8 @@ export default function OrdensServicoTab({
                 { value: "URGENTE", label: "Urgente" },
               ]}
             />
-          </div>
-          <div className="rounded-2xl border border-teal-100 bg-teal-50/60 p-4 dark:border-teal-950 dark:bg-teal-950/20">
+          </div>}
+          {(createMode === "RAPIDO" || showAdvancedFields) && <div className="rounded-2xl border border-teal-100 bg-teal-50/60 p-4 dark:border-teal-950 dark:bg-teal-950/20">
             <Select
               label="Modalidade técnica *"
               value={form.serviceCategory}
@@ -1177,8 +1173,8 @@ export default function OrdensServicoTab({
                   : `${getServiceChecklistTemplate(form.serviceCategory).length} verificações`}
               </span>
             </div>
-          </div>
-          <Select
+          </div>}
+          {(createMode === "RAPIDO" || showAdvancedFields) && <Select
             label="Contato responsável (opcional)"
             value={form.contactId}
             onChange={(e) =>
@@ -1191,7 +1187,7 @@ export default function OrdensServicoTab({
                 label: `${contact.name} · ${contact.phone}`,
               })),
             ]}
-          />
+          />}
           <Textarea
             label={
               createMode === "RAPIDO"
@@ -1258,13 +1254,14 @@ export default function OrdensServicoTab({
               </div>
             </>
           )}
-          <Input
+          {(createMode === "RAPIDO" || showAdvancedFields) && <Input
             label="Observações internas"
             value={form.notes}
             onChange={(e) =>
               setForm((current) => ({ ...current, notes: e.target.value }))
             }
-          />
+          />}
+          {createMode === "OPERACIONAL" && <button type="button" onClick={() => setShowAdvancedFields((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-left text-xs font-bold text-zinc-600 transition hover:border-[#d4af37] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"><span>{showAdvancedFields ? "Ocultar opções avançadas" : "Adicionar contrato, prioridade, modalidade ou observações"}</span><Plus size={15} className={`transition-transform ${showAdvancedFields ? "rotate-45" : ""}`}/></button>}
           <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
             <Button
               type="button"
@@ -1281,7 +1278,7 @@ export default function OrdensServicoTab({
             >
               {createMode === "RAPIDO"
                 ? "Criar e abrir relatório"
-                : "Criar OS e agendar depois"}
+                : "Criar OS"}
             </Button>
           </div>
         </form>

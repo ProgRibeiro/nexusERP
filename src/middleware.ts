@@ -29,8 +29,78 @@ const PASSTHROUGH_PREFIXES = [
   "/uploads",
 ];
 
+// In-memory rate limiting map para proteção contra flooding e estouro de requisições por IP
+const ipRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+const SUSPICIOUS_BOT_PATTERNS = [
+  /sqlmap/i,
+  /nikto/i,
+  /nmap/i,
+  /masscan/i,
+  /zgrab/i,
+  /dirbuster/i,
+  /gobuster/i,
+  /censys/i,
+  /netsparker/i,
+  /w3af/i,
+  /acunetix/i,
+];
+
+function isMaliciousBot(userAgent: string | null): boolean {
+  if (!userAgent) return false;
+  return SUSPICIOUS_BOT_PATTERNS.some((pattern) => pattern.test(userAgent));
+}
+
+function checkRateLimit(ip: string, maxRequests = 120, windowMs = 10000): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const record = ipRateLimitMap.get(ip);
+
+  // Limpeza de IPs expirados periodicamente se o mapa crescer muito
+  if (ipRateLimitMap.size > 5000) {
+    for (const [k, v] of ipRateLimitMap.entries()) {
+      if (now > v.resetTime) ipRateLimitMap.delete(k);
+    }
+  }
+
+  if (!record || now > record.resetTime) {
+    ipRateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+    return { allowed: true, remaining: maxRequests - 1 };
+  }
+
+  record.count += 1;
+  if (record.count > maxRequests) {
+    return { allowed: false, remaining: 0 };
+  }
+
+  return { allowed: true, remaining: maxRequests - record.count };
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const userAgent = request.headers.get("user-agent");
+  const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "127.0.0.1";
+
+  // WAF / Bot Fight Mode: Bloquear bots de varredura maliciosa
+  if (isMaliciousBot(userAgent)) {
+    return new NextResponse(JSON.stringify({ error: "Acesso bloqueado pelo WAF / Bot Fight Mode." }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Rate Limiting: 120 requisições a cada 10s por IP
+  const rateCheck = checkRateLimit(clientIp, 120, 10000);
+  if (!rateCheck.allowed) {
+    return new NextResponse(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em instantes." }), {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json",
+        "Retry-After": "10",
+        "X-RateLimit-Limit": "120",
+        "X-RateLimit-Remaining": "0",
+      },
+    });
+  }
 
   // Compatibilidade com bancos e backups anteriores à rota dinâmica de
   // uploads. O arquivo continua no mesmo diretório; apenas a leitura passa
@@ -42,14 +112,20 @@ export async function middleware(request: NextRequest) {
   }
 
   if (PASSTHROUGH_PREFIXES.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set("X-RateLimit-Limit", "120");
+    response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
+    return response;
   }
 
   // A raiz ("/") é o próprio shell do app: quando não há sessão, o
   // AuthProvider (client-side) já renderiza a tela de login no lugar do
   // dashboard. Não redirecionamos "/" para não criar um loop.
   if (pathname === "/") {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set("X-RateLimit-Limit", "120");
+    response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
+    return response;
   }
 
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -61,9 +137,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  response.headers.set("X-Frame-Options", "SAMEORIGIN");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  response.headers.set("X-RateLimit-Limit", "120");
+  response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
+  return response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

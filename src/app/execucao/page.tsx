@@ -52,6 +52,8 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ToastProvider } from "@/components/ui/Toast";
+import ErrorReporter from "@/components/ErrorReporter";
 
 function getCurrentLocation(): Promise<{ latitude: number; longitude: number; accuracy?: number } | null> {
   return new Promise((resolve) => {
@@ -533,7 +535,8 @@ export default function ExecucaoTecnicaPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans flex flex-col items-center p-4">
+    <ToastProvider>
+      <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans flex flex-col items-center p-4">
       {/* Header Bar */}
       <div className="w-full max-w-md flex items-center justify-between py-3 border-b border-zinc-200 mb-4">
         {selectedOS ? (
@@ -837,5 +840,7 @@ export default function ExecucaoTecnicaPage() {
 
       </div>
     </div>
+    <ErrorReporter />
+  </ToastProvider>
   );
 }

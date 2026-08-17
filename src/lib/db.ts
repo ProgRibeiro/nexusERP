@@ -16,7 +16,14 @@ function createPrismaClient(): PrismaClient {
     );
   }
 
-  const pool = new Pool({ connectionString });
+  const tenantId = process.env.TENANT_ID || "00000000-0000-4000-8000-000000000001";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
+    throw new Error("TENANT_ID inválido. Informe um UUID válido para isolar os dados da empresa.");
+  }
+  // O contexto nasce na própria conexão PostgreSQL. As políticas RLS usam
+  // app.tenant_id e continuam protegendo as linhas mesmo se uma query futura
+  // esquecer um filtro na aplicação.
+  const pool = new Pool({ connectionString, options: `-c app.tenant_id=${tenantId}` });
   const adapter = new PrismaPg(pool);
 
   return new PrismaClient({

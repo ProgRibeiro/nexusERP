@@ -21,6 +21,10 @@ interface WorkspaceContextType {
   activeTab: Tab;
   activeTabId: string;
   openTab: (type: string, title: string, params?: any) => void;
+  floatingTabs: Tab[];
+  activeFloatingTabId: string | null;
+  activateFloatingTab: (id: string | null) => void;
+  closeFloatingTab: (id: string) => void;
   drawer: DrawerState;
   openDrawer: (type: string, title: string, data?: any) => void;
   closeDrawer: () => void;
@@ -43,6 +47,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     title: "Dashboard",
   });
   const activeTabId = activeTab.id;
+  const [floatingTabs, setFloatingTabs] = useState<Tab[]>([]);
+  const [activeFloatingTabId, setActiveFloatingTabId] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<DrawerState>({
     isOpen: false,
     type: "",
@@ -92,6 +98,17 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       tabId = `${type}?action=${params.action}`;
     }
 
+    const shouldFloat = Boolean(params?.id || params?.new === "true" || params?.action);
+    if (shouldFloat) {
+      if (params?.new === "true") tabId = `${type}-new-${params.requestId || "form"}`;
+      const floatingTab = { id: tabId, type, title, params: params ? { ...params } : undefined };
+      setFloatingTabs((current) => current.some((tab) => tab.id === tabId)
+        ? current.map((tab) => tab.id === tabId ? floatingTab : tab)
+        : [...current, floatingTab]);
+      setActiveFloatingTabId(tabId);
+      return;
+    }
+
     setActiveTab({ id: tabId, type, title, params: params ? { ...params } : undefined });
 
     // Sync browser URL if applicable
@@ -109,6 +126,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       router.push(`/${type}${query}`);
     }
   }, [router]);
+
+  const activateFloatingTab = useCallback((id: string | null) => setActiveFloatingTabId(id), []);
+  const closeFloatingTab = useCallback((id: string) => {
+    setFloatingTabs((current) => {
+      const index = current.findIndex((tab) => tab.id === id);
+      const next = current.filter((tab) => tab.id !== id);
+      setActiveFloatingTabId((active) => active === id ? (next[Math.max(0, index - 1)]?.id || next[0]?.id || null) : active);
+      return next;
+    });
+  }, []);
 
   const openDrawer = useCallback((type: string, title: string, data?: any) => {
     setDrawer({
@@ -130,6 +157,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     activeTab,
     activeTabId,
     openTab,
+    floatingTabs,
+    activeFloatingTabId,
+    activateFloatingTab,
+    closeFloatingTab,
     drawer,
     openDrawer,
     closeDrawer,
@@ -137,7 +168,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     toggleDarkMode,
     sidebarOpen,
     setSidebarOpen,
-  }), [activeTab, activeTabId, closeDrawer, darkMode, drawer, openDrawer, openTab, sidebarOpen, toggleDarkMode]);
+  }), [activeFloatingTabId, activeTab, activeTabId, activateFloatingTab, closeDrawer, closeFloatingTab, darkMode, drawer, floatingTabs, openDrawer, openTab, sidebarOpen, toggleDarkMode]);
 
   // Sync route changes with open tabs
   useEffect(() => {
@@ -175,6 +206,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     else if (type === "relatorios") title = "Relatórios";
     else if (type === "configuracoes") title = "Configurações";
     else if (type === "execucao") title = "Área do Técnico";
+    else if (type === "marketing") title = "Central de Marketing";
 
     if (idParam) {
       tabId = `${type}-${idParam}`;

@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
-import { BillingQueueItem, getBillingQueue, getInvoices, processBilling, updateBillingMirror } from "@/app/actions/billingActions";
+import { BillingQueueItem, getBillingQueue, getInvoices, processBilling, saveInvoiceDocuments, updateBillingMirror } from "@/app/actions/billingActions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { buildBillingDescription } from "@/lib/billingDescription";
 import { Button } from "../ui/Button";
@@ -15,8 +15,8 @@ import { Select } from "../ui/Select";
 import { Textarea } from "../ui/Textarea";
 import { Table, TableCell, TableRow } from "../ui/Table";
 import {
-  AlertTriangle, Check, CheckCircle2, Clipboard, Download, FileSpreadsheet,
-  FileText, Loader2, Pencil, Receipt, RefreshCw, Search, Send, XCircle,
+  AlertTriangle, Archive, Check, CheckCircle2, Clipboard, Download, FileCode2, FileSpreadsheet,
+  FileText, Loader2, Pencil, Receipt, RefreshCw, Search, Send, Upload,
 } from "lucide-react";
 
 interface MirrorRow extends BillingQueueItem {
@@ -29,7 +29,10 @@ interface InvoiceRecord {
   value: number;
   taxValue: number;
   createdAt: Date;
+  issueDate: Date;
+  status: string;
   pdfUrl: string | null;
+  xmlUrl: string | null;
   client?: { name: string };
   serviceOrder?: { code: string; purchaseOrder: string | null };
 }
@@ -54,6 +57,14 @@ export default function FaturamentoTab() {
   const [taxPercent, setTaxPercent] = useState("0");
   const [installments, setInstallments] = useState("1");
   const [paymentMethod, setPaymentMethod] = useState("PIX");
+  const [documentInvoice, setDocumentInvoice] = useState<InvoiceRecord | null>(null);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [invoiceStatus, setInvoiceStatus] = useState("TODOS");
+  const [documentStatus, setDocumentStatus] = useState("EMITIDA");
+  const [pdfDataUrl, setPdfDataUrl] = useState<string>();
+  const [xmlDataUrl, setXmlDataUrl] = useState<string>();
+  const [pdfName, setPdfName] = useState("");
+  const [xmlName, setXmlName] = useState("");
 
   const loadData = async () => {
     setLoading(true);
@@ -84,6 +95,33 @@ export default function FaturamentoTab() {
   const selectedRows = rows.filter((item) => item.selected);
   const readyRows = selectedRows.filter((item) => item.missingFields.length === 0);
   const pendingValue = rows.reduce((total, item) => total + item.value, 0);
+  const filteredInvoices = useMemo(() => {
+    const term = invoiceSearch.trim().toLowerCase();
+    return invoices.filter((invoice) => {
+      const matchesStatus = invoiceStatus === "TODOS" || invoice.status === invoiceStatus;
+      const searchable = `${invoice.code} ${invoice.client?.name || ""} ${invoice.serviceOrder?.code || ""} ${invoice.serviceOrder?.purchaseOrder || ""}`.toLowerCase();
+      return matchesStatus && (!term || searchable.includes(term));
+    });
+  }, [invoiceSearch, invoiceStatus, invoices]);
+
+  const fileToDataUrl = (file: File, allowed: string[]) => new Promise<string>((resolve, reject) => {
+    if (!allowed.includes(file.type) && !(file.name.toLowerCase().endsWith(".xml") && allowed.includes("application/xml"))) return reject(new Error("Formato de arquivo inválido."));
+    if (file.size > 4 * 1024 * 1024) return reject(new Error("O arquivo deve ter no máximo 4 MB."));
+    const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error("Não foi possível ler o arquivo.")); reader.readAsDataURL(file);
+  });
+
+  const openDocuments = (invoice: InvoiceRecord) => {
+    setDocumentInvoice(invoice); setDocumentStatus(invoice.status); setPdfDataUrl(undefined); setXmlDataUrl(undefined); setPdfName(""); setXmlName("");
+  };
+
+  const saveDocuments = async () => {
+    if (!documentInvoice) return;
+    setActionLoading(true);
+    const result = await saveInvoiceDocuments({ invoiceId: documentInvoice.id, pdfDataUrl, xmlDataUrl, status: documentStatus as "EMITIDA" | "ENVIADA" | "CANCELADA" | "SUBSTITUIDA" });
+    if (result.success) { toast("Documentos fiscais armazenados com segurança.", "success"); setDocumentInvoice(null); await loadData(); }
+    else toast(result.error || "Erro ao salvar documentos.", "error");
+    setActionLoading(false);
+  };
 
   const automaticDescriptionFor = (row: MirrorRow, purchaseOrder = row.purchaseOrder) => buildBillingDescription({
     purchaseOrder,
@@ -322,8 +360,9 @@ export default function FaturamentoTab() {
           </div>
         </>}
       </Card> : <Card className="p-0 overflow-hidden">
-        <div className="border-b border-zinc-100 p-5 dark:border-zinc-800"><h3 className="text-sm font-black">Histórico de notas registradas</h3><p className="text-xs text-zinc-500">Notas emitidas externamente e confirmadas no ERP.</p></div>
-        {invoices.length ? <Table headers={["Nota", "Tomador", "OS", "Pedido de compra", "Valor", "Imposto", "Registro", "Arquivo"]}>{invoices.map((invoice) => <TableRow key={invoice.id}><TableCell className="font-bold">{invoice.code}</TableCell><TableCell>{invoice.client?.name || "—"}</TableCell><TableCell>{invoice.serviceOrder?.code || "—"}</TableCell><TableCell>{invoice.serviceOrder?.purchaseOrder || "—"}</TableCell><TableCell className="font-bold">{formatCurrency(invoice.value)}</TableCell><TableCell>{formatCurrency(invoice.taxValue)}</TableCell><TableCell>{formatDate(invoice.createdAt)}</TableCell><TableCell>{invoice.pdfUrl ? <a className="flex items-center gap-1 font-bold text-blue-600" href={invoice.pdfUrl}><FileText size={13} /> Arquivo</a> : "—"}</TableCell></TableRow>)}</Table> : <div className="py-14 text-center text-xs text-zinc-500">Nenhuma nota externa registrada.</div>}
+        <div className="flex flex-col gap-4 border-b border-zinc-100 p-5 lg:flex-row lg:items-center lg:justify-between dark:border-zinc-800"><div><div className="flex items-center gap-2"><Archive size={16} className="text-[#d4af37]"/><h3 className="text-sm font-black">Central de documentos fiscais</h3></div><p className="mt-1 text-xs text-zinc-500">PDF, XML, situação e vínculo com cliente e ordem de serviço.</p></div><div className="flex flex-col gap-2 sm:flex-row"><div className="w-full sm:w-72"><Input placeholder="Buscar NF, cliente, OS ou pedido" icon={<Search size={14}/>} value={invoiceSearch} onChange={(e)=>setInvoiceSearch(e.target.value)}/></div><Select value={invoiceStatus} onChange={(e)=>setInvoiceStatus(e.target.value)} options={[{value:"TODOS",label:"Todos os status"},{value:"EMITIDA",label:"Emitidas"},{value:"ENVIADA",label:"Enviadas"},{value:"CANCELADA",label:"Canceladas"},{value:"SUBSTITUIDA",label:"Substituídas"}]}/></div></div>
+        <div className="grid grid-cols-2 divide-x divide-y divide-zinc-100 border-b border-zinc-100 sm:grid-cols-4 sm:divide-y-0 dark:divide-zinc-800 dark:border-zinc-800"><div className="p-4"><p className="text-[9px] font-bold uppercase text-zinc-500">Notas armazenadas</p><p className="mt-1 text-xl font-black">{invoices.length}</p></div><div className="p-4"><p className="text-[9px] font-bold uppercase text-zinc-500">Com PDF</p><p className="mt-1 text-xl font-black text-blue-500">{invoices.filter(i=>i.pdfUrl).length}</p></div><div className="p-4"><p className="text-[9px] font-bold uppercase text-zinc-500">Com XML</p><p className="mt-1 text-xl font-black text-[#d4af37]">{invoices.filter(i=>i.xmlUrl).length}</p></div><div className="p-4"><p className="text-[9px] font-bold uppercase text-zinc-500">Documentos faltando</p><p className="mt-1 text-xl font-black text-orange-500">{invoices.filter(i=>!i.pdfUrl||!i.xmlUrl).length}</p></div></div>
+        {filteredInvoices.length ? <Table headers={["Nota / status", "Tomador", "OS / pedido", "Valor", "Emissão", "Documentos", "Ações"]}>{filteredInvoices.map((invoice) => <TableRow key={invoice.id}><TableCell><strong className="block">{invoice.code}</strong><span className={`mt-1 inline-flex rounded-full px-2 py-1 text-[8px] font-black ${invoice.status==="CANCELADA"?"bg-red-500/10 text-red-500":invoice.status==="ENVIADA"?"bg-emerald-500/10 text-emerald-500":"bg-[#d4af37]/10 text-[#b88d1b]"}`}>{invoice.status}</span></TableCell><TableCell>{invoice.client?.name || "—"}</TableCell><TableCell><strong>{invoice.serviceOrder?.code || "—"}</strong><p className="mt-1 text-[10px] text-zinc-500">{invoice.serviceOrder?.purchaseOrder || "Sem pedido"}</p></TableCell><TableCell><strong>{formatCurrency(invoice.value)}</strong><p className="text-[10px] text-zinc-500">Imposto {formatCurrency(invoice.taxValue)}</p></TableCell><TableCell>{formatDate(invoice.issueDate || invoice.createdAt)}</TableCell><TableCell><div className="flex flex-wrap gap-2">{invoice.pdfUrl?<a target="_blank" rel="noreferrer" download className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1.5 text-[10px] font-bold text-blue-600 dark:border-zinc-700" href={invoice.pdfUrl}><FileText size={13}/> PDF</a>:<span className="text-[10px] text-orange-500">PDF pendente</span>}{invoice.xmlUrl?<a target="_blank" rel="noreferrer" download className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1.5 text-[10px] font-bold text-[#b88d1b] dark:border-zinc-700" href={invoice.xmlUrl}><FileCode2 size={13}/> XML</a>:<span className="text-[10px] text-orange-500">XML pendente</span>}</div></TableCell><TableCell>{hasPermission("faturamento.write")&&<Button size="sm" variant="secondary" onClick={()=>openDocuments(invoice)}><Upload size={13}/> Arquivar</Button>}</TableCell></TableRow>)}</Table> : <div className="py-14 text-center text-xs text-zinc-500">Nenhuma nota encontrada.</div>}
       </Card>}
 
       <Modal isOpen={Boolean(editing)} onClose={() => setEditing(null)} title="Revisar dados do espelho" size="xl">
@@ -364,6 +403,19 @@ export default function FaturamentoTab() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3"><Input label="Imposto total (%)" type="number" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} /><Select label="Parcelas" value={installments} onChange={(e) => setInstallments(e.target.value)} options={[{ value: "1", label: "1 parcela" }, { value: "2", label: "2 parcelas" }, { value: "3", label: "3 parcelas" }]} /><Select label="Forma de pagamento" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} options={[{ value: "PIX", label: "PIX" }, { value: "BOLETO", label: "Boleto" }, { value: "TRANSFERENCIA", label: "Transferência" }, { value: "CARTAO", label: "Cartão" }]} /></div>
           <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800"><Button type="button" variant="secondary" onClick={() => setRegistering(null)}>Cancelar</Button><Button type="submit" variant="success" loading={actionLoading}><Receipt size={14} /> Confirmar NF e valor</Button></div>
         </form>}
+      </Modal>
+
+      <Modal isOpen={Boolean(documentInvoice)} onClose={() => setDocumentInvoice(null)} title="Arquivar documentos da nota" size="lg">
+        {documentInvoice && <div className="space-y-5">
+          <div className="rounded-xl border border-[#d4af37]/25 bg-[#d4af37]/10 p-4"><p className="text-[9px] font-black uppercase tracking-wider text-[#b88d1b]">Nota fiscal</p><p className="mt-1 text-lg font-black">{documentInvoice.code}</p><p className="mt-1 text-xs text-zinc-500">{documentInvoice.client?.name} · {documentInvoice.serviceOrder?.code}</p></div>
+          <Select label="Situação da nota" value={documentStatus} onChange={(e)=>setDocumentStatus(e.target.value)} options={[{value:"EMITIDA",label:"Emitida"},{value:"ENVIADA",label:"Enviada ao cliente"},{value:"CANCELADA",label:"Cancelada"},{value:"SUBSTITUIDA",label:"Substituída"}]}/>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="group cursor-pointer rounded-2xl border border-dashed border-zinc-300 p-5 text-center transition hover:border-blue-500 hover:bg-blue-50/50 dark:border-zinc-700 dark:hover:bg-blue-950/10"><FileText className="mx-auto text-blue-500"/><p className="mt-3 text-xs font-black">PDF / DANFE / NFS-e</p><p className="mt-1 truncate text-[10px] text-zinc-500">{pdfName || (documentInvoice.pdfUrl ? "PDF já armazenado · selecione para substituir" : "Selecione um PDF de até 4 MB")}</p><input className="hidden" type="file" accept="application/pdf,.pdf" onChange={async(e)=>{const file=e.target.files?.[0];if(!file)return;try{setPdfDataUrl(await fileToDataUrl(file,["application/pdf"]));setPdfName(file.name)}catch(error){toast(error instanceof Error?error.message:"Arquivo inválido","error")}}}/></label>
+            <label className="group cursor-pointer rounded-2xl border border-dashed border-zinc-300 p-5 text-center transition hover:border-[#d4af37] hover:bg-[#d4af37]/5 dark:border-zinc-700"><FileCode2 className="mx-auto text-[#d4af37]"/><p className="mt-3 text-xs font-black">XML da nota fiscal</p><p className="mt-1 truncate text-[10px] text-zinc-500">{xmlName || (documentInvoice.xmlUrl ? "XML já armazenado · selecione para substituir" : "Selecione um XML de até 4 MB")}</p><input className="hidden" type="file" accept="application/xml,text/xml,.xml" onChange={async(e)=>{const file=e.target.files?.[0];if(!file)return;try{setXmlDataUrl(await fileToDataUrl(file,["application/xml","text/xml"]));setXmlName(file.name)}catch(error){toast(error instanceof Error?error.message:"Arquivo inválido","error")}}}/></label>
+          </div>
+          <div className="rounded-xl bg-zinc-50 p-3 text-[10px] leading-5 text-zinc-500 dark:bg-zinc-800">Os arquivos ficam vinculados permanentemente à nota, ao cliente e à OS. Ao substituir um documento, a versão anterior gerenciada pelo ERP é removida do armazenamento.</div>
+          <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800"><Button variant="secondary" onClick={()=>setDocumentInvoice(null)}>Cancelar</Button><Button variant="primary" loading={actionLoading} onClick={()=>void saveDocuments()}><Archive size={14}/> Salvar documentos</Button></div>
+        </div>}
       </Modal>
     </div>
   );

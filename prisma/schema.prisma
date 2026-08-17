@@ -38,6 +38,8 @@ model User {
   importBatches       ImportBatch[]
   emailIntegrations   EmailIntegration[]          @relation("EmailIntegrationConnector")
   proposalEmails      ProposalEmail[]             @relation("ProposalEmailSender")
+  marketingPosts      MarketingPost[]
+  errorReports        ErrorReport[]
 }
 
 model Role {
@@ -275,41 +277,47 @@ model CrmActivity {
 
 // 4. Orçamentos (Quotes)
 model Quote {
-  id                 String               @id @default(uuid())
-  code               String               @unique // Q-2026-0001
-  clientId           String
-  client             Client               @relation(fields: [clientId], references: [id])
-  addressId          String?
-  address            ClientAddress?       @relation(fields: [addressId], references: [id])
-  contactId          String?
-  contact            ClientContact?       @relation(fields: [contactId], references: [id])
-  proposalType       String               @default("AVULSA") // AVULSA, PREVENTIVA
-  preventivePlanJson String? // Plano estruturado, escopo, equipamentos e frequência da preventiva
-  status             String               @default("RASCUNHO") // RASCUNHO, ENVIADO, NEGOCIACAO, APROVADO, REPROVADO, EXPIRADO, CANCELADO, CONVERTIDO
-  version            Int                  @default(1)
-  validUntil         DateTime
-  warrantyDays       Int                  @default(90)
-  executionTerm      String? // Prazo de execução (ex: "5 dias úteis")
-  paymentTerms       String? // Condições de pagamento (ex: "Pix 50% + 50% após conclusão")
-  subtotal           Decimal              @default(0.0) @db.Decimal(10, 2)
-  discount           Decimal              @default(0.0) @db.Decimal(10, 2)
-  tax                Decimal              @default(0.0) @db.Decimal(10, 2)
-  total              Decimal              @default(0.0) @db.Decimal(10, 2)
-  finalValueOverride Decimal?             @db.Decimal(10, 2) // Valor final comercial definido manualmente
-  costEstimate       Decimal              @default(0.0) @db.Decimal(10, 2)
-  estimatedMargin    Decimal              @default(0.0) @db.Decimal(10, 2) // Lucro/Margem estimada
-  notes              String?
-  approvedAt         DateTime?
-  approvedBy         String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  items              QuoteItem[]
-  versions           QuoteVersion[]
-  approvals          QuoteApproval[]
-  serviceOrders      ServiceOrder[]
-  accountsReceivable AccountsReceivable[]
-  emailDeliveries    ProposalEmail[]
-  providerJobs       ProviderJob[]
+  id                  String               @id @default(uuid())
+  code                String               @unique // Q-2026-0001
+  clientId            String
+  client              Client               @relation(fields: [clientId], references: [id])
+  addressId           String?
+  address             ClientAddress?       @relation(fields: [addressId], references: [id])
+  contactId           String?
+  contact             ClientContact?       @relation(fields: [contactId], references: [id])
+  proposalType        String               @default("AVULSA") // AVULSA, PREVENTIVA
+  preventivePlanJson  String? // Plano estruturado, escopo, equipamentos e frequência da preventiva
+  status              String               @default("RASCUNHO") // RASCUNHO, ENVIADO, NEGOCIACAO, APROVADO, REPROVADO, EXPIRADO, CANCELADO, CONVERTIDO
+  version             Int                  @default(1)
+  validUntil          DateTime
+  warrantyDays        Int                  @default(90)
+  executionTerm       String? // Prazo de execução (ex: "5 dias úteis")
+  paymentTerms        String? // Condições de pagamento (ex: "Pix 50% + 50% após conclusão")
+  subtotal            Decimal              @default(0.0) @db.Decimal(10, 2)
+  discount            Decimal              @default(0.0) @db.Decimal(10, 2)
+  tax                 Decimal              @default(0.0) @db.Decimal(10, 2)
+  total               Decimal              @default(0.0) @db.Decimal(10, 2)
+  finalValueOverride  Decimal?             @db.Decimal(10, 2) // Valor final comercial definido manualmente
+  costEstimate        Decimal              @default(0.0) @db.Decimal(10, 2)
+  estimatedMargin     Decimal              @default(0.0) @db.Decimal(10, 2) // Lucro/Margem estimada
+  overheadPercentage  Decimal              @default(0.0) @db.Decimal(7, 2)
+  riskPercentage      Decimal              @default(0.0) @db.Decimal(7, 2)
+  financialPercentage Decimal              @default(0.0) @db.Decimal(7, 2)
+  profitPercentage    Decimal              @default(0.0) @db.Decimal(7, 2)
+  taxPercentage       Decimal              @default(0.0) @db.Decimal(7, 2)
+  bdiPercentage       Decimal              @default(0.0) @db.Decimal(7, 2)
+  notes               String?
+  approvedAt          DateTime?
+  approvedBy          String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  items               QuoteItem[]
+  versions            QuoteVersion[]
+  approvals           QuoteApproval[]
+  serviceOrders       ServiceOrder[]
+  accountsReceivable  AccountsReceivable[]
+  emailDeliveries     ProposalEmail[]
+  providerJobs        ProviderJob[]
 }
 
 // Integração de envio corporativo. Os tokens são sempre persistidos
@@ -997,34 +1005,53 @@ model StockMovement {
 }
 
 model Service {
-  id              String   @id @default(uuid())
-  name            String   @unique
-  description     String?
-  category        String?
-  maintenanceType String?
-  billingUnit     String?  @default("Serviço")
-  estimatedHours  Float?
-  defaultPrice    Float    @default(0.0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                      String    @id @default(uuid())
+  name                    String    @unique
+  description             String?
+  category                String?
+  maintenanceType         String?
+  billingUnit             String?   @default("Serviço")
+  estimatedHours          Float?
+  defaultPrice            Float     @default(0.0)
+  serviceType             String    @default("PROPRIO") // PROPRIO, TERCEIRIZADO
+  workforceRegime         String    @default("CLT") // CLT, PROFISSIONAL, AUTONOMO, TERCEIRIZADO
+  referenceCode           String?
+  materialCost            Float     @default(0.0)
+  laborCost               Float     @default(0.0)
+  equipmentCost           Float     @default(0.0)
+  otherDirectCost         Float     @default(0.0)
+  productivity            Float     @default(1.0)
+  payrollBurdenPercentage Float     @default(0.0)
+  overheadPercentage      Float     @default(0.0)
+  riskPercentage          Float     @default(0.0)
+  profitPercentage        Float     @default(0.0)
+  serviceTaxPercentage    Float     @default(0.0)
+  supplierId              String?
+  supplier                Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([serviceType])
+  @@index([supplierId])
 }
 
 model Supplier {
-  id             String        @id @default(uuid())
-  name           String
-  cnpj           String        @unique
-  phone          String
-  email          String
-  portalEmail    String?       @unique
-  portalPassword String?
-  portalSalt     String?
-  portalActive   Boolean       @default(false)
-  notes          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  products       Product[]
-  quoteItems     QuoteItem[]
-  providerJobs   ProviderJob[]
+  id              String        @id @default(uuid())
+  name            String
+  cnpj            String        @unique
+  phone           String
+  email           String
+  portalEmail     String?       @unique
+  portalPassword  String?
+  portalSalt      String?
+  portalActive    Boolean       @default(false)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  products        Product[]
+  quoteItems      QuoteItem[]
+  providerJobs    ProviderJob[]
+  catalogServices Service[]
 }
 
 // Execucao e custo de servicos realizados por parceiros. Estes dados sao
@@ -1119,6 +1146,26 @@ model Notification {
   createdAt DateTime @default(now())
 }
 
+model MarketingPost {
+  id           String   @id @default(uuid())
+  title        String
+  caption      String?
+  publishDate  String
+  publishTime  String
+  status       String   @default("IDEIA")
+  channelsJson String   @default("[]")
+  format       String
+  owner        String
+  campaign     String
+  createdById  String?
+  createdBy    User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([publishDate, status])
+  @@index([owner])
+}
+
 model AuditLog {
   id          String   @id @default(uuid())
   userId      String?
@@ -1147,6 +1194,34 @@ model Setting {
   value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model ErrorReport {
+  id              String   @id @default(uuid())
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  status          String   @default("ABERTO")
+  severity        String   @default("ERRO")
+  description     String
+  pageUrl         String
+  userAgent       String?
+  errorMessage    String?
+  errorStack      String?
+  consoleLogsJson String   @default("[]")
+  screenshotData  String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+model SecurityThrottle {
+  key          String    @id
+  attempts     Int       @default(0)
+  windowStart  DateTime  @default(now())
+  blockedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
 }
 
 // Importações são registradas em duas camadas: o lote resume a operação e

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db";
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import { assertLoginAllowed, clearLoginFailures, registerLoginFailure } from "@/lib/loginThrottle";
 import {
   encryptSession,
   SessionPayload,
@@ -108,12 +109,14 @@ export async function loginAction(
   password: string
 ): Promise<{ success: boolean; user?: UserSession; error?: string }> {
   try {
+    await assertLoginAllowed(email);
     const user = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
       include: { role: true },
     });
 
     if (!user) {
+      await registerLoginFailure(email);
       logger.warn("login_failed", { email: email.trim().toLowerCase(), reason: "usuario_nao_encontrado" });
       return { success: false, error: "Usuário não encontrado." };
     }
@@ -128,6 +131,7 @@ export async function loginAction(
       const matchesLegacy = user.password === legacyHash || user.password === password;
 
       if (!matchesLegacy) {
+        await registerLoginFailure(email);
         logger.warn("login_failed", { email: user.email, reason: "senha_incorreta" });
         return { success: false, error: "Senha incorreta." };
       }
@@ -140,12 +144,14 @@ export async function loginAction(
       });
     } else {
       if (!passwordMatches(password, salt, user.password)) {
+        await registerLoginFailure(email);
         logger.warn("login_failed", { email: user.email, reason: "senha_incorreta" });
         return { success: false, error: "Senha incorreta." };
       }
     }
 
     const roleName = user.role?.name || "Sem Perfil";
+    await clearLoginFailures(email);
     const permissions = JSON.parse(user.permissions) as string[];
 
     const payload: SessionPayload = {

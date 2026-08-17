@@ -15,6 +15,7 @@ export interface ReceivableDTO {
   totalValue: number;
   receivedValue: number;
   pendingValue: number;
+  issueDate: Date;
   dueDate: Date;
   paymentDate: Date | null;
   status: string;
@@ -59,6 +60,7 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
       totalValue: Number(r.totalValue),
       receivedValue: Number(r.receivedValue),
       pendingValue: Number(r.pendingValue),
+      issueDate: r.issueDate,
       dueDate: r.dueDate,
       paymentDate: r.paymentDate,
       status: r.status,

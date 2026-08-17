@@ -132,6 +132,12 @@ export async function getQuoteDetails(id: string) {
       total: Number(quote.total),
       costEstimate: Number(quote.costEstimate),
       estimatedMargin: Number(quote.estimatedMargin),
+      overheadPercentage: Number(quote.overheadPercentage),
+      riskPercentage: Number(quote.riskPercentage),
+      financialPercentage: Number(quote.financialPercentage),
+      profitPercentage: Number(quote.profitPercentage),
+      taxPercentage: Number(quote.taxPercentage),
+      bdiPercentage: Number(quote.bdiPercentage),
       items: quote.items.map((item) => ({
         ...item,
         unitPrice: Number(item.unitPrice),
@@ -163,6 +169,11 @@ export async function createQuote(
     discount?: number;
     tax?: number;
     finalValueOverride?: number | null;
+    overheadPercentage?: number;
+    riskPercentage?: number;
+    financialPercentage?: number;
+    profitPercentage?: number;
+    taxPercentage?: number;
   },
   items: QuoteItemInput[],
   userId: string
@@ -250,7 +261,8 @@ export async function createQuote(
 
     const discount = data.discount || 0;
     const taxProfile = await loadTaxProfile();
-    const calculation = calculateProposalTax(subtotal, discount, taxProfile.rate);
+    const taxRate = data.taxPercentage ?? taxProfile.rate;
+    const calculation = calculateProposalTax(subtotal, discount, taxRate);
     const tax = calculation.tax;
     const finalValueOverride = data.finalValueOverride == null ? null : roundCurrency(Number(data.finalValueOverride));
     if (finalValueOverride !== null && finalValueOverride <= 0) throw new Error("O valor final personalizado deve ser maior que zero.");
@@ -276,6 +288,12 @@ export async function createQuote(
         finalValueOverride,
         costEstimate,
         estimatedMargin,
+        overheadPercentage: 0,
+        riskPercentage: 0,
+        financialPercentage: 0,
+        profitPercentage: 0,
+        taxPercentage: taxRate,
+        bdiPercentage: 0,
         items: {
           create: itemsData,
         },
@@ -606,7 +624,7 @@ export async function getQuoteCatalog() {
       orderBy: { name: "asc" }
     });
     const services = await prisma.service.findMany({
-      select: { id: true, name: true, description: true, category: true, maintenanceType: true, billingUnit: true, estimatedHours: true, defaultPrice: true },
+      select: { id: true, name: true, description: true, category: true, maintenanceType: true, billingUnit: true, estimatedHours: true, defaultPrice: true, serviceType: true, referenceCode: true, materialCost: true, laborCost: true, equipmentCost: true, otherDirectCost: true, productivity: true, supplierId: true, supplier: { select: { name: true } } },
       orderBy: { name: "asc" }
     });
     return {
@@ -618,6 +636,7 @@ export async function getQuoteCatalog() {
       services: services.map((service) => ({
         ...service,
         defaultPrice: Number(service.defaultPrice),
+        directCost: Number(service.materialCost) + Number(service.laborCost) + Number(service.equipmentCost) + Number(service.otherDirectCost),
       })),
     };
   } catch (error) {
@@ -807,6 +826,11 @@ export async function updateQuote(
     discount?: number;
     tax?: number;
     finalValueOverride?: number | null;
+    overheadPercentage?: number;
+    riskPercentage?: number;
+    financialPercentage?: number;
+    profitPercentage?: number;
+    taxPercentage?: number;
   },
   items: QuoteItemInput[],
   userId: string
@@ -851,7 +875,8 @@ export async function updateQuote(
 
     const discount = data.discount || 0;
     const taxProfile = await loadTaxProfile();
-    const calculation = calculateProposalTax(subtotal, discount, taxProfile.rate);
+    const taxRate = data.taxPercentage ?? taxProfile.rate;
+    const calculation = calculateProposalTax(subtotal, discount, taxRate);
     const tax = calculation.tax;
     const finalValueOverride = data.finalValueOverride == null ? null : roundCurrency(Number(data.finalValueOverride));
     if (finalValueOverride !== null && finalValueOverride <= 0) throw new Error("O valor final personalizado deve ser maior que zero.");
@@ -882,6 +907,12 @@ export async function updateQuote(
           finalValueOverride,
           costEstimate,
           estimatedMargin: total - costEstimate,
+          overheadPercentage: 0,
+          riskPercentage: 0,
+          financialPercentage: 0,
+          profitPercentage: 0,
+          taxPercentage: taxRate,
+          bdiPercentage: 0,
           notes: data.notes,
           items: {
             create: itemsData

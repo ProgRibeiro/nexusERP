@@ -17,6 +17,9 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/webp": "webp",
   "image/gif": "gif",
+  "application/pdf": "pdf",
+  "application/xml": "xml",
+  "text/xml": "xml",
 };
 
 function objectStorageConfig() {
@@ -56,7 +59,7 @@ function safePrefix(prefix: string) {
   return prefix.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80) || "arquivo";
 }
 
-/** Salva uma imagem no S3/R2 quando configurado; caso contrário, usa public/uploads. */
+/** Salva um arquivo permitido no S3/R2 quando configurado; caso contrário, usa public/uploads. */
 export async function saveBase64Asset(value: string, prefix: string): Promise<string> {
   if (!value || !value.startsWith("data:")) return value;
 

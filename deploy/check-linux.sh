@@ -36,11 +36,17 @@ if [[ -r "$ENV_FILE" ]]; then
   source "$ENV_FILE"
   set +a
   [[ -n "${DATABASE_URL:-}" ]] && ok "DATABASE_URL configurada" || fail "DATABASE_URL não configurada"
+  [[ "${TENANT_ID:-}" =~ ^[0-9a-fA-F-]{36}$ ]] && ok "TENANT_ID configurado" || fail "TENANT_ID ausente ou inválido"
   SESSION_SECRET_VALUE="${SESSION_SECRET:-}"
   SESSION_SECRET_LENGTH="${#SESSION_SECRET_VALUE}"
   (( SESSION_SECRET_LENGTH >= 32 )) && ok "SESSION_SECRET possui tamanho seguro" || fail "SESSION_SECRET deve ter ao menos 32 caracteres"
 else
   fail "ambiente ausente ou ilegível: $ENV_FILE"
+fi
+
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  DB_ROLE_FLAGS="$(psql "$DATABASE_URL" -Atc "SELECT rolsuper::text || ':' || rolbypassrls::text FROM pg_roles WHERE rolname=current_user" 2>/dev/null || true)"
+  [[ "$DB_ROLE_FLAGS" == "false:false" ]] && ok "usuário do banco respeita RLS" || fail "usuário do banco não pode ser superuser nem BYPASSRLS"
 fi
 
 ACTIVE="$(cat "$ROOT/active-slot" 2>/dev/null || true)"

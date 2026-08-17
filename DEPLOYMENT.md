@@ -1,4 +1,4 @@
-# Instalação do Nexus ERP em servidor Linux local (sem Docker)
+# Produção do Nexus ERP em nexusmanutencao.com (sem Docker)
 
 Este projeto está preparado para Ubuntu Server 22.04/24.04 ou Debian 12, com
 PostgreSQL, Node.js, Nginx e `systemd` instalados diretamente no Linux. As
@@ -25,7 +25,9 @@ git clone URL_DO_REPOSITORIO /tmp/nexus-erp-installer
 cd /tmp/nexus-erp-installer
 sudo NEXUS_REPO_URL=URL_DO_REPOSITORIO \
   ADMIN_EMAIL=seu-email@empresa.com \
-  NEXUS_SERVER_NAME=_ \
+  NEXUS_DOMAIN=nexusmanutencao.com \
+  NEXUS_WWW_DOMAIN=www.nexusmanutencao.com \
+  LETSENCRYPT_EMAIL=seu-email@empresa.com \
   bash deploy/install-linux.sh
 ```
 
@@ -43,21 +45,17 @@ usuário `nexus`, ou clone manualmente em `/opt/nexus-erp/source` como esse
 usuário. O instalador é idempotente: mantém o arquivo de ambiente e o clone já
 existentes quando for executado novamente.
 
-Ao final, o terminal mostra a URL por IP e, quando gerada, a senha inicial uma
-única vez. De outro computador ou tablet na mesma rede, acesse:
+Antes da instalação, crie os registros DNS `A` de `@` e `www` apontando para o
+IPv4 público do servidor. Não crie `AAAA` sem IPv6 configurado. Ao final, o
+terminal mostra o domínio e, quando gerada, a senha inicial uma única vez:
 
 ```text
-http://IP_FIXO_DO_SERVIDOR
+https://nexusmanutencao.com
 ```
 
-Se o firewall UFW estiver ativo:
-
-```bash
-sudo ufw allow 80/tcp
-```
-
-O acesso por domínio e HTTPS é opcional em rede local. Se o ERP for exposto à
-internet, use domínio, HTTPS, firewall e uma VPN ou controle de acesso adequado.
+O instalador configura Nginx, certificado Let's Encrypt, renovação automática,
+UFW e Fail2ban. Somente SSH, HTTP e HTTPS ficam públicos; PostgreSQL (`5432`) e
+os slots Node (`3001/3002`) permanecem acessíveis apenas localmente.
 
 ## 2. Estrutura persistente
 

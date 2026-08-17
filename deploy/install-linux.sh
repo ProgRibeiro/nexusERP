@@ -15,21 +15,25 @@ ROOT="${NEXUS_ROOT:-/opt/nexus-erp}"
 SOURCE="$ROOT/source"
 ENV_FILE="${NEXUS_ENV_FILE:-/etc/nexus-erp.env}"
 BRANCH="${DEPLOY_BRANCH:-main}"
-SERVER_NAME="${NEXUS_SERVER_NAME:-_}"
+DOMAIN="${NEXUS_DOMAIN:-nexusmanutencao.com}"
+WWW_DOMAIN="${NEXUS_WWW_DOMAIN:-www.nexusmanutencao.com}"
+LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@erp.local}"
 ADMIN_NAME="${ADMIN_NAME:-Administrador}"
 GENERATED_ADMIN_PASSWORD=false
 AUTO_UPDATE="${NEXUS_AUTO_UPDATE:-false}"
 
-if [[ ! "$SERVER_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
-  echo "NEXUS_SERVER_NAME contém caracteres inválidos." >&2
-  exit 1
-fi
+for domain_name in "$DOMAIN" "$WWW_DOMAIN"; do
+  if [[ ! "$domain_name" =~ ^[A-Za-z0-9.-]+$ ]]; then
+    echo "Domínio inválido: $domain_name" >&2
+    exit 1
+  fi
+done
 
 echo "[1/8] Instalando dependências do sistema..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y ca-certificates curl git nginx openssl postgresql postgresql-client rsync tar util-linux
+apt-get install -y ca-certificates curl fail2ban git nginx openssl postgresql postgresql-client python3-certbot-nginx rsync tar ufw util-linux
 
 if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 20 || (major === 20 && minor >= 9) ? 0 : 1)' 2>/dev/null; then
   echo "Instalando Node.js 22 LTS..."
@@ -56,6 +60,9 @@ if [[ -f "$ENV_FILE" ]]; then
 else
   DB_PASSWORD="${NEXUS_DB_PASSWORD:-$(openssl rand -hex 24)}"
   SESSION_SECRET="${SESSION_SECRET:-$(openssl rand -hex 48)}"
+  # Cada instalação dedicada possui banco próprio; o tenant principal precisa
+  # coincidir com o registro criado pela migration inicial de RLS.
+  TENANT_ID="${TENANT_ID:-00000000-0000-4000-8000-000000000001}"
   runuser -u postgres -- psql -v ON_ERROR_STOP=1 --set=db_password="$DB_PASSWORD" <<'SQL'
 SELECT 'CREATE ROLE nexus_erp LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'nexus_erp') \gexec
 ALTER ROLE nexus_erp WITH LOGIN PASSWORD :'db_password';
@@ -69,6 +76,7 @@ SQL
 NODE_ENV=production
 NEXT_TELEMETRY_DISABLED=1
 DATABASE_URL=postgresql://nexus_erp:${DB_PASSWORD}@127.0.0.1:5432/nexus_erp?schema=public
+TENANT_ID=${TENANT_ID}
 SESSION_SECRET=${SESSION_SECRET}
 ALLOW_ROLE_SWITCH=false
 BACKUP_DIR=$ROOT/shared/backups
@@ -131,7 +139,7 @@ chmod 0755 \
   "$SOURCE/deploy/rollback-linux.sh" \
   "$SOURCE/deploy/check-linux.sh"
 
-sed "s/erp.seudominio.com.br/$SERVER_NAME/g" "$SOURCE/deploy/nginx-nexus-erp.conf" > /etc/nginx/sites-available/nexus-erp
+sed -e "s/__NEXUS_DOMAIN__/$DOMAIN/g" -e "s/__NEXUS_WWW_DOMAIN__/$WWW_DOMAIN/g" "$SOURCE/deploy/nginx-nexus-erp.conf" > /etc/nginx/sites-available/nexus-erp
 cat > /etc/nginx/nexus-erp-upstream.conf <<'EOF'
 upstream nexus_erp_backend {
     server 127.0.0.1:3001;
@@ -143,6 +151,26 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl daemon-reload
 systemctl enable --now nginx
+
+# Expõe somente SSH e o proxy web. PostgreSQL e os slots Node continuam
+# vinculados ao loopback e nunca devem ser liberados no firewall.
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow OpenSSH
+ufw allow 'Nginx Full'
+ufw --force enable
+
+cat > /etc/fail2ban/jail.d/nexus-erp.local <<'EOF'
+[DEFAULT]
+bantime = 1h
+findtime = 10m
+maxretry = 5
+
+[sshd]
+enabled = true
+backend = systemd
+EOF
+systemctl enable --now fail2ban
 
 echo "[6/8] Publicando primeira versão..."
 bash "$SOURCE/deploy/update-linux.sh"
@@ -170,11 +198,24 @@ else
 fi
 bash "$SOURCE/deploy/check-linux.sh"
 
+if [[ -n "$LETSENCRYPT_EMAIL" ]]; then
+  echo "Solicitando certificado HTTPS para $DOMAIN e $WWW_DOMAIN..."
+  if certbot --nginx --non-interactive --agree-tos --redirect \
+      --email "$LETSENCRYPT_EMAIL" -d "$DOMAIN" -d "$WWW_DOMAIN"; then
+    certbot renew --dry-run || echo "AVISO: valide depois a renovação com: sudo certbot renew --dry-run" >&2
+  else
+    echo "AVISO: SSL ainda não foi emitido. Confirme o DNS e execute:" >&2
+    echo "sudo certbot --nginx -d $DOMAIN -d $WWW_DOMAIN" >&2
+  fi
+else
+  echo "SSL não solicitado: informe LETSENCRYPT_EMAIL após o DNS estar propagado."
+fi
+
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
 echo "Nexus ERP instalado com sucesso."
-echo "Acesso local: http://127.0.0.1"
-[[ -n "$SERVER_IP" ]] && echo "Acesso na rede: http://$SERVER_IP"
+echo "Domínio: https://$DOMAIN"
+echo "Acesso local de diagnóstico: http://127.0.0.1"
 echo "Usuário administrador: $ADMIN_EMAIL"
 if [[ "$GENERATED_ADMIN_PASSWORD" == "true" ]]; then
   echo "Senha inicial (guarde agora): $ADMIN_PASSWORD"

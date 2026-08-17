@@ -35,12 +35,17 @@
         "test:multi-assets": "tsx src/tests/testMultiAssetWorkflow.ts",
         "test:financial-risk": "tsx src/tests/testFinancialRiskWorkflow.ts",
         "test:gmail-proposal": "tsx --env-file=.env src/tests/testGmailProposalWorkflow.ts",
+        "test:providers": "tsx --env-file=.env src/tests/testProviderPersistence.ts",
         "install:linux": "sudo bash deploy/install-linux.sh",
         "update:linux": "sudo bash deploy/update-linux.sh",
         "update:status": "bash deploy/update-status.sh",
         "rollback:linux": "sudo bash deploy/rollback-linux.sh",
         "check:linux": "sudo bash deploy/check-linux.sh",
-        "lint": "eslint"
+        "lint": "eslint",
+        "security:audit": "node scripts/security-audit.mjs",
+        "test:integration": "tsx --env-file=.env src/tests/testAll.ts",
+        "test:rls": "node scripts/test-tenant-rls.mjs",
+        "quality:gate": "npm run security:audit && npm run test:rls && npm run build"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.1087.0",
@@ -75,5 +80,9 @@
     },
     "prisma": {
         "seed": "tsx prisma/seed.ts"
+    },
+    "overrides": {
+        "deepmerge-ts": "^8.0.0",
+        "uuid": "^11.1.1"
     }
 }

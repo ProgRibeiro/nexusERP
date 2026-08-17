@@ -1,0 +1,28 @@
+[Unit]
+Description=Nexus ERP - ASP.NET Core Web Service
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=nexuserp
+Group=nexuserp
+WorkingDirectory=/var/www/nexus-erp/current
+ExecStart=/usr/bin/dotnet /var/www/nexus-erp/current/NexusERP.dll
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=nexus-erp
+
+# Opções de Hardening e Segurança Linux
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/nexus-erp /var/log/nexus-erp /var/www/nexus-erp
+
+# Arquivo de Variáveis de Ambiente
+EnvironmentFile=/etc/nexus-erp/nexus-erp.env
+
+[Install]
+WantedBy=multi-user.target

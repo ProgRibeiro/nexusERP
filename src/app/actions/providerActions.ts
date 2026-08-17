@@ -3,6 +3,17 @@
 import { prisma } from "@/lib/db";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { logger } from "@/lib/logger";
+
+function normalizeDocument(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function providerError(error: unknown) {
+  const known = error as { code?: string; message?: string };
+  if (known.code === "P2002") return "Este CPF/CNPJ já está cadastrado.";
+  return error instanceof Error ? error.message : "Erro ao cadastrar prestador.";
+}
 
 export async function getProvidersWorkspace() {
   await requireAuth();
@@ -55,20 +66,51 @@ export async function getSuppliersForQuote() {
 }
 
 export async function createProvider(data: { name: string; cnpj: string; phone: string; email: string; notes?: string }) {
-  await requirePermission("quotes.write");
-  if (!data.name.trim() || !data.cnpj.trim() || !data.phone.trim() || !data.email.trim()) {
-    return { success: false, error: "Preencha nome, CPF/CNPJ, telefone e e-mail." };
-  }
   try {
-    const supplier = await prisma.supplier.create({
-      data: { ...data, name: data.name.trim(), cnpj: data.cnpj.replace(/\D/g, ""), phone: data.phone.trim(), email: data.email.trim().toLowerCase() },
+    const session = await requirePermission("quotes.write");
+    const normalized = {
+      name: data.name.trim(),
+      cnpj: normalizeDocument(data.cnpj),
+      phone: data.phone.trim(),
+      email: data.email.trim().toLowerCase(),
+      notes: data.notes?.trim() || null,
+    };
+    if (!normalized.name || !normalized.cnpj || !normalized.phone || !normalized.email) {
+      return { success: false, error: "Preencha nome, CPF/CNPJ, telefone e e-mail." };
+    }
+    if (![11, 14].includes(normalized.cnpj.length)) {
+      return { success: false, error: "Informe um CPF com 11 dígitos ou CNPJ com 14 dígitos." };
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.email)) {
+      return { success: false, error: "Informe um e-mail válido." };
+    }
+
+    // Localiza também cadastros legados que guardaram pontuação no documento.
+    const candidates = await prisma.supplier.findMany({ select: { id: true, name: true, cnpj: true } });
+    const duplicate = candidates.find((item) => normalizeDocument(item.cnpj) === normalized.cnpj);
+    if (duplicate) return { success: false, error: `Este CPF/CNPJ já pertence a ${duplicate.name}.` };
+
+    // Cadastro e trilha de auditoria são atômicos: ou ambos são persistidos,
+    // ou nenhum deles é gravado. Isso evita registros parciais e perda silenciosa.
+    const supplier = await prisma.$transaction(async (tx) => {
+      const created = await tx.supplier.create({ data: normalized });
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          action: "CRIACAO",
+          entity: "Prestador",
+          entityId: created.id,
+          changesJson: JSON.stringify({ name: created.name, cnpj: created.cnpj, phone: created.phone, email: created.email }),
+        },
+      });
+      return created;
     });
     revalidatePath("/prestadores");
     revalidatePath("/orcamentos");
     return { success: true, supplier };
   } catch (error: unknown) {
-    const known = error as { code?: string; message?: string };
-    return { success: false, error: known.code === "P2002" ? "Este CPF/CNPJ já está cadastrado." : known.message || "Erro ao cadastrar prestador." };
+    logger.error("provider_create_failed", error);
+    return { success: false, error: providerError(error) };
   }
 }
 

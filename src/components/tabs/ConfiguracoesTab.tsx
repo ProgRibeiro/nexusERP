@@ -17,6 +17,10 @@ import { parseDelimitedText } from "@/lib/tabularImport";
 import { getCompanyTaxProfile, saveCompanyTaxProfile } from "@/app/actions/settingsActions";
 import { defaultTaxRate, normalizeTaxRegime } from "@/lib/tax";
 import { disconnectGmail, getGmailIntegrationSettings } from "@/app/actions/gmailActions";
+import { CompanyRegistrationModal } from "@/components/modals/CompanyRegistrationModal";
+import ModuleCatalogSettings from "@/components/ModuleCatalogSettings";
+import ErrorReportQueue from "@/components/ErrorReportQueue";
+
 
 type GmailSettings = Awaited<ReturnType<typeof getGmailIntegrationSettings>>;
 
@@ -584,191 +588,11 @@ export default function ConfiguracoesTab() {
 
           {/* 2. Company Info (Minha Empresa) */}
           {activeSubTab === "empresa" && (
-            <form onSubmit={handleSaveCompany} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                {/* Logo Upload Box */}
-                <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl bg-zinc-50/50 dark:bg-zinc-900/20 text-center">
-                  <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-4">Logotipo da Empresa</span>
-
-                  {companyParams.logoUrl ? (
-                    <div className="relative group w-32 h-32 mb-4 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden bg-white dark:bg-zinc-950 flex items-center justify-center">
-                      <img src={companyParams.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain p-2" />
-                      <button
-                        type="button"
-                        onClick={() => setCompanyParams((prev: any) => ({ ...prev, logoUrl: "" }))}
-                        className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold transition-all cursor-pointer rounded-2xl"
-                      >
-                        Remover Logo
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="w-32 h-32 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 dark:text-zinc-500 font-semibold text-sm mb-4">
-                      [ SUA LOGO ]
-                    </div>
-                  )}
-
-                  <label className="cursor-pointer">
-                    <span className="py-2 px-3 bg-primary text-white font-bold text-xs rounded-xl shadow-premium hover:bg-primary/95 transition-all">
-                      Selecionar Imagem
-                    </span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-                  </label>
-                </div>
-
-                {/* Company Details Form */}
-                <div className="md:col-span-2 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
-                      label="Razão Social *"
-                      required
-                      value={companyParams.corporateName}
-                      onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, corporateName: e.target.value }))}
-                      placeholder="Razão Social da empresa"
-                    />
-                    <Input
-                      label="Nome Fantasia (Nome da Loja) *"
-                      required
-                      value={companyParams.tradeName}
-                      onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, tradeName: e.target.value }))}
-                      placeholder="Digite o nome fantasia da loja"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div className="flex gap-2 items-end md:col-span-1">
-                      <div className="flex-1">
-                        <Input
-                          label="CNPJ *"
-                          required
-                          placeholder="Digite apenas números"
-                          value={companyParams.cnpj}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setCompanyParams((prev: any) => ({ ...prev, cnpj: val }));
-                            const clean = val.replace(/\D/g, "");
-                            if (clean.length === 14) {
-                              handleCnpjLookup(clean);
-                            }
-                          }}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => handleCnpjLookup(companyParams.cnpj)}
-                        loading={cnpjLoading}
-                        className="mb-1 cursor-pointer py-2.5 px-3.5"
-                      >
-                        Buscar
-                      </Button>
-                    </div>
-                    <Input
-                      label="Inscrição Estadual"
-                      value={companyParams.stateRegistration}
-                      onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, stateRegistration: e.target.value }))}
-                      placeholder="Número ou 'ISENTO'"
-                    />
-                    <Input
-                      label="Inscrição Municipal"
-                      value={companyParams.municipalRegistration}
-                      onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, municipalRegistration: e.target.value }))}
-                      placeholder="Número da Inscrição Municipal"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Input
-                      label="E-mail Corporativo *"
-                      type="email"
-                      required
-                      value={companyParams.email}
-                      onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, email: e.target.value }))}
-                      placeholder="e-mail de contato corporativo"
-                    />
-                    <Input
-                      label="Telefone Comercial *"
-                      required
-                      value={companyParams.phone}
-                      onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, phone: e.target.value }))}
-                      placeholder="telefone comercial"
-                    />
-                    <Select
-                      label="Regime Tributário *"
-                      value={companyParams.fiscalRegime || "SIMPLES_NACIONAL"}
-                      onChange={(e) => {
-                        const regime = normalizeTaxRegime(e.target.value);
-                        setCompanyParams((prev: any) => ({ ...prev, fiscalRegime: regime, taxRate: defaultTaxRate(regime) }));
-                      }}
-                      options={[
-                        { value: "SIMPLES_NACIONAL", label: "Simples Nacional (6.0%)" },
-                        { value: "LUCRO_PRESUMIDO", label: "Lucro Presumido (15.0%)" },
-                        { value: "LUCRO_REAL", label: "Lucro Real (18.0%)" },
-                      ]}
-                    />
-                    <Input
-                      label="Alíquota efetiva nas propostas (%) *"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.01}
-                      required
-                      value={companyParams.taxRate ?? 6}
-                      onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, taxRate: Number(e.target.value) }))}
-                    />
-                  </div>
-
-                  <Input
-                    label="Endereço Matriz Completo"
-                    value={companyParams.address}
-                    onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, address: e.target.value }))}
-                    placeholder="Digite o endereço completo"
-                  />
-
-                  <div className="border-t border-zinc-150 dark:border-zinc-800 pt-4 space-y-4">
-                    <h5 className="text-[10px] font-bold text-blue-955 dark:text-zinc-300 uppercase tracking-wider">Configuração de Merchandising do Orçamento</h5>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider block mb-1">
-                          Diferenciais (Um por Linha)
-                        </label>
-                        <textarea
-                          rows={4}
-                          value={companyParams.differentials}
-                          onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, differentials: e.target.value }))}
-                          placeholder="Profissionais qualificados&#10;Peças e materiais de qualidade"
-                          className="w-full text-xs p-3 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-1 focus:ring-primary outline-none text-zinc-800 dark:text-zinc-150"
-                        />
-                      </div>
-
-                      <div className="space-y-3">
-                        <Input
-                          label="Título do Merchan / Destaque"
-                          value={companyParams.merchanTitle}
-                          onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, merchanTitle: e.target.value }))}
-                          placeholder="Ex: AQUI É O SEU ESPAÇO!"
-                        />
-                        <Input
-                          label="Descrição do Merchan / Destaque"
-                          value={companyParams.merchanDesc}
-                          onChange={(e) => setCompanyParams((prev: any) => ({ ...prev, merchanDesc: e.target.value }))}
-                          placeholder="Ex: Mais destaque, mais resultados para o seu negócio."
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              <div className="pt-4 border-t border-zinc-150 dark:border-zinc-800 flex justify-end">
-                <Button variant="primary" type="submit" loading={saving}>
-                  Salvar Informações da Empresa
-                </Button>
-              </div>
-            </form>
+            <div className="py-2">
+              <CompanyRegistrationModal isFloating={false} />
+            </div>
           )}
+
 
           {/* 3. Matriz de Permissões */}
           {activeSubTab === "matrix" && (
@@ -1102,7 +926,9 @@ export default function ConfiguracoesTab() {
 
           {/* 7. Segurança & Autenticação (2FA) */}
           {activeSubTab === "security" && (
-            <div className="space-y-6 max-w-lg select-none">
+            <div className="space-y-6 max-w-4xl select-none">
+              <ModuleCatalogSettings />
+              <ErrorReportQueue />
               <div>
                 <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider mb-1">
                   Autenticação de Dois Fatores (MFA / 2FA)

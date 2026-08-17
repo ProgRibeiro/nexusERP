@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { X } from "lucide-react";
+import { Minus, X } from "lucide-react";
 
 interface OverlayProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface OverlayProps {
   containerClassName: string;
   /** Classes for the panel itself (size, radius, entry animation) */
   panelClassName: string;
+  onMinimize?: () => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export function Overlay({
   children,
   containerClassName,
   panelClassName,
+  onMinimize,
 }: OverlayProps) {
   useEffect(() => {
     if (isOpen) {
@@ -64,12 +66,15 @@ export function Overlay({
               {title}
             </h3>
           </div>
-          <button
-            onClick={onClose}
-            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-[#d4af37]/45 hover:bg-[#f8f0db] hover:text-[#6f5411] dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-[#d4af37]/40 dark:hover:bg-[#2d2513]"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-1">
+            {onMinimize && <button type="button" onClick={onMinimize} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-[#d4af37]/45 hover:bg-[#f8f0db] hover:text-[#6f5411] dark:border-zinc-700 dark:bg-zinc-800" title="Minimizar e continuar depois"><Minus size={16}/></button>}
+            <button
+              onClick={onClose}
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-[#d4af37]/45 hover:bg-[#f8f0db] hover:text-[#6f5411] dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-[#d4af37]/40 dark:hover:bg-[#2d2513]"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 sm:p-6">{children}</div>

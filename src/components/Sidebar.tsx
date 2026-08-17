@@ -18,6 +18,7 @@ import {
   Flame,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   BarChart3,
   Calendar,
   ShieldCheck,
@@ -26,12 +27,14 @@ import {
   Network,
   ClipboardCheck,
   HardHat,
+  Megaphone,
   X,
 } from "lucide-react";
 import {
   getNavigationIndicators,
   NavigationIndicators,
 } from "@/app/actions/navigationActions";
+import { getModuleFlags } from "@/app/actions/moduleActions";
 
 interface MenuItem {
   title: string;
@@ -50,6 +53,8 @@ export default function Sidebar() {
   const { hasPermission, user, logout } = useAuth();
   const { activeTabId, openTab, sidebarOpen, setSidebarOpen } = useWorkspace();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [moduleFlags,setModuleFlags] = useState<Record<string,boolean>>({});
   const [indicators, setIndicators] = useState<NavigationIndicators>({
     os: 0,
     faturamento: 0,
@@ -67,6 +72,7 @@ export default function Sidebar() {
       if (active) setIndicators(data);
     };
     void load();
+    void getModuleFlags().then(setModuleFlags).catch(()=>{});
     const timer = window.setInterval(load, 60_000);
     return () => {
       active = false;
@@ -87,27 +93,23 @@ export default function Sidebar() {
     localStorage.setItem("nx_sidebar_collapsed", String(next));
   };
 
+  const primaryItems: MenuItem[] = [
+    { title: "Clientes", href: "/clientes", icon: Users, permission: "clients.read" },
+    { title: "Orçamentos", href: "/orcamentos", icon: FileText, permission: "quotes.read" },
+    { title: "Serviços", href: "/ordens-servico", icon: Wrench, permission: "os.read", indicator: "os" },
+    { title: "Agenda", href: "/agenda", icon: Calendar, permission: "os.read" },
+    { title: "Financeiro", href: "/financeiro", icon: DollarSign, permission: "financeiro.read", indicator: "overdue" },
+  ];
+
   const sections: MenuSection[] = [
     {
-      name: "Comercial",
+      name: "Vendas e relacionamento",
       items: [
         {
           title: "CRM / Funil",
           href: "/crm",
           icon: Flame,
           permission: "crm.read",
-        },
-        {
-          title: "Clientes",
-          href: "/clientes",
-          icon: Users,
-          permission: "clients.read",
-        },
-        {
-          title: "Orçamentos",
-          href: "/orcamentos",
-          icon: FileText,
-          permission: "quotes.read",
         },
         {
           title: "Propostas Preventivas",
@@ -121,24 +123,17 @@ export default function Sidebar() {
           icon: ClipboardCheck,
           permission: "quotes.read",
         },
+        {
+          title: "Marketing",
+          href: "/marketing",
+          icon: Megaphone,
+          permission: "clients.read",
+        },
       ],
     },
     {
-      name: "Operação",
+      name: "Operação avançada",
       items: [
-        {
-          title: "Ordens de Serviço",
-          href: "/ordens-servico",
-          icon: Wrench,
-          permission: "os.read",
-          indicator: "os",
-        },
-        {
-          title: "Agenda",
-          href: "/agenda",
-          icon: Calendar,
-          permission: "os.read",
-        },
         {
           title: "Prestadores",
           href: "/prestadores",
@@ -168,18 +163,6 @@ export default function Sidebar() {
           icon: Receipt,
           permission: "faturamento.read",
           indicator: "faturamento",
-        },
-      ],
-    },
-    {
-      name: "Financeiro",
-      items: [
-        {
-          title: "Financeiro Geral",
-          href: "/financeiro",
-          icon: DollarSign,
-          permission: "financeiro.read",
-          indicator: "overdue",
         },
       ],
     },
@@ -369,7 +352,7 @@ export default function Sidebar() {
                     ? "bg-[#d4af37] text-[#111216] shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#f0d37f]/25"
                     : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                 }`}
-                title="Dashboard"
+                title="Início"
               >
                 <LayoutDashboard
                   size={16}
@@ -379,15 +362,35 @@ export default function Sidebar() {
                       : "text-slate-400 group-hover:text-[#f0cd62]"
                   }`}
                 />
-                {!isCollapsed && <span>Dashboard</span>}
+                {!isCollapsed && <span>Início</span>}
               </button>
             )}
 
-            {/* Grouped Sections */}
-            {sections.map((section) => {
-              const filteredItems = section.items.filter((item) =>
-                hasPermission(item.permission),
-              );
+            {!isCollapsed && <span className="mb-1 mt-4 block px-3.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">Dia a dia</span>}
+            {primaryItems.filter((item) => hasPermission(item.permission)).map((item) => {
+              const Icon = item.icon;
+              const isActive = isLinkActive(item.href);
+              return <button type="button" key={item.href} onClick={() => {
+                const [path, query] = item.href.slice(1).split("?");
+                const params = query ? Object.fromEntries(new URLSearchParams(query)) : undefined;
+                openTab(path, item.title, params); setSidebarOpen(false);
+              }} className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${isActive ? "bg-[#d4af37] text-[#111216] shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#f0d37f]/25" : "text-slate-300 hover:bg-white/[0.06] hover:text-white"}`} title={item.title}>
+                <Icon size={16} className={`shrink-0 ${isActive ? "text-[#111216]" : "text-slate-400 group-hover:text-[#f0cd62]"}`}/>
+                {!isCollapsed && <span className="truncate">{item.title}</span>}
+                {item.indicator && indicators[item.indicator] > 0 && <span className={`${isCollapsed ? "absolute right-1 top-1" : "ml-auto"} min-w-5 rounded-full bg-orange-500 px-1.5 py-0.5 text-center text-[9px] font-black text-white`}>{indicators[item.indicator] > 99 ? "99+" : indicators[item.indicator]}</span>}
+              </button>;
+            })}
+
+            {!isCollapsed && <button type="button" onClick={() => setMoreOpen((value) => !value)} className="mt-4 flex min-h-10 w-full items-center gap-3 rounded-xl border border-white/[.06] bg-white/[.025] px-3.5 py-2 text-left text-xs font-bold text-slate-400 transition hover:bg-white/[.06] hover:text-white" aria-expanded={moreOpen}>
+              <Settings size={16}/><span>Mais ferramentas</span><ChevronDown size={14} className={`ml-auto transition-transform ${moreOpen ? "rotate-180" : ""}`}/>
+            </button>}
+
+            {/* Recursos menos frequentes continuam disponíveis sem poluir o fluxo principal. */}
+            {(isCollapsed || moreOpen || sections.some((section) => section.items.some((item) => isLinkActive(item.href)))) && sections.map((section) => {
+              const filteredItems = section.items.filter((item) => {
+                const moduleId=item.href.split("?")[0].replace("/","");
+                return hasPermission(item.permission) && moduleFlags[moduleId] !== false;
+              });
 
               if (filteredItems.length === 0) return null;
 

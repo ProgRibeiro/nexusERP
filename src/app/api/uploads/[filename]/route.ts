@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "public", "uploads");
-const SAFE_FILE_NAME = /^[a-zA-Z0-9_-]+\.(?:jpg|jpeg|png|webp|gif)$/i;
+const SAFE_FILE_NAME = /^[a-zA-Z0-9_-]+\.(?:jpg|jpeg|png|webp|gif|pdf|xml)$/i;
 
 const CONTENT_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -14,10 +14,12 @@ const CONTENT_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".webp": "image/webp",
   ".gif": "image/gif",
+  ".pdf": "application/pdf",
+  ".xml": "application/xml; charset=utf-8",
 };
 
 function notFound() {
-  return new Response("Imagem não encontrada.", {
+  return new Response("Arquivo não encontrado.", {
     status: 404,
     headers: { "Cache-Control": "no-store" },
   });

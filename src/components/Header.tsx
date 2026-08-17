@@ -24,11 +24,14 @@ import {
   Sun,
   Moon,
   Keyboard,
+  Building2,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { CommandPalette } from "./ui/CommandPalette";
 import { getSearchResultTarget } from "@/lib/searchNavigation";
 import PwaInstallButton from "./PwaInstallButton";
+import { CompanyRegistrationModal } from "./modals/CompanyRegistrationModal";
+
 
 // Badge color shown next to each global search result type.
 const SEARCH_RESULT_BADGE: Record<SearchResult["type"], string> = {
@@ -70,6 +73,8 @@ export default function Header() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+
 
   // Search & Contextual New states
   const [searchQuery, setSearchQuery] = useState("");
@@ -631,8 +636,19 @@ export default function Header() {
           )}
         </div>
 
+        {/* Botão Flutuante Minha Empresa */}
+        <button
+          onClick={() => setIsCompanyModalOpen(true)}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-extrabold text-zinc-800 dark:text-zinc-200 bg-white/90 dark:bg-zinc-900/90 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer shadow-sm"
+          title="Dados e Logotipo da Empresa"
+        >
+          <Building2 size={15} className="text-primary" />
+          <span>Minha Empresa</span>
+        </button>
+
         {/* User Simulator Dropdown */}
         <div className="relative hidden lg:block">
+
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-850 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all text-zinc-700 dark:text-zinc-350 cursor-pointer"
@@ -768,6 +784,15 @@ export default function Header() {
         isOpen={isPaletteOpen}
         onClose={() => setIsPaletteOpen(false)}
       />
+
+      {/* Modal Flutuante de Cadastro da Empresa */}
+      {isCompanyModalOpen && (
+        <CompanyRegistrationModal
+          isOpen={isCompanyModalOpen}
+          onClose={() => setIsCompanyModalOpen(false)}
+          isFloating={true}
+        />
+      )}
     </header>
   );
 }

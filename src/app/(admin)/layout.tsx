@@ -7,7 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import GlobalDrawer from "@/components/GlobalDrawer";
 import MobileNavigation from "@/components/MobileNavigation";
-import { Loader2 } from "lucide-react";
+import { Layers3, Loader2, Minus, X } from "lucide-react";
 
 // Tab views imports (dynamically mapped in TabContent wrapper)
 import DashboardTab from "@/components/tabs/DashboardTab";
@@ -29,7 +29,9 @@ import DataGraphTab from "@/components/tabs/DataGraphTab";
 import PreventiveCentralTab from "@/components/tabs/PreventiveCentralTab";
 import PreventiveProposalsTab from "@/components/tabs/PreventiveProposalsTab";
 import PrestadoresTab from "@/components/tabs/PrestadoresTab";
+import MarketingTab from "@/components/tabs/MarketingTab";
 import { ToastProvider } from "@/components/ui/Toast";
+import ErrorReporter from "@/components/ErrorReporter";
 
 function TabContentRenderer({ tab }: { tab: Tab }) {
   switch (tab.type) {
@@ -66,6 +68,8 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
       return <ServicosTab />;
     case "prestadores":
       return <PrestadoresTab />;
+    case "marketing":
+      return <MarketingTab />;
     case "teia":
       return <DataGraphTab />;
     case "contratos":
@@ -84,7 +88,8 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
 }
 
 function WorkspaceContainer() {
-  const { activeTab, darkMode } = useWorkspace();
+  const { activeTab, darkMode, floatingTabs, activeFloatingTabId, activateFloatingTab, closeFloatingTab } = useWorkspace();
+  const activeFloatingTab = floatingTabs.find((tab) => tab.id === activeFloatingTabId);
 
   return (
     <div className={`app-shell flex h-[100dvh] w-screen overflow-hidden font-sans antialiased print:block print:h-auto print:w-auto print:overflow-visible ${darkMode ? "dark bg-zinc-950 text-zinc-100" : "bg-zinc-50 text-zinc-800"}`}>
@@ -112,6 +117,24 @@ function WorkspaceContainer() {
 
       {/* Slide-in Drawers */}
       <GlobalDrawer />
+      {floatingTabs.length > 0 && (
+        <>
+          {activeFloatingTab && <div className="fixed inset-0 z-46 bg-black/45 backdrop-blur-[2px] print:hidden" onClick={() => activateFloatingTab(null)} aria-hidden="true" />}
+          {activeFloatingTab && <section className="fixed inset-2 z-47 flex flex-col overflow-hidden rounded-[24px] border border-[#d4af37]/25 bg-[#0d0e11] shadow-[0_35px_100px_rgba(0,0,0,.65)] sm:inset-5 xl:bottom-5 xl:left-[292px] xl:right-5 xl:top-[88px] print:hidden" role="dialog" aria-label={activeFloatingTab.title}>
+            <header className="flex shrink-0 items-center gap-2 border-b border-white/[.08] bg-[#141519] p-2">
+              <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto scrollbar-none">
+                {floatingTabs.map((tab) => <button key={tab.id} type="button" onClick={() => activateFloatingTab(tab.id)} className={`group flex min-w-[150px] max-w-[240px] items-center gap-2 rounded-xl px-3 py-2 text-left text-[10px] font-bold transition ${tab.id === activeFloatingTabId ? "bg-[#d4af37] text-[#111216]" : "bg-white/[.04] text-zinc-400 hover:bg-white/[.08] hover:text-white"}`}><Layers3 size={13} className="shrink-0"/><span className="flex-1 truncate">{tab.title}</span><span onClick={(event) => { event.stopPropagation(); closeFloatingTab(tab.id); }} className="rounded-md p-1 opacity-60 hover:bg-black/15 hover:opacity-100" role="button" aria-label={`Fechar ${tab.title}`}><X size={11}/></span></button>)}
+              </div>
+              <button type="button" onClick={() => activateFloatingTab(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-400 hover:bg-white/10 hover:text-white" title="Minimizar"><Minus size={17}/></button>
+              <button type="button" onClick={() => closeFloatingTab(activeFloatingTab.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-400 hover:bg-red-500/15 hover:text-red-300" title="Fechar"><X size={17}/></button>
+            </header>
+            <div className="app-workspace min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 xl:p-6">
+              {floatingTabs.map((tab) => <div key={tab.id} className={tab.id === activeFloatingTabId ? "mx-auto min-h-full w-full max-w-[1600px] animate-in fade-in duration-150" : "hidden"}><TabContentRenderer tab={tab}/></div>)}
+            </div>
+          </section>}
+          {!activeFloatingTab && <div className="fixed bottom-20 right-4 z-47 flex max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-[#d4af37]/25 bg-[#141519]/95 p-2 shadow-2xl backdrop-blur-md xl:bottom-5 xl:right-5 print:hidden"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#d4af37] text-black"><Layers3 size={16}/></span>{floatingTabs.map((tab) => <button key={tab.id} onClick={() => activateFloatingTab(tab.id)} className="max-w-40 truncate rounded-xl px-3 py-2 text-[10px] font-bold text-zinc-300 hover:bg-white/10">{tab.title}</button>)}<button onClick={() => floatingTabs.forEach((tab) => closeFloatingTab(tab.id))} className="rounded-xl p-2 text-zinc-500 hover:text-red-300" title="Fechar todas"><X size={15}/></button></div>}
+        </>
+      )}
       <MobileNavigation />
     </div>
   );
@@ -151,6 +174,7 @@ export default function AdminLayout({
     <WorkspaceProvider>
       <ToastProvider>
         <WorkspaceContainer />
+        <ErrorReporter />
       </ToastProvider>
     </WorkspaceProvider>
   );

@@ -79,9 +79,12 @@ import {
 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { getCompanyTaxProfile } from "@/app/actions/settingsActions";
-import { calculateProposalTax, TaxProfile } from "@/lib/tax";
+import { TaxProfile } from "@/lib/tax";
+import { calculateProposalTax } from "@/lib/tax";
 import { SendQuoteEmailModal } from "@/components/quotes/SendQuoteEmailModal";
 import { getSuppliersForQuote } from "@/app/actions/providerActions";
+import { createService } from "@/app/actions/serviceActions";
+import { calculateServicePrice } from "@/lib/servicePricing";
 
 interface OrcamentosTabProps {
   newRecord?: boolean;
@@ -248,6 +251,9 @@ export default function OrcamentosTab({
     productType: "MATERIAL",
     stockQuantity: "0",
     minStock: "0",
+    serviceType: "PROPRIO", workforceRegime: "CLT", supplierId: "",
+    materialCost: "0", laborCost: "0", equipmentCost: "0", otherDirectCost: "0",
+    payrollBurdenPercentage: "70", overheadPercentage: "8", riskPercentage: "3", profitPercentage: "15", serviceTaxPercentage: "6",
   });
   const [adhocActiveRowIdx, setAdhocActiveRowIdx] = useState<number | null>(
     null,
@@ -304,6 +310,11 @@ export default function OrcamentosTab({
     tax: 0,
     useCustomFinalValue: false,
     finalValueOverride: 0,
+    overheadPercentage: 8,
+    riskPercentage: 3,
+    financialPercentage: 1,
+    profitPercentage: 15,
+    taxPercentage: 6,
   });
 
   const [quoteItems, setQuoteItems] = useState<QuoteItemInput[]>([
@@ -745,8 +756,11 @@ export default function OrcamentosTab({
             if (i !== idx) return item;
             return {
               ...item,
+              type: match.serviceType === "TERCEIRIZADO" ? "TERCEIRIZADO" : "SERVICO",
               description: match.name,
               unitPrice: history?.lastUnitPrice ?? match.defaultPrice,
+              costPrice: match.directCost || match.defaultPrice || 0,
+              supplierId: match.supplierId || undefined,
               quantity: history
                 ? Math.max(1, Math.round(history.avgQuantity))
                 : item.quantity,
@@ -793,20 +807,30 @@ export default function OrcamentosTab({
       productType: "MATERIAL",
       stockQuantity: "0",
       minStock: "0",
+      serviceType: "PROPRIO", workforceRegime: "CLT", supplierId: "",
+      materialCost: "0", laborCost: "0", equipmentCost: "0", otherDirectCost: "0",
+      payrollBurdenPercentage: "70", overheadPercentage: "8", riskPercentage: "3", profitPercentage: "15", serviceTaxPercentage: "6",
     });
     setIsAdhocOpen(true);
   };
 
   const handleSaveAdhoc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adhocForm.name || !adhocForm.price) {
-      toast("Nome e preço são obrigatórios", "warning");
+    if (!adhocForm.name || (adhocForm.type !== "SERVICO" && !adhocForm.price)) {
+      toast("Preencha os campos obrigatórios", "warning");
       return;
     }
 
     setActionLoading(true);
     try {
-      const res = await registerCatalogItem({
+      const servicePricing = calculateServicePrice({ materialCost:Number(adhocForm.materialCost), laborCost:Number(adhocForm.laborCost), equipmentCost:Number(adhocForm.equipmentCost), otherDirectCost:Number(adhocForm.otherDirectCost), payrollBurdenPercentage:Number(adhocForm.payrollBurdenPercentage), overheadPercentage:Number(adhocForm.overheadPercentage), riskPercentage:Number(adhocForm.riskPercentage), profitPercentage:Number(adhocForm.profitPercentage), serviceTaxPercentage:Number(adhocForm.serviceTaxPercentage) });
+      const res: any = adhocForm.type === "SERVICO" ? await createService({
+        name: adhocForm.name, description: adhocForm.description, defaultPrice: servicePricing.salePrice,
+        serviceType: adhocForm.serviceType, workforceRegime: adhocForm.workforceRegime, supplierId: adhocForm.supplierId,
+        billingUnit: adhocForm.unit, estimatedHours: Number(adhocForm.estimatedHours) || undefined,
+        materialCost:Number(adhocForm.materialCost), laborCost:Number(adhocForm.laborCost), equipmentCost:Number(adhocForm.equipmentCost), otherDirectCost:Number(adhocForm.otherDirectCost),
+        payrollBurdenPercentage:Number(adhocForm.payrollBurdenPercentage), overheadPercentage:Number(adhocForm.overheadPercentage), riskPercentage:Number(adhocForm.riskPercentage), profitPercentage:Number(adhocForm.profitPercentage), serviceTaxPercentage:Number(adhocForm.serviceTaxPercentage),
+      }) : await registerCatalogItem({
         type: adhocForm.type,
         name: adhocForm.name,
         price: parseFloat(adhocForm.price) || 0,
@@ -831,9 +855,10 @@ export default function OrcamentosTab({
             : undefined,
       });
 
-      if (res.success && res.item) {
+      const savedItem = res.item || (res.service ? { type:"SERVICO", name:res.service.name, price:Number(res.service.defaultPrice), costPrice:servicePricing.directCost, unit:res.service.billingUnit || "SERVIÇO" } : null);
+      if (res.success && savedItem) {
         toast(
-          `${res.item.type === "SERVICO" ? "Serviço" : "Material"} salvo individualmente no catálogo.`,
+          `${savedItem.type === "SERVICO" ? "Serviço" : "Material"} salvo individualmente no catálogo.`,
           "success",
         );
 
@@ -848,11 +873,12 @@ export default function OrcamentosTab({
               if (i !== adhocActiveRowIdx) return item;
               return {
                 ...item,
-                type: res.item.type === "SERVICO" ? "SERVICO" : "PECAS",
-                description: res.item.name,
-                unitPrice: res.item.price,
-                costPrice: res.item.costPrice || 0,
-                unit: res.item.unit || "UN",
+                type: adhocForm.serviceType === "TERCEIRIZADO" ? "TERCEIRIZADO" : savedItem.type === "SERVICO" ? "SERVICO" : "PECAS",
+                description: savedItem.name,
+                unitPrice: savedItem.price,
+                costPrice: savedItem.costPrice || 0,
+                supplierId: adhocForm.serviceType === "TERCEIRIZADO" ? adhocForm.supplierId : undefined,
+                unit: savedItem.unit || "UN",
               };
             }),
           );
@@ -897,6 +923,11 @@ export default function OrcamentosTab({
       tax: quote.tax || 0,
       useCustomFinalValue: quote.finalValueOverride != null,
       finalValueOverride: Number(quote.finalValueOverride || quote.total || 0),
+      overheadPercentage: Number(quote.overheadPercentage || 8),
+      riskPercentage: Number(quote.riskPercentage || 3),
+      financialPercentage: Number(quote.financialPercentage || 1),
+      profitPercentage: Number(quote.profitPercentage || 15),
+      taxPercentage: Number(quote.taxPercentage || taxProfile.rate),
     });
 
     setQuoteItems(
@@ -972,6 +1003,11 @@ export default function OrcamentosTab({
           finalValueOverride: newQuoteForm.useCustomFinalValue
             ? Number(newQuoteForm.finalValueOverride) || null
             : null,
+          overheadPercentage: newQuoteForm.overheadPercentage,
+          riskPercentage: newQuoteForm.riskPercentage,
+          financialPercentage: newQuoteForm.financialPercentage,
+          profitPercentage: newQuoteForm.profitPercentage,
+          taxPercentage: newQuoteForm.taxPercentage,
         },
         quoteItems,
         currentUser?.id || "",
@@ -1004,6 +1040,7 @@ export default function OrcamentosTab({
       tax: 0,
       useCustomFinalValue: false,
       finalValueOverride: 0,
+      overheadPercentage: 8, riskPercentage: 3, financialPercentage: 1, profitPercentage: 15, taxPercentage: taxProfile.rate,
         });
         setSelectedQuoteId(res.quote.id);
         setQuoteDetails(res.quote as any);
@@ -1060,6 +1097,11 @@ export default function OrcamentosTab({
           finalValueOverride: newQuoteForm.useCustomFinalValue
             ? Number(newQuoteForm.finalValueOverride) || null
             : null,
+          overheadPercentage: newQuoteForm.overheadPercentage,
+          riskPercentage: newQuoteForm.riskPercentage,
+          financialPercentage: newQuoteForm.financialPercentage,
+          profitPercentage: newQuoteForm.profitPercentage,
+          taxPercentage: newQuoteForm.taxPercentage,
         },
         quoteItems,
         currentUser?.id || "",
@@ -1092,6 +1134,7 @@ export default function OrcamentosTab({
           tax: 0,
           useCustomFinalValue: false,
           finalValueOverride: 0,
+          overheadPercentage: 8, riskPercentage: 3, financialPercentage: 1, profitPercentage: 15, taxPercentage: taxProfile.rate,
         });
         setSelectedQuoteId(res.quote.id);
         setView("list");
@@ -1279,11 +1322,7 @@ export default function OrcamentosTab({
     });
 
     const discount = Number(newQuoteForm.discount) || 0;
-    const calculation = calculateProposalTax(
-      subtotal,
-      discount,
-      taxProfile.rate,
-    );
+    const calculation = calculateProposalTax(subtotal, discount, newQuoteForm.taxPercentage);
     return {
       subtotal,
       tax: calculation.tax,
@@ -2561,13 +2600,11 @@ export default function OrcamentosTab({
                       }))
                     }
                   />
-                  <Input
-                    label={`Impostos automáticos · ${taxProfile.label} (${taxProfile.rate.toFixed(2)}%)`}
-                    type="number"
-                    readOnly
-                    value={liveTotals.tax.toFixed(2)}
-                    className="bg-zinc-100 font-semibold text-zinc-600 dark:bg-zinc-900"
-                  />
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/50 dark:bg-blue-950/15">
+                    <p className="text-xs font-black text-blue-950 dark:text-blue-200">Tributo da proposta</p>
+                    <p className="mb-3 mt-1 text-[10px] text-blue-700/70 dark:text-blue-300/70">Único encargo exibido ao cliente: valor destinado ao recolhimento governamental.</p>
+                    <Input label="Alíquota tributária %" type="number" min="0" max="100" step="0.1" value={newQuoteForm.taxPercentage} onChange={(e)=>setNewQuoteForm((prev)=>({...prev,taxPercentage:Number(e.target.value)||0}))}/>
+                  </div>
                   <div className="rounded-xl border border-[#d4af37]/20 bg-[#d4af37]/[.05] p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -2605,7 +2642,7 @@ export default function OrcamentosTab({
 
                 <div className="flex flex-col justify-center space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/40">
                   <div className="flex justify-between text-xs text-slate-500 dark:text-zinc-400">
-                    <span>Subtotal dos Itens:</span>
+                    <span>Valor dos serviços e itens:</span>
                     <span className="font-bold text-slate-700 dark:text-zinc-200">
                       {formatCurrency(liveTotals.subtotal)}
                     </span>
@@ -2617,7 +2654,7 @@ export default function OrcamentosTab({
                     </span>
                   </div>
                   <div className="flex justify-between text-xs text-slate-500 dark:text-zinc-400">
-                    <span>Acréscimos/Impostos:</span>
+                    <span>Tributo destinado ao governo:</span>
                     <span className="font-bold text-slate-700 dark:text-zinc-200">
                       +{formatCurrency(liveTotals.tax)}
                     </span>
@@ -3321,7 +3358,7 @@ export default function OrcamentosTab({
                       )}
                       {quoteDetails.tax > 0 && (
                         <div className="flex justify-between text-[8px] font-semibold text-blue-100">
-                          <span>Impostos:</span>
+                          <span>Tributo destinado ao governo:</span>
                           <span>+{formatCurrency(quoteDetails.tax)}</span>
                         </div>
                       )}
@@ -3934,18 +3971,11 @@ export default function OrcamentosTab({
                     }))
                   }
                 />
-                <Input
-                  label="Preço padrão de venda (R$) *"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  required
-                  value={adhocForm.price}
-                  onChange={(e) =>
-                    setAdhocForm((prev) => ({ ...prev, price: e.target.value }))
-                  }
-                />
+                <Select label="Forma de execução" value={adhocForm.serviceType} onChange={(e)=>setAdhocForm(p=>({...p,serviceType:e.target.value,workforceRegime:e.target.value==="TERCEIRIZADO"?"TERCEIRIZADO":p.workforceRegime,payrollBurdenPercentage:e.target.value==="TERCEIRIZADO"?"0":p.payrollBurdenPercentage}))} options={[{value:"PROPRIO",label:"Equipe própria"},{value:"TERCEIRIZADO",label:"Prestador terceirizado"}]}/>
               </div>
+              {adhocForm.serviceType === "TERCEIRIZADO" ? <Select label="Prestador responsável *" required value={adhocForm.supplierId} onChange={(e)=>setAdhocForm(p=>({...p,supplierId:e.target.value}))} options={[{value:"",label:"Selecione"},...suppliers.map(s=>({value:s.id,label:s.name}))]}/> : <Select label="Regime da mão de obra" value={adhocForm.workforceRegime} onChange={(e)=>setAdhocForm(p=>({...p,workforceRegime:e.target.value,payrollBurdenPercentage:e.target.value==="CLT"?"70":"0"}))} options={[{value:"CLT",label:"Equipe CLT"},{value:"PROFISSIONAL",label:"Profissional / pró-labore"},{value:"AUTONOMO",label:"Autônomo"}]}/>} 
+              <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"><p className="mb-3 text-[10px] font-black uppercase">Custos internos</p><div className="grid grid-cols-2 gap-3 md:grid-cols-4"><Input label="Materiais" type="number" value={adhocForm.materialCost} onChange={(e)=>setAdhocForm(p=>({...p,materialCost:e.target.value}))}/><Input label="Mão de obra / prestador" type="number" value={adhocForm.laborCost} onChange={(e)=>setAdhocForm(p=>({...p,laborCost:e.target.value}))}/><Input label="Equipamentos" type="number" value={adhocForm.equipmentCost} onChange={(e)=>setAdhocForm(p=>({...p,equipmentCost:e.target.value}))}/><Input label="Outros diretos" type="number" value={adhocForm.otherDirectCost} onChange={(e)=>setAdhocForm(p=>({...p,otherDirectCost:e.target.value}))}/></div></div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/50 dark:bg-amber-950/10"><p className="mb-3 text-[10px] font-black uppercase">Formação interna do preço</p><div className="grid grid-cols-2 gap-3 md:grid-cols-5"><Input label="Encargos pessoal %" type="number" value={adhocForm.payrollBurdenPercentage} onChange={(e)=>setAdhocForm(p=>({...p,payrollBurdenPercentage:e.target.value}))}/><Input label="Administração %" type="number" value={adhocForm.overheadPercentage} onChange={(e)=>setAdhocForm(p=>({...p,overheadPercentage:e.target.value}))}/><Input label="Risco %" type="number" value={adhocForm.riskPercentage} onChange={(e)=>setAdhocForm(p=>({...p,riskPercentage:e.target.value}))}/><Input label="Margem %" type="number" value={adhocForm.profitPercentage} onChange={(e)=>setAdhocForm(p=>({...p,profitPercentage:e.target.value}))}/><Input label="Tributo %" type="number" value={adhocForm.serviceTaxPercentage} onChange={(e)=>setAdhocForm(p=>({...p,serviceTaxPercentage:e.target.value}))}/></div><div className="mt-3 text-right text-sm font-black text-emerald-700">Preço calculado: {formatCurrency(calculateServicePrice({materialCost:Number(adhocForm.materialCost),laborCost:Number(adhocForm.laborCost),equipmentCost:Number(adhocForm.equipmentCost),otherDirectCost:Number(adhocForm.otherDirectCost),payrollBurdenPercentage:Number(adhocForm.payrollBurdenPercentage),overheadPercentage:Number(adhocForm.overheadPercentage),riskPercentage:Number(adhocForm.riskPercentage),profitPercentage:Number(adhocForm.profitPercentage),serviceTaxPercentage:Number(adhocForm.serviceTaxPercentage)}).salePrice)}</div></div>
             </section>
           ) : (
             <section className="space-y-4">

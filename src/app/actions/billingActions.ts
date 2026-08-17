@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { buildBillingDescription } from "@/lib/billingDescription";
+import { deleteUploadedAsset, saveBase64Asset } from "@/lib/storage";
 
 export interface BillingQueueItem {
   id: string;
@@ -348,5 +349,39 @@ export async function getInvoices() {
   } catch (error) {
     logger.error("Erro ao obter notas fiscais:", error);
     return [];
+  }
+}
+
+export async function saveInvoiceDocuments(data: {
+  invoiceId: string;
+  pdfDataUrl?: string;
+  xmlDataUrl?: string;
+  status?: "EMITIDA" | "ENVIADA" | "CANCELADA" | "SUBSTITUIDA";
+}) {
+  try {
+    const session = await requirePermission("faturamento.write");
+    const invoice = await prisma.invoice.findUnique({ where: { id: data.invoiceId } });
+    if (!invoice) throw new Error("Nota fiscal não encontrada.");
+    if (!data.pdfDataUrl && !data.xmlDataUrl && !data.status) throw new Error("Selecione um PDF, XML ou novo status.");
+
+    let pdfUrl = invoice.pdfUrl;
+    let xmlUrl = invoice.xmlUrl;
+    if (data.pdfDataUrl) pdfUrl = await saveBase64Asset(data.pdfDataUrl, `nf-${invoice.code}-pdf`);
+    if (data.xmlDataUrl) xmlUrl = await saveBase64Asset(data.xmlDataUrl, `nf-${invoice.code}-xml`);
+
+    const updated = await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { pdfUrl, xmlUrl, status: data.status || invoice.status },
+    });
+    if (data.pdfDataUrl && invoice.pdfUrl && invoice.pdfUrl !== pdfUrl) await deleteUploadedAsset(invoice.pdfUrl);
+    if (data.xmlDataUrl && invoice.xmlUrl && invoice.xmlUrl !== xmlUrl) await deleteUploadedAsset(invoice.xmlUrl);
+    await prisma.auditLog.create({
+      data: { userId: session.userId, action: "ATUALIZACAO", entity: "DocumentoFiscal", entityId: invoice.id, changesJson: JSON.stringify({ code: invoice.code, pdf: Boolean(data.pdfDataUrl), xml: Boolean(data.xmlDataUrl), status: updated.status }) },
+    });
+    revalidatePath("/faturamento");
+    return { success: true, invoice: updated };
+  } catch (error: unknown) {
+    logger.error("Erro ao armazenar documentos fiscais:", error);
+    return { success: false, error: error instanceof Error ? error.message : "Não foi possível armazenar os documentos." };
   }
 }
