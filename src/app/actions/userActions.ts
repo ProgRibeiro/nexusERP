@@ -256,3 +256,208 @@ export async function switchUserAction(
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Obtém todos os papéis (Roles) cadastrados no sistema.
+ */
+export async function getRolesAction() {
+  try {
+    await requireAuth();
+    const roles = await prisma.role.findMany({
+      orderBy: { name: "asc" },
+    });
+    return roles;
+  } catch (error) {
+    logger.error("Erro ao buscar papéis:", error);
+    return [];
+  }
+}
+
+/**
+ * Cria um novo usuário/operador no sistema com senha e perfil atribuído.
+ */
+export async function createUserAction(data: {
+  name: string;
+  email: string;
+  roleName: string;
+  password?: string;
+}): Promise<{ success: boolean; user?: any; error?: string }> {
+  try {
+    const current = await requirePermission("admin.all");
+
+    const emailClean = data.email.trim().toLowerCase();
+    if (!data.name.trim() || !emailClean) {
+      return { success: false, error: "Nome e e-mail são obrigatórios." };
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { email: emailClean },
+    });
+    if (existing) {
+      return { success: false, error: "Já existe um usuário cadastrado com este e-mail." };
+    }
+
+    const role = await prisma.role.findFirst({
+      where: { name: data.roleName },
+    });
+    if (!role) {
+      return { success: false, error: `Perfil de acesso '${data.roleName}' não foi encontrado.` };
+    }
+
+    const initialPassword = data.password && data.password.trim().length >= 3 ? data.password.trim() : "123";
+    const salt = generateSalt();
+    const hashedPassword = hashPassword(initialPassword, salt);
+
+    // Permissões padrão baseadas no perfil
+    let permissions = ["os.read", "clients.read"];
+    if (data.roleName === "Administrador") {
+      permissions = ["admin.all", "crm.manage", "quotes.manage", "os.manage", "finance.manage", "stock.manage"];
+    } else if (data.roleName === "Gestor Operacional" || data.roleName === "Gestor") {
+      permissions = ["crm.manage", "quotes.manage", "os.manage", "stock.manage"];
+    } else if (data.roleName === "Técnico de Campo" || data.roleName === "Técnico") {
+      permissions = ["os.execute", "clients.read", "stock.read"];
+    } else if (data.roleName === "Financeiro") {
+      permissions = ["finance.manage", "billing.manage", "quotes.read"];
+    }
+
+    const newUser = await prisma.user.create({
+      data: {
+        name: data.name.trim(),
+        email: emailClean,
+        password: hashedPassword,
+        salt: salt,
+        roleId: role.id,
+        permissions: JSON.stringify(permissions),
+      },
+      include: { role: true },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: current.userId,
+        action: "CRIAR_USUARIO",
+        entity: "Usuario",
+        entityId: newUser.id,
+        changesJson: JSON.stringify({ email: newUser.email, papel: data.roleName }),
+      },
+    });
+
+    logger.info("user_created", { createdBy: current.userId, userId: newUser.id, email: newUser.email });
+
+    return {
+      success: true,
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        roleName: newUser.role?.name || data.roleName,
+        permissions,
+      },
+    };
+  } catch (error: any) {
+    if (error instanceof AuthError) {
+      return { success: false, error: error.message };
+    }
+    logger.error("Erro ao criar usuário:", error);
+    return { success: false, error: error.message || "Não foi possível criar o usuário." };
+  }
+}
+
+/**
+ * Atualiza um usuário ou redefine a senha.
+ */
+export async function updateUserAction(data: {
+  id: string;
+  name?: string;
+  email?: string;
+  roleName?: string;
+  password?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const current = await requirePermission("admin.all");
+
+    const user = await prisma.user.findUnique({
+      where: { id: data.id },
+    });
+    if (!user) {
+      return { success: false, error: "Usuário não encontrado." };
+    }
+
+    const updateData: any = {};
+    if (data.name && data.name.trim()) updateData.name = data.name.trim();
+    if (data.email && data.email.trim()) updateData.email = data.email.trim().toLowerCase();
+
+    if (data.roleName) {
+      const role = await prisma.role.findFirst({ where: { name: data.roleName } });
+      if (role) {
+        updateData.roleId = role.id;
+      }
+    }
+
+    if (data.password && data.password.trim().length >= 3) {
+      const salt = generateSalt();
+      updateData.salt = salt;
+      updateData.password = hashPassword(data.password.trim(), salt);
+    }
+
+    await prisma.user.update({
+      where: { id: data.id },
+      data: updateData,
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: current.userId,
+        action: "ATUALIZAR_USUARIO",
+        entity: "Usuario",
+        entityId: user.id,
+        changesJson: JSON.stringify(updateData),
+      },
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    if (error instanceof AuthError) {
+      return { success: false, error: error.message };
+    }
+    logger.error("Erro ao atualizar usuário:", error);
+    return { success: false, error: error.message || "Erro ao atualizar o usuário." };
+  }
+}
+
+/**
+ * Exclui um usuário do sistema.
+ */
+export async function deleteUserAction(userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const current = await requirePermission("admin.all");
+
+    if (current.userId === userId) {
+      return { success: false, error: "Não é possível excluir a sua própria conta ativa." };
+    }
+
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: current.userId,
+        action: "EXCLUIR_USUARIO",
+        entity: "Usuario",
+        entityId: userId,
+        changesJson: "{}",
+      },
+    });
+
+
+    return { success: true };
+  } catch (error: any) {
+    if (error instanceof AuthError) {
+      return { success: false, error: error.message };
+    }
+    logger.error("Erro ao excluir usuário:", error);
+    return { success: false, error: error.message || "Não foi possível excluir o usuário." };
+  }
+}
+

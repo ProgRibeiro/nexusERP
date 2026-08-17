@@ -8,7 +8,7 @@ import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Table, TableRow, TableCell } from "../ui/Table";
-import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, BookOpen, KeyRound, Server, Unplug, Smartphone, Tablet, Wifi, AppWindow, Share2 } from "lucide-react";
+import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, BookOpen, KeyRound, Server, Unplug, Smartphone, Tablet, Wifi, AppWindow, Share2, Users, UserPlus, Key, Trash2, Edit3, Plus, Search } from "lucide-react";
 import { consultarCNPJAction } from "@/app/actions/clientActions";
 import { importClientsAction, importServicesAction, importProductsAction, parseImportFileAction, previewImportAction } from "@/app/actions/importActions";
 import { getBackupStatusAction, triggerBackupAction } from "@/app/actions/backupActions";
@@ -20,6 +20,7 @@ import { disconnectGmail, getGmailIntegrationSettings } from "@/app/actions/gmai
 import { CompanyRegistrationModal } from "@/components/modals/CompanyRegistrationModal";
 import ModuleCatalogSettings from "@/components/ModuleCatalogSettings";
 import ErrorReportQueue from "@/components/ErrorReportQueue";
+import { getUsers, createUserAction, updateUserAction, deleteUserAction } from "@/app/actions/userActions";
 
 
 type GmailSettings = Awaited<ReturnType<typeof getGmailIntegrationSettings>>;
@@ -28,7 +29,29 @@ export default function ConfiguracoesTab() {
   const { user: currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
 
-  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "matrix" | "importador" | "mobile" | "integrations" | "security">("system");
+  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "users" | "matrix" | "importador" | "mobile" | "integrations" | "security">("system");
+
+  // User management states
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [userFormData, setUserFormData] = useState({ name: "", email: "", roleName: "Técnico de Campo", password: "" });
+  const [userFormLoading, setUserFormLoading] = useState(false);
+
+  const loadUsersList = async () => {
+    setUsersLoading(true);
+    const data = await getUsers();
+    setUsersList(data);
+    setUsersLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeSubTab === "users") {
+      void loadUsersList();
+    }
+  }, [activeSubTab]);
+
 
   const [gmailSettings, setGmailSettings] = useState<GmailSettings | null>(null);
   const [gmailLoading, setGmailLoading] = useState(false);
@@ -497,6 +520,14 @@ export default function ConfiguracoesTab() {
             <Building size={13} className="inline mr-1" /> Minha Empresa
           </button>
           <button
+            onClick={() => setActiveSubTab("users")}
+            className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === "users" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
+            }`}
+          >
+            <Users size={13} className="inline mr-1" /> Equipe & Usuários
+          </button>
+          <button
             onClick={() => setActiveSubTab("matrix")}
             className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === "matrix" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
@@ -504,6 +535,7 @@ export default function ConfiguracoesTab() {
           >
             <Shield size={13} className="inline mr-1" /> Matriz de Permissões
           </button>
+
           <button
             onClick={() => setActiveSubTab("importador")}
             className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
@@ -592,6 +624,231 @@ export default function ConfiguracoesTab() {
               <CompanyRegistrationModal isFloating={false} />
             </div>
           )}
+
+          {/* 2.5. Gestão de Equipe & Usuários */}
+          {activeSubTab === "users" && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-150 dark:border-zinc-800 pb-4">
+                <div>
+                  <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <Users size={18} className="text-primary" /> Gestão de Usuários & Operadores da Equipe
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Crie contas de acesso para técnicos, gestores, equipe financeira e administradores com perfis de permissão específicos.
+                  </p>
+                </div>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setEditingUser(null);
+                    setUserFormData({ name: "", email: "", roleName: "Técnico de Campo", password: "123" });
+                    setShowUserModal(true);
+                  }}
+                  className="flex items-center gap-1.5 shrink-0"
+                >
+                  <UserPlus size={15} /> Criar Novo Usuário
+                </Button>
+              </div>
+
+              {usersLoading ? (
+                <div className="p-8 text-center text-xs text-zinc-400">Carregando usuários da equipe...</div>
+              ) : usersList.length === 0 ? (
+                <div className="p-8 text-center border border-dashed rounded-2xl text-xs text-zinc-400">
+                  Nenhum usuário encontrado. Clique em "Criar Novo Usuário" para cadastrar o primeiro operador.
+                </div>
+              ) : (
+                <Table headers={["Nome do Usuário", "E-mail de Login", "Perfil de Acesso", "Ações"]}>
+                  {usersList.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-bold text-zinc-850 dark:text-zinc-150">
+                        {u.name}
+                        {u.email === currentUser?.email && (
+                          <span className="ml-2 text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-bold">Você</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-zinc-600 dark:text-zinc-400">{u.email}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          u.roleName === "Administrador"
+                            ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                            : u.roleName.includes("Gestor")
+                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                            : u.roleName.includes("Técnico")
+                            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                            : u.roleName.includes("Financeiro")
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                        }`}>
+                          {u.roleName}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingUser(u);
+                              setUserFormData({ name: u.name, email: u.email, roleName: u.roleName, password: "" });
+                              setShowUserModal(true);
+                            }}
+                            className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-primary transition-colors"
+                            title="Editar / Redefinir Senha"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          {u.email !== currentUser?.email && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm(`Tem certeza que deseja excluir o acesso de ${u.name}?`)) {
+                                  const res = await deleteUserAction(u.id);
+                                  if (res.success) {
+                                    toast(`Usuário ${u.name} removido com sucesso.`, "success");
+                                    void loadUsersList();
+                                  } else {
+                                    toast(res.error || "Erro ao excluir usuário.", "error");
+                                  }
+                                }
+                              }}
+                              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg text-zinc-400 hover:text-red-600 transition-colors"
+                              title="Excluir Usuário"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </Table>
+              )}
+
+              {/* Modal de Criação / Edição de Usuário */}
+              {showUserModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-5">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                        <UserPlus size={16} className="text-primary" />
+                        {editingUser ? `Editar Usuário: ${editingUser.name}` : "Criar Novo Usuário da Equipe"}
+                      </h3>
+                      <button
+                        onClick={() => setShowUserModal(false)}
+                        className="text-zinc-400 hover:text-zinc-600 text-sm font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!userFormData.name.trim() || !userFormData.email.trim()) {
+                          toast("Preencha o nome e e-mail do usuário.", "warning");
+                          return;
+                        }
+
+                        setUserFormLoading(true);
+                        try {
+                          if (editingUser) {
+                            const res = await updateUserAction({
+                              id: editingUser.id,
+                              name: userFormData.name,
+                              email: userFormData.email,
+                              roleName: userFormData.roleName,
+                              password: userFormData.password.trim() || undefined,
+                            });
+                            if (res.success) {
+                              toast("Usuário atualizado com sucesso!", "success");
+                              setShowUserModal(false);
+                              void loadUsersList();
+                            } else {
+                              toast(res.error || "Erro ao atualizar usuário.", "error");
+                            }
+                          } else {
+                            const res = await createUserAction({
+                              name: userFormData.name,
+                              email: userFormData.email,
+                              roleName: userFormData.roleName,
+                              password: userFormData.password.trim() || "123",
+                            });
+                            if (res.success) {
+                              toast(`Usuário ${res.user?.name} criado com sucesso!`, "success");
+                              setShowUserModal(false);
+                              void loadUsersList();
+                            } else {
+                              toast(res.error || "Erro ao criar usuário.", "error");
+                            }
+                          }
+                        } catch (err: any) {
+                          toast(err.message || "Falha ao salvar usuário.", "error");
+                        } finally {
+                          setUserFormLoading(false);
+                        }
+                      }}
+                      className="space-y-4"
+                    >
+                      <Input
+                        label="Nome Completo *"
+                        value={userFormData.name}
+                        onChange={(e) => setUserFormData((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="Ex: Carlos Oliveira"
+                        required
+                      />
+
+                      <Input
+                        label="E-mail de Login *"
+                        type="email"
+                        value={userFormData.email}
+                        onChange={(e) => setUserFormData((prev) => ({ ...prev, email: e.target.value }))}
+                        placeholder="Ex: carlos@empresa.com.br"
+                        required
+                      />
+
+                      <Select
+                        label="Perfil / Papel de Acesso *"
+                        value={userFormData.roleName}
+                        onChange={(e) => setUserFormData((prev) => ({ ...prev, roleName: e.target.value }))}
+                        options={[
+                          { value: "Administrador", label: "Administrador (Acesso Total)" },
+                          { value: "Gestor Operacional", label: "Gestor Operacional (CRM, OS, Estoque)" },
+                          { value: "Técnico de Campo", label: "Técnico de Campo (Execução Mobile de OS)" },
+                          { value: "Financeiro", label: "Financeiro (Contas a Pagar/Receber, NFS-e)" },
+                          { value: "Operador", label: "Operador (Acesso Padrão de Leitura)" },
+                        ]}
+                      />
+
+                      <Input
+                        label={editingUser ? "Nova Senha (deixe em branco para manter a atual)" : "Senha Inicial (Padrão: 123)"}
+                        type="password"
+                        value={userFormData.password}
+                        onChange={(e) => setUserFormData((prev) => ({ ...prev, password: e.target.value }))}
+                        placeholder={editingUser ? "••••••••" : "Digite uma senha ou use 123"}
+                      />
+
+                      <div className="flex justify-end gap-2 pt-3 border-t">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setShowUserModal(false)}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="submit"
+                          variant="primary"
+                          loading={userFormLoading}
+                        >
+                          {editingUser ? "Salvar Alterações" : "Criar Usuário"}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
 
 
           {/* 3. Matriz de Permissões */}
