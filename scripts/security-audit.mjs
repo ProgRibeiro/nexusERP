@@ -2,7 +2,9 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, statSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const run = (bin, args) => execFileSync(bin, args, { stdio: "inherit", env: process.env });
+const run = (bin, args) => execFileSync(bin, args, { stdio: "inherit", env: process.env, shell: true });
+
+
 console.log("[security] Validando schema e tipos...");
 run("npx", ["prisma", "validate"]);
 run("npx", ["tsc", "--noEmit"]);

@@ -45,6 +45,8 @@ next-env.d.ts
 # local databases
 *.db
 *.db-journal
+/.pgdata/
+
 
 # backup files
 /prisma_sqlite_backup/
