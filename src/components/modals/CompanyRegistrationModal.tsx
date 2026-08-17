@@ -263,10 +263,20 @@ export function CompanyRegistrationModal({
     }
   };
 
+  useEffect(() => {
+    if (!isFloating || !isOpen || !onClose) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFloating, isOpen, onClose]);
+
   if (isFloating && !isOpen) return null;
 
   const content = (
-    <div className="flex flex-col h-full max-h-[90vh] overflow-hidden text-zinc-900 dark:text-zinc-100 font-sans">
+    <div className="flex flex-col h-full overflow-hidden text-zinc-900 dark:text-zinc-100 font-sans">
+
       {/* Header Superior */}
       <div className="relative p-6 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-t-3xl border-b border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -372,9 +382,11 @@ export function CompanyRegistrationModal({
       </div>
 
       {/* Formulário Principal */}
-      <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6">
-        {/* ABA 1: IDENTIFICAÇÃO E LOGO */}
-        {activeTab === "geral" && (
+      <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          {/* ABA 1: IDENTIFICAÇÃO E LOGO */}
+          {activeTab === "geral" && (
+
           <div className="space-y-6 animate-in fade-in duration-200">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Box da Logotipo */}
@@ -803,9 +815,10 @@ export function CompanyRegistrationModal({
             </div>
           </div>
         )}
+        </div>
 
         {/* Rodapé Fixo com Botão de Salvar */}
-        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-4 sticky bottom-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md">
+        <div className="p-4 sm:px-6 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <span className="text-xs text-zinc-400">
             Nexus ERP · Atualização Instantânea de Identidade
           </span>
@@ -837,8 +850,14 @@ export function CompanyRegistrationModal({
 
   if (isFloating) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-        <div className="w-full max-w-4xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+      <div
+        onClick={onClose}
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-4xl max-h-[85vh] h-auto flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        >
           {content}
         </div>
       </div>
@@ -851,3 +870,4 @@ export function CompanyRegistrationModal({
     </div>
   );
 }
+
