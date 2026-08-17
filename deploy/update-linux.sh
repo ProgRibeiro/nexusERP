@@ -144,8 +144,6 @@ RELEASE_ID="$(date -u +%Y%m%d%H%M%S)-${NEW_COMMIT:0:12}"
 RELEASE="$RELEASES/$RELEASE_ID"
 git_nexus worktree add --detach "$RELEASE" "$NEW_COMMIT"
 rm -rf "$RELEASE/public/uploads" "$RELEASE/backups"
-ln -s "$SHARED/uploads" "$RELEASE/public/uploads"
-ln -s "$SHARED/backups" "$RELEASE/backups"
 printf '%s\n' "$NEW_COMMIT" > "$RELEASE/.release-commit"
 printf 'APP_RELEASE=%s\nNEXT_DEPLOYMENT_ID=%s\n' "$RELEASE_ID" "$RELEASE_ID" > "$RELEASE/.release.env"
 chown -R nexus:nexus "$RELEASE" "$SHARED"
@@ -156,9 +154,18 @@ cd "$RELEASE"
 runuser -u nexus --preserve-environment -- /usr/bin/npm ci --include=dev
 runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma generate
 runuser -u nexus --preserve-environment -- env NEXT_DEPLOYMENT_ID="$RELEASE_ID" /usr/bin/npm run build
+
+# Criar os links simbólicos das pastas compartilhadas (uploads/backups) após a compilação,
+# evitando que o Turbopack analise symlinks externos durante o build.
+rm -rf "$RELEASE/public/uploads" "$RELEASE/backups"
+ln -s "$SHARED/uploads" "$RELEASE/public/uploads"
+ln -s "$SHARED/backups" "$RELEASE/backups"
+chown -h nexus:nexus "$RELEASE/public/uploads" "$RELEASE/backups" 2>/dev/null || true
+
 # Mantém chunks com hash de releases anteriores. Assim, uma tela que já estava
 # aberta durante a troca ainda consegue carregar componentes sob demanda.
 rsync -a "$RELEASE/.next/static/" "$STATIC_ROOT/"
+
 chown -R nexus:www-data "$STATIC_ROOT"
 find "$STATIC_ROOT" -type d -exec chmod 0750 {} +
 find "$STATIC_ROOT" -type f -exec chmod 0640 {} +
