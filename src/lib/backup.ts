@@ -37,9 +37,21 @@ function backupDirectory() {
   return path.join(process.cwd(), "backups");
 }
 
+function resolveBinary(command: string): string {
+  if (process.platform === "win32" && (command === "pg_dump" || command === "pg_restore")) {
+    const defaultPgBin = `C:\\Program Files\\PostgreSQL\\18\\bin\\${command}.exe`;
+    if (fs.existsSync(defaultPgBin)) return defaultPgBin;
+  }
+  return command;
+}
+
 function run(command: string, args: string[], env: NodeJS.ProcessEnv = process.env) {
   return new Promise<string>((resolve, reject) => {
-    const child = spawn(command, args, { env, stdio: ["ignore", "pipe", "pipe"] });
+    const executable = resolveBinary(command);
+    const cmdToRun = process.platform === "win32" && executable.includes(" ") ? `"${executable}"` : executable;
+    const child = spawn(cmdToRun, args, { env, stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
+
+
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     child.stdout.on("data", (chunk) => stdout.push(Buffer.from(chunk)));
