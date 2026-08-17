@@ -65,8 +65,9 @@ else
   TENANT_ID="${TENANT_ID:-00000000-0000-4000-8000-000000000001}"
   runuser -u postgres -- psql -v ON_ERROR_STOP=1 --set=db_password="$DB_PASSWORD" <<'SQL'
 SELECT 'CREATE ROLE nexus_erp LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'nexus_erp') \gexec
-ALTER ROLE nexus_erp WITH LOGIN PASSWORD :'db_password';
+ALTER ROLE nexus_erp WITH LOGIN BYPASSRLS PASSWORD :'db_password';
 SQL
+
   if ! runuser -u postgres -- psql -tAc "SELECT 1 FROM pg_database WHERE datname='nexus_erp'" | grep -q 1; then
     runuser -u postgres -- createdb --owner=nexus_erp nexus_erp
   fi
