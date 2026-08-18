@@ -275,10 +275,10 @@ export function CompanyRegistrationModal({
   if (isFloating && !isOpen) return null;
 
   const content = (
-    <div className="flex flex-col h-full overflow-hidden text-zinc-900 dark:text-zinc-100 font-sans">
+    <div className="flex flex-col h-full flex-1 min-h-0 overflow-hidden text-zinc-900 dark:text-zinc-100 font-sans">
 
       {/* Header Superior */}
-      <div className="relative p-6 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-t-3xl border-b border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="relative p-6 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-t-3xl border-b border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-xl overflow-hidden shrink-0">
             {company.logoUrl ? (
@@ -327,7 +327,7 @@ export function CompanyRegistrationModal({
       </div>
 
       {/* Navegação por Abas Internas */}
-      <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/60 px-6 pt-3 gap-2 overflow-x-auto">
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/60 px-6 pt-3 gap-2 overflow-x-auto shrink-0">
         <button
           type="button"
           onClick={() => setActiveTab("geral")}
@@ -383,7 +383,7 @@ export function CompanyRegistrationModal({
 
       {/* Formulário Principal */}
       <form onSubmit={handleSave} className="flex flex-col min-h-0 flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* ABA 1: IDENTIFICAÇÃO E LOGO */}
           {activeTab === "geral" && (
 
@@ -852,11 +852,11 @@ export function CompanyRegistrationModal({
     return (
       <div
         onClick={onClose}
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-4xl max-h-[85vh] h-auto flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+          className="w-full max-w-4xl h-[85vh] max-h-[85vh] flex flex-col bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 my-auto shrink-0"
         >
           {content}
         </div>
