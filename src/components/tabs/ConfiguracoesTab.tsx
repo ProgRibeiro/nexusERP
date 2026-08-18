@@ -17,6 +17,9 @@ import { parseDelimitedText } from "@/lib/tabularImport";
 import { getCompanyTaxProfile, saveCompanyTaxProfile } from "@/app/actions/settingsActions";
 import { defaultTaxRate, normalizeTaxRegime } from "@/lib/tax";
 import { disconnectGmail, getGmailIntegrationSettings } from "@/app/actions/gmailActions";
+import { CompanyRegistrationModal } from "@/components/modals/CompanyRegistrationModal";
+import ModuleCatalogSettings from "@/components/ModuleCatalogSettings";
+import ErrorReportQueue from "@/components/ErrorReportQueue";
 import { getUsers, createUserAction, updateUserAction, deleteUserAction } from "@/app/actions/userActions";
 import { AutoUpdateMaintenancePanel } from "@/components/AutoUpdateMaintenancePanel";
 
