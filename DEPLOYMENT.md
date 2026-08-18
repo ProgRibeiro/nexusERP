@@ -131,8 +131,11 @@ ativo. As portas `3001` (blue) e `3002` (green) são internas: uma atende os usu
 Nginx e a outra funciona como porta de upgrade. Elas alternam a cada publicação
 e nunca devem ser liberadas no firewall. O público usa somente `80/443`.
 
-O timer automático é instalado, mas fica desabilitado por padrão. Caso queira
-ativá-lo futuramente: `sudo systemctl enable --now nexus-erp-update.timer`.
+O timer autônomo a cada 3 horas pode ser ativado no systemd:
+`sudo systemctl enable --now nexus-erp-update.timer`
+
+Ou via crontab automático de 3 horas:
+`bash deploy/install-cron-3h.sh`
 
 O atualizador:
 

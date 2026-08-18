@@ -62,6 +62,8 @@ export const viewport: Viewport = {
   ],
 };
 
+import { MaintenanceBanner } from "@/components/MaintenanceBanner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -72,7 +74,10 @@ export default function RootLayout({
       <body
         className={`${montserrat.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <MaintenanceBanner />
+          {children}
+        </AuthProvider>
         <StaleChunkRecovery />
         <AdaptivePerformance />
         <PwaRegistration />

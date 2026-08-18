@@ -1,13 +1,13 @@
 [Unit]
-Description=Nexus ERP - procurar atualizações no Git
+Description=Nexus ERP - procurar atualizações no Git a cada 3 horas
 
 [Timer]
-OnBootSec=3min
-OnUnitInactiveSec=5min
-RandomizedDelaySec=30s
+OnBootSec=5min
+OnCalendar=*-*-* 00/03:00:00
+OnUnitInactiveSec=3h
+RandomizedDelaySec=60s
 Persistent=true
 Unit=nexus-erp-update.service
 
 [Install]
 WantedBy=timers.target
-

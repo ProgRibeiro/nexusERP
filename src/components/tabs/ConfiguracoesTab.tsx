@@ -17,10 +17,8 @@ import { parseDelimitedText } from "@/lib/tabularImport";
 import { getCompanyTaxProfile, saveCompanyTaxProfile } from "@/app/actions/settingsActions";
 import { defaultTaxRate, normalizeTaxRegime } from "@/lib/tax";
 import { disconnectGmail, getGmailIntegrationSettings } from "@/app/actions/gmailActions";
-import { CompanyRegistrationModal } from "@/components/modals/CompanyRegistrationModal";
-import ModuleCatalogSettings from "@/components/ModuleCatalogSettings";
-import ErrorReportQueue from "@/components/ErrorReportQueue";
 import { getUsers, createUserAction, updateUserAction, deleteUserAction } from "@/app/actions/userActions";
+import { AutoUpdateMaintenancePanel } from "@/components/AutoUpdateMaintenancePanel";
 
 
 type GmailSettings = Awaited<ReturnType<typeof getGmailIntegrationSettings>>;
@@ -29,7 +27,7 @@ export default function ConfiguracoesTab() {
   const { user: currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
 
-  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "users" | "matrix" | "importador" | "mobile" | "integrations" | "security">("system");
+  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "users" | "matrix" | "importador" | "mobile" | "integrations" | "security" | "updates">("system");
 
   // User management states
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -51,7 +49,6 @@ export default function ConfiguracoesTab() {
       void loadUsersList();
     }
   }, [activeSubTab]);
-
 
   const [gmailSettings, setGmailSettings] = useState<GmailSettings | null>(null);
   const [gmailLoading, setGmailLoading] = useState(false);
@@ -568,9 +565,20 @@ export default function ConfiguracoesTab() {
           >
             <ShieldCheck size={13} className="inline mr-1" /> Segurança & 2FA
           </button>
+          <button
+            onClick={() => setActiveSubTab("updates")}
+            className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === "updates" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
+            }`}
+          >
+            <RefreshCw size={13} className="inline mr-1" /> Auto-Update 3h & Manutenção
+          </button>
         </div>
 
         <div className="p-6">
+          {/* Subaba Auto-Update & Manutenção */}
+          {activeSubTab === "updates" && <AutoUpdateMaintenancePanel />}
+
           {/* 1. General System Parameters */}
           {activeSubTab === "system" && (
             <form onSubmit={handleSaveParams} className="space-y-6 max-w-lg">
