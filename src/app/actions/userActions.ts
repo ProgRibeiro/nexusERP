@@ -72,23 +72,15 @@ export async function logoutAction(): Promise<{ success: boolean }> {
   return { success: true };
 }
 
+import {
+  generateSalt,
+  hashPassword,
+  verifyPassword as passwordMatches,
+} from "@/lib/crypto";
+
 // ---------------------------------------------------------------------------
 // Hash de senha: PBKDF2-SHA512 com salt individual por usuário (100k iterações).
 // ---------------------------------------------------------------------------
-
-function generateSalt(): string {
-  return crypto.randomBytes(16).toString("hex");
-}
-
-function hashPassword(password: string, salt: string): string {
-  return crypto.pbkdf2Sync(password, salt, 100_000, 64, "sha512").toString("hex");
-}
-
-function passwordMatches(password: string, salt: string, expectedHex: string): boolean {
-  const actual = Buffer.from(hashPassword(password, salt), "hex");
-  const expected = Buffer.from(expectedHex, "hex");
-  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
-}
 
 /**
  * Esquema antigo (salt fixo global, 1000 iterações) — mantido apenas para
