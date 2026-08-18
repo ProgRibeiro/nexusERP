@@ -1,11 +1,11 @@
 [Unit]
-Description=Nexus ERP - procurar atualizações no Git a cada 3 horas
+Description=Nexus ERP - verificar e instalar atualizações do Git automaticamente a cada 2 minutos
 
 [Timer]
-OnBootSec=5min
-OnCalendar=*-*-* 00/03:00:00
-OnUnitInactiveSec=3h
-RandomizedDelaySec=60s
+OnBootSec=1min
+OnCalendar=*:0/2
+OnUnitInactiveSec=2m
+RandomizedDelaySec=5s
 Persistent=true
 Unit=nexus-erp-update.service
 
