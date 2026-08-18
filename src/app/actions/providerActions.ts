@@ -12,13 +12,43 @@ function normalizeDocument(value: string) {
 function providerError(error: unknown) {
   const known = error as { code?: string; message?: string };
   if (known.code === "P2002") return "Este CPF/CNPJ já está cadastrado.";
-  return error instanceof Error ? error.message : "Erro ao cadastrar prestador.";
+  return error instanceof Error ? error.message : "Erro ao salvar prestador.";
+}
+
+export interface ProviderDetailsInput {
+  name: string;
+  tradeName?: string;
+  cnpj: string;
+  phone: string;
+  email: string;
+  ie?: string;
+  specialty?: string;
+  pixKey?: string;
+  pixType?: string;
+  bankName?: string;
+  bankAgency?: string;
+  bankAccount?: string;
+  cep?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  notes?: string;
 }
 
 export async function getProvidersWorkspace() {
   await requireAuth();
   const [suppliers, jobs] = await Promise.all([
-    prisma.supplier.findMany({ orderBy: { name: "asc" } }),
+    prisma.supplier.findMany({
+      include: {
+        providerJobs: {
+          include: {
+            serviceOrder: { select: { code: true, status: true } },
+            accountsPayable: { select: { id: true, status: true, dueDate: true, paymentDate: true } },
+          },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
     prisma.providerJob.findMany({
       include: {
         supplier: true,
@@ -31,7 +61,44 @@ export async function getProvidersWorkspace() {
   ]);
 
   return {
-    suppliers: suppliers.map((item) => ({ ...item })),
+    suppliers: suppliers.map((item) => {
+      let extraData: Record<string, any> = {};
+      if (item.notes) {
+        try {
+          if (item.notes.startsWith("{")) {
+            extraData = JSON.parse(item.notes);
+          }
+        } catch {
+          // Se não for JSON, trata como observação pura
+        }
+      }
+
+      const totalJobs = item.providerJobs.length;
+      const completedJobs = item.providerJobs.filter((j) => j.executionStatus === "CONCLUIDO").length;
+      const totalEarned = item.providerJobs
+        .filter((j) => j.executionStatus === "CONCLUIDO")
+        .reduce((sum, j) => sum + Number(j.costValue), 0);
+
+      return {
+        ...item,
+        tradeName: extraData.tradeName || "",
+        ie: extraData.ie || "",
+        specialty: extraData.specialty || "Climatização & Refrigeração",
+        pixKey: extraData.pixKey || "",
+        pixType: extraData.pixType || "CHAVE_PIX",
+        bankName: extraData.bankName || "",
+        bankAgency: extraData.bankAgency || "",
+        bankAccount: extraData.bankAccount || "",
+        cep: extraData.cep || "",
+        address: extraData.address || "",
+        city: extraData.city || "",
+        state: extraData.state || "",
+        customNotes: extraData.notes || (item.notes && !item.notes.startsWith("{") ? item.notes : ""),
+        totalJobs,
+        completedJobs,
+        totalEarned,
+      };
+    }),
     jobs: jobs.map((job) => ({
       id: job.id,
       supplierId: job.supplierId,
@@ -65,51 +132,132 @@ export async function getSuppliersForQuote() {
   });
 }
 
-export async function createProvider(data: { name: string; cnpj: string; phone: string; email: string; notes?: string }) {
+export async function createProvider(data: ProviderDetailsInput) {
   try {
     const session = await requirePermission("quotes.write");
-    const normalized = {
-      name: data.name.trim(),
-      cnpj: normalizeDocument(data.cnpj),
-      phone: data.phone.trim(),
-      email: data.email.trim().toLowerCase(),
-      notes: data.notes?.trim() || null,
-    };
-    if (!normalized.name || !normalized.cnpj || !normalized.phone || !normalized.email) {
-      return { success: false, error: "Preencha nome, CPF/CNPJ, telefone e e-mail." };
+
+    const name = data.name.trim();
+    const cnpj = normalizeDocument(data.cnpj);
+    const phone = data.phone.trim();
+    const email = data.email.trim().toLowerCase();
+
+    if (!name || !cnpj || !phone || !email) {
+      return { success: false, error: "Preencha Nome/Razão Social, CPF/CNPJ, Telefone e E-mail." };
     }
-    if (![11, 14].includes(normalized.cnpj.length)) {
+    if (![11, 14].includes(cnpj.length)) {
       return { success: false, error: "Informe um CPF com 11 dígitos ou CNPJ com 14 dígitos." };
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { success: false, error: "Informe um e-mail válido." };
     }
 
-    // Localiza também cadastros legados que guardaram pontuação no documento.
     const candidates = await prisma.supplier.findMany({ select: { id: true, name: true, cnpj: true } });
-    const duplicate = candidates.find((item) => normalizeDocument(item.cnpj) === normalized.cnpj);
+    const duplicate = candidates.find((item) => normalizeDocument(item.cnpj) === cnpj);
     if (duplicate) return { success: false, error: `Este CPF/CNPJ já pertence a ${duplicate.name}.` };
 
-    // Cadastro e trilha de auditoria são atômicos: ou ambos são persistidos,
-    // ou nenhum deles é gravado. Isso evita registros parciais e perda silenciosa.
+    const structuredNotes = JSON.stringify({
+      tradeName: data.tradeName?.trim() || "",
+      ie: data.ie?.trim() || "",
+      specialty: data.specialty?.trim() || "Climatização",
+      pixKey: data.pixKey?.trim() || "",
+      pixType: data.pixType || "CHAVE_PIX",
+      bankName: data.bankName?.trim() || "",
+      bankAgency: data.bankAgency?.trim() || "",
+      bankAccount: data.bankAccount?.trim() || "",
+      cep: data.cep?.trim() || "",
+      address: data.address?.trim() || "",
+      city: data.city?.trim() || "",
+      state: data.state?.trim() || "",
+      notes: data.notes?.trim() || "",
+    });
+
     const supplier = await prisma.$transaction(async (tx) => {
-      const created = await tx.supplier.create({ data: normalized });
+      const created = await tx.supplier.create({
+        data: {
+          name,
+          cnpj,
+          phone,
+          email,
+          notes: structuredNotes,
+        },
+      });
       await tx.auditLog.create({
         data: {
           userId: session.userId,
           action: "CRIACAO",
           entity: "Prestador",
           entityId: created.id,
-          changesJson: JSON.stringify({ name: created.name, cnpj: created.cnpj, phone: created.phone, email: created.email }),
+          changesJson: JSON.stringify({ name, cnpj, phone, email }),
         },
       });
       return created;
     });
+
     revalidatePath("/prestadores");
     revalidatePath("/orcamentos");
     return { success: true, supplier };
   } catch (error: unknown) {
     logger.error("provider_create_failed", error);
+    return { success: false, error: providerError(error) };
+  }
+}
+
+export async function updateProviderDetails(id: string, data: ProviderDetailsInput) {
+  try {
+    const session = await requirePermission("quotes.write");
+    const existing = await prisma.supplier.findUnique({ where: { id } });
+    if (!existing) return { success: false, error: "Prestador não encontrado." };
+
+    const name = data.name.trim();
+    const cnpj = normalizeDocument(data.cnpj);
+    const phone = data.phone.trim();
+    const email = data.email.trim().toLowerCase();
+
+    if (!name || !cnpj || !phone || !email) {
+      return { success: false, error: "Preencha Nome/Razão Social, CPF/CNPJ, Telefone e E-mail." };
+    }
+
+    const structuredNotes = JSON.stringify({
+      tradeName: data.tradeName?.trim() || "",
+      ie: data.ie?.trim() || "",
+      specialty: data.specialty?.trim() || "Climatização",
+      pixKey: data.pixKey?.trim() || "",
+      pixType: data.pixType || "CHAVE_PIX",
+      bankName: data.bankName?.trim() || "",
+      bankAgency: data.bankAgency?.trim() || "",
+      bankAccount: data.bankAccount?.trim() || "",
+      cep: data.cep?.trim() || "",
+      address: data.address?.trim() || "",
+      city: data.city?.trim() || "",
+      state: data.state?.trim() || "",
+      notes: data.notes?.trim() || "",
+    });
+
+    const updated = await prisma.supplier.update({
+      where: { id },
+      data: {
+        name,
+        cnpj,
+        phone,
+        email,
+        notes: structuredNotes,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ATUALIZACAO",
+        entity: "Prestador",
+        entityId: updated.id,
+        changesJson: JSON.stringify({ name, cnpj, phone, email }),
+      },
+    });
+
+    revalidatePath("/prestadores");
+    return { success: true, supplier: updated };
+  } catch (error: unknown) {
+    logger.error("provider_update_failed", error);
     return { success: false, error: providerError(error) };
   }
 }
