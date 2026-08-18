@@ -14,7 +14,7 @@ import { importClientsAction, importServicesAction, importProductsAction, parseI
 import { getBackupStatusAction, triggerBackupAction } from "@/app/actions/backupActions";
 import type { BackupMetadata } from "@/lib/backup";
 import { parseDelimitedText } from "@/lib/tabularImport";
-import { getCompanyTaxProfile, saveCompanyTaxProfile } from "@/app/actions/settingsActions";
+import { getCompanyTaxProfile, saveCompanyTaxProfile, getCompanySettingsAction, saveCompanySettingsAction } from "@/app/actions/settingsActions";
 import { defaultTaxRate, normalizeTaxRegime } from "@/lib/tax";
 import { disconnectGmail, getGmailIntegrationSettings } from "@/app/actions/gmailActions";
 import { CompanyRegistrationModal } from "@/components/modals/CompanyRegistrationModal";
@@ -214,6 +214,21 @@ export default function ConfiguracoesTab() {
   const [cnpjLoading, setCnpjLoading] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+    getCompanySettingsAction().then((dbCompany) => {
+      if (mounted && dbCompany) {
+        setCompanyParams((prev: any) => ({ ...prev, ...dbCompany }));
+        if (typeof window !== "undefined") {
+          localStorage.setItem("company_params", JSON.stringify(dbCompany));
+        }
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     getCompanyTaxProfile()
       .then(async (profile) => {
         if (!profile.configured) {
@@ -289,16 +304,15 @@ export default function ConfiguracoesTab() {
     e.preventDefault();
     setSaving(true);
     try {
-      const result = await saveCompanyTaxProfile({
-        regime: companyParams.fiscalRegime,
-        rate: Number(companyParams.taxRate),
-      });
+      const result = await saveCompanySettingsAction(companyParams);
       if (!result.success) {
-        toast(result.error || "Não foi possível salvar o regime tributário.", "error");
+        toast(result.error || "Não foi possível salvar os dados da empresa no banco de dados.", "error");
         return;
       }
-      localStorage.setItem("company_params", JSON.stringify(companyParams));
-      toast(`Perfil tributário salvo. ${result.recalculated} proposta(s) aberta(s) recalculada(s).`, "success");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("company_params", JSON.stringify(result.data));
+      }
+      toast("Dados da Empresa salvos no banco de dados com sucesso!", "success");
     } finally {
       setSaving(false);
     }

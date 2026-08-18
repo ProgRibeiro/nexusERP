@@ -28,6 +28,7 @@ import {
   ClientDetailsDTO,
   ClientDTO,
 } from "@/app/actions/clientActions";
+import { getCompanyTaxProfile, saveCompanyTaxProfile, getCompanySettingsAction } from "@/app/actions/settingsActions";
 import {
   isStaleServerActionError,
   preserveFormDraft,
@@ -78,7 +79,6 @@ import {
   Calculator,
 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
-import { getCompanyTaxProfile } from "@/app/actions/settingsActions";
 import { TaxProfile } from "@/lib/tax";
 import { calculateProposalTax } from "@/lib/tax";
 import { SendQuoteEmailModal } from "@/components/quotes/SendQuoteEmailModal";
@@ -260,7 +260,7 @@ export default function OrcamentosTab({
   );
 
   // Loaded Company Profile
-  const [companyParams] = useState(() => {
+  const [companyParams, setCompanyParams] = useState<any>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("company_params");
       if (saved) {
@@ -287,13 +287,27 @@ export default function OrcamentosTab({
       email: "diretoria@nexusclimatizacao.com.br",
       phone: "(11) 4002-8922",
       address: "Avenida Paulista, 1000 - Bela Vista - São Paulo / SP",
-      logoUrl: "", // Base64 uploader
+      logoUrl: "",
+      fiscalRegime: "SIMPLES_NACIONAL",
+      taxRate: 6,
       differentials:
         "Profissionais qualificados\nPeças e materiais de qualidade\nAtendimento ágil e personalizado\nGarantia nos serviços realizados",
       merchanTitle: "AQUI É O SEU ESPAÇO!",
       merchanDesc: "Mais destaque, mais resultados para o seu negócio.",
     };
   });
+
+  useEffect(() => {
+    let isMounted = true;
+    getCompanySettingsAction().then((dbCompany) => {
+      if (isMounted && dbCompany) {
+        setCompanyParams((prev: any) => ({ ...prev, ...dbCompany }));
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Creation State
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);

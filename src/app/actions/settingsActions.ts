@@ -7,6 +7,158 @@ import { normalizeTaxRegime } from "@/lib/tax";
 import { calculateProposalTax } from "@/lib/tax";
 import { revalidatePath } from "next/cache";
 
+const SETTING_KEY_COMPANY = "company.params";
+
+export interface CompanyParams {
+  corporateName: string;
+  tradeName: string;
+  cnpj: string;
+  stateRegistration: string;
+  municipalRegistration: string;
+  foundationDate?: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  website: string;
+  cep: string;
+  address: string;
+  number: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  logoUrl: string;
+  fiscalRegime: string;
+  taxRate: number;
+  cnae?: string;
+  differentials: string;
+  merchanTitle: string;
+  merchanDesc: string;
+  terms: string;
+  technicalResponsible: string;
+}
+
+const DEFAULT_COMPANY_PARAMS: CompanyParams = {
+  corporateName: "NEXUS CLIMATIZACAO E SERVICOS LTDA",
+  tradeName: "Nexus Ar Condicionado",
+  cnpj: "12.345.678/0001-99",
+  stateRegistration: "111.222.333.444",
+  municipalRegistration: "1.234.567-8",
+  foundationDate: "2020-01-15",
+  email: "contato@nexusmanutencao.com",
+  phone: "(11) 4002-8922",
+  whatsapp: "(11) 99999-8888",
+  website: "https://nexusmanutencao.com",
+  cep: "01310-100",
+  address: "Avenida Paulista",
+  number: "1000",
+  neighborhood: "Bela Vista",
+  city: "São Paulo",
+  state: "SP",
+  logoUrl: "",
+  fiscalRegime: "SIMPLES_NACIONAL",
+  taxRate: 6.0,
+  cnae: "43.22-3-02 - Instalação e manutenção de sistemas centrais de ar condicionado",
+  differentials:
+    "Equipe técnica especializada e certificada\nAtendimento 24/7 com suporte prioritário\nGarantia estendida de 12 meses nos serviços\nPeças e componentes de alta performance com selo de fábrica",
+  merchanTitle: "NEXUS MANUTENÇÃO & ENGENHARIA",
+  merchanDesc: "Soluções completas e inteligência em climatização corporativa e industrial.",
+  terms:
+    "Validade desta proposta: 15 dias. Pagamento via Boleto Faturado ou PIX. Serviços com garantia de 90 dias após conclusão.",
+  technicalResponsible: "Eng. Lucas Ribeiro - CREA 5069827341",
+};
+
+/**
+ * Obtém as configurações centrais da empresa a partir do banco de dados PostgreSQL.
+ * Visível para qualquer usuário autenticado no sistema.
+ */
+export async function getCompanySettingsAction(): Promise<CompanyParams> {
+  try {
+    await requireAuth();
+    const record = await prisma.setting.findUnique({
+      where: { key: SETTING_KEY_COMPANY },
+    });
+
+    if (record && record.value) {
+      try {
+        const parsed = JSON.parse(record.value);
+        return {
+          ...DEFAULT_COMPANY_PARAMS,
+          ...parsed,
+        };
+      } catch {
+        return DEFAULT_COMPANY_PARAMS;
+      }
+    }
+
+    return DEFAULT_COMPANY_PARAMS;
+  } catch (error) {
+    console.error("[Settings] Erro ao carregar dados da empresa do banco:", error);
+    return DEFAULT_COMPANY_PARAMS;
+  }
+}
+
+/**
+ * Salva as configurações da empresa diretamente no banco de dados PostgreSQL (tabela Setting).
+ * Sincroniza em tempo real para todos os dispositivos conectados.
+ */
+export async function saveCompanySettingsAction(input: Partial<CompanyParams>) {
+  try {
+    const session = await requireAuth();
+
+    // Carrega versão atual para mesclagem
+    const current = await getCompanySettingsAction();
+    const updated: CompanyParams = {
+      ...current,
+      ...input,
+    };
+
+    await prisma.setting.upsert({
+      where: { key: SETTING_KEY_COMPANY },
+      create: {
+        key: SETTING_KEY_COMPANY,
+        value: JSON.stringify(updated),
+      },
+      update: {
+        value: JSON.stringify(updated),
+      },
+    });
+
+    // Se o regime tributário ou alíquota mudaram, sincroniza também o perfil fiscal
+    if (input.fiscalRegime || input.taxRate !== undefined) {
+      try {
+        await persistTaxProfile({
+          regime: normalizeTaxRegime(updated.fiscalRegime),
+          rate: Number(updated.taxRate),
+        });
+      } catch (e) {
+        console.warn("[Settings] Aviso ao sincronizar perfil fiscal:", e);
+      }
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ATUALIZAR_DADOS_EMPRESA",
+        entity: "ConfiguracaoEmpresa",
+        entityId: SETTING_KEY_COMPANY,
+        changesJson: JSON.stringify({ corporateName: updated.corporateName, tradeName: updated.tradeName, cnpj: updated.cnpj }),
+      },
+    });
+
+    revalidatePath("/");
+    revalidatePath("/configuracoes");
+    revalidatePath("/orcamentos");
+    revalidatePath("/empresa");
+
+    return { success: true as const, data: updated };
+  } catch (error: unknown) {
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : "Não foi possível salvar os dados no banco de dados.",
+    };
+  }
+}
+
 export async function getCompanyTaxProfile() {
   await requireAuth();
   return loadTaxProfile();

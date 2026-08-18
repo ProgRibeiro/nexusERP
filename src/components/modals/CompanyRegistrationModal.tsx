@@ -22,7 +22,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { consultarCNPJAction } from "@/app/actions/clientActions";
-import { saveCompanyTaxProfile } from "@/app/actions/settingsActions";
+import { saveCompanyTaxProfile, getCompanySettingsAction, saveCompanySettingsAction } from "@/app/actions/settingsActions";
 import { defaultTaxRate, normalizeTaxRegime } from "@/lib/tax";
 import { useToast } from "@/components/ui/Toast";
 
@@ -119,6 +119,22 @@ export function CompanyRegistrationModal({
   const [saving, setSaving] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
+
+  // Carregar automaticamente os dados reais salvos no banco PostgreSQL
+  useEffect(() => {
+    let isMounted = true;
+    getCompanySettingsAction().then((dbCompany) => {
+      if (isMounted && dbCompany) {
+        setCompany(dbCompany);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("company_params", JSON.stringify(dbCompany));
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Manipular alteração da Logo
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,7 +233,7 @@ export function CompanyRegistrationModal({
     toast("Dados demonstrativos carregados no formulário.", "info");
   };
 
-  // Salvar Dados da Empresa
+  // Salvar Dados da Empresa no Banco PostgreSQL (Sincronizado entre dispositivos)
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -232,32 +248,29 @@ export function CompanyRegistrationModal({
 
     setSaving(true);
     try {
-      // 1. Salvar no localStorage localmente
-      localStorage.setItem("company_params", JSON.stringify(company));
+      // 1. Salvar no banco de dados PostgreSQL (Persistência Automática Global)
+      const res = await saveCompanySettingsAction(company);
 
-      // 2. Tentar persistir o perfil tributário no servidor (se logado como admin)
-      try {
-        await saveCompanyTaxProfile({
-          regime: company.fiscalRegime,
-          rate: Number(company.taxRate),
-        });
-      } catch (err) {
-        console.warn("Aviso ao salvar perfil tributário no BD:", err);
+      if (!res.success) {
+        toast(res.error || "Não foi possível salvar no banco de dados.", "error");
+        setSaving(false);
+        return;
       }
 
-      // 3. Disparar evento global para atualizar a UI em tempo real
+      // 2. Atualizar cache local no localStorage
       if (typeof window !== "undefined") {
+        localStorage.setItem("company_params", JSON.stringify(company));
         window.dispatchEvent(new Event("company-updated"));
       }
 
-      toast("Informações da Empresa salvas com sucesso!", "success");
+      toast("Informações da Empresa salvas no banco de dados com sucesso!", "success");
 
       if (isFloating && onClose) {
         setTimeout(onClose, 600);
       }
     } catch (err: any) {
       console.error("Erro ao salvar dados da empresa:", err);
-      toast("Erro ao salvar informações da empresa.", "error");
+      toast("Erro ao salvar informações da empresa no banco.", "error");
     } finally {
       setSaving(false);
     }

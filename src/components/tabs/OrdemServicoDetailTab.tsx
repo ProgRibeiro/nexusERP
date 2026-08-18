@@ -16,6 +16,7 @@ import {
   deleteOSPhoto,
 } from "@/app/actions/osActions";
 import { getProducts } from "@/app/actions/inventoryActions";
+import { getCompanySettingsAction } from "@/app/actions/settingsActions";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -277,16 +278,15 @@ export default function OrdemServicoDetailTab({
   });
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("company_params");
-      if (saved) {
-        try {
-          setCompanyParams(JSON.parse(saved));
-        } catch (e) {
-          console.error(e);
-        }
+    let mounted = true;
+    getCompanySettingsAction().then((dbCompany) => {
+      if (mounted && dbCompany) {
+        setCompanyParams(dbCompany);
       }
-    }
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const getClientAddress = () => {
