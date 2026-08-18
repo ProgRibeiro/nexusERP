@@ -29,12 +29,15 @@ import {
   HardHat,
   Megaphone,
   X,
+  Building2,
+  Code2,
 } from "lucide-react";
 import {
   getNavigationIndicators,
   NavigationIndicators,
 } from "@/app/actions/navigationActions";
 import { getModuleFlags } from "@/app/actions/moduleActions";
+import { getCompanySettingsAction } from "@/app/actions/settingsActions";
 
 interface MenuItem {
   title: string;
@@ -63,6 +66,25 @@ export default function Sidebar() {
     stock: 0,
   });
 
+  const [companyInfo, setCompanyInfo] = useState({
+    tradeName: "NX ERP",
+    logoUrl: "",
+  });
+
+  const loadCompanyData = async () => {
+    try {
+      const data = await getCompanySettingsAction();
+      if (data) {
+        setCompanyInfo({
+          tradeName: data.tradeName || data.corporateName || "NX ERP",
+          logoUrl: data.logoUrl || "",
+        });
+      }
+    } catch {
+      // Usa fallback padrão em caso de erro
+    }
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("nx_sidebar_collapsed") === "true";
     const restoreTimer = window.setTimeout(() => setIsCollapsed(saved), 0);
@@ -72,12 +94,25 @@ export default function Sidebar() {
       if (active) setIndicators(data);
     };
     void load();
+    void loadCompanyData();
     void getModuleFlags().then(setModuleFlags).catch(()=>{});
     const timer = window.setInterval(load, 60_000);
+
+    const handleCompanyUpdate = () => {
+      void loadCompanyData();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("company-updated", handleCompanyUpdate);
+    }
+
     return () => {
       active = false;
       window.clearTimeout(restoreTimer);
       window.clearInterval(timer);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("company-updated", handleCompanyUpdate);
+      }
     };
   }, []);
 
@@ -269,21 +304,30 @@ export default function Sidebar() {
         </button>
 
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Header/Logo */}
+          {/* Header/Logo da Empresa */}
           <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-white/8 px-4">
             <div className="flex items-center gap-3 overflow-hidden">
-              <Image
-                src="/icons/icon-192.png"
-                width={38}
-                height={38}
-                alt="NX ERP"
-                className="h-[38px] w-[38px] shrink-0 rounded-xl shadow-lg shadow-black/45 ring-1 ring-[#d4af37]/35"
-                priority
-              />
+              {companyInfo.logoUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={companyInfo.logoUrl}
+                  alt={companyInfo.tradeName}
+                  className="h-[38px] w-[38px] shrink-0 rounded-xl object-cover shadow-lg shadow-black/45 ring-1 ring-[#d4af37]/35 bg-zinc-900"
+                />
+              ) : (
+                <Image
+                  src="/icons/icon-192.png"
+                  width={38}
+                  height={38}
+                  alt={companyInfo.tradeName}
+                  className="h-[38px] w-[38px] shrink-0 rounded-xl shadow-lg shadow-black/45 ring-1 ring-[#d4af37]/35"
+                  priority
+                />
+              )}
               {!isCollapsed && (
                 <div className="min-w-0">
                   <span className="block truncate text-sm font-black tracking-tight text-white">
-                    NX ERP
+                    {companyInfo.tradeName}
                   </span>
                   <span className="block truncate text-[9px] font-bold uppercase tracking-[0.18em] text-[#e5c35e]/80">
                     Gestão integrada
@@ -456,12 +500,18 @@ export default function Sidebar() {
         </div>
 
         {!isCollapsed && (
-          <div className="shrink-0 border-t border-white/8 p-4">
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-400/[0.05] px-3 py-2.5">
+          <div className="shrink-0 border-t border-white/8 p-3.5 space-y-2 text-center">
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-400/10 bg-emerald-400/[0.05] px-3 py-2">
               <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,.10)]" />
               <p className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                <ShieldCheck size={11} className="text-emerald-400" /> Sistema
-                conectado
+                <ShieldCheck size={11} className="text-emerald-400" /> Sistema conectado
+              </p>
+            </div>
+
+            <div className="pt-1 text-[9px] font-semibold text-zinc-400 space-y-0.5">
+              <p>© 2026 Nexus ERP · Direitos Reservados</p>
+              <p className="flex items-center justify-center gap-1 text-[#d4af37]/90 font-bold">
+                <Code2 size={10} /> Desenvolvido por Lucas Ribeiro / ProgRibeiro
               </p>
             </div>
           </div>
