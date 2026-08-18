@@ -591,11 +591,7 @@ textarea:focus-visible {
 }
 
 @media (max-width: 767px) {
-    .app-workspace :where( [class*="text-[8px]"], [class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[11px]"], [class*="text-xs"]) {
-        font-size: 11px !important;
-        line-height: 1.4 !important;
-    }
-    .app-workspace :where(button, a, input, select, textarea) {
+    .app-workspace :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
         min-height: 42px;
     }
 }
