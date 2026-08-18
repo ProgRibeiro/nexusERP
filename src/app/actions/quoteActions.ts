@@ -394,7 +394,11 @@ export async function updateQuoteStatus(
  * 3. Cria OS e clona dados (serviços e materiais previstos).
  * 4. Grava logs permanentes.
  */
-export async function approveAndConvertQuote(quoteId: string, userId: string) {
+export async function approveAndConvertQuote(
+  quoteId: string,
+  userId: string,
+  finalAgreedValue?: number,
+) {
   try {
     const session = await requirePermission("quotes.write");
     userId = session.userId; // nunca confiar no valor vindo do client
@@ -410,6 +414,28 @@ export async function approveAndConvertQuote(quoteId: string, userId: string) {
     });
 
     if (!quote) throw new Error("Orçamento não encontrado.");
+
+    // Se um valor fechado negociado foi fornecido e difere do total atual, atualiza no banco
+    if (
+      finalAgreedValue !== undefined &&
+      Number.isFinite(finalAgreedValue) &&
+      finalAgreedValue > 0 &&
+      Math.abs(Number(quote.total) - finalAgreedValue) > 0.01
+    ) {
+      const currentSubtotal = Number(quote.subtotal);
+      const currentTax = Number(quote.tax);
+      const newDiscount = Math.max(0, currentSubtotal + currentTax - finalAgreedValue);
+
+      await prisma.quote.update({
+        where: { id: quoteId },
+        data: {
+          total: finalAgreedValue,
+          discount: newDiscount,
+        },
+      });
+      quote.total = finalAgreedValue as any;
+      quote.discount = newDiscount as any;
+    }
 
     // Bloqueio de duplicidade
     const activeOS = quote.serviceOrders.find((os) => os.status !== "CANCELADA");

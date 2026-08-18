@@ -151,7 +151,16 @@ export default function OrcamentosTab({
   const [quotePendingApproval, setQuotePendingApproval] = useState<any | null>(
     null,
   );
+  const [closedValueOption, setClosedValueOption] = useState<"ORIGINAL" | "CUSTOM">("ORIGINAL");
+  const [customClosedValue, setCustomClosedValue] = useState<string>("");
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (quotePendingApproval) {
+      setClosedValueOption("ORIGINAL");
+      setCustomClosedValue(String(quotePendingApproval.total || 0));
+    }
+  }, [quotePendingApproval]);
 
   useEffect(() => {
     setView(newRecord ? "create" : "list");
@@ -1163,14 +1172,16 @@ export default function OrcamentosTab({
     }
   };
 
-  const handleApprove = async (quoteId: string) => {
+  const handleApprove = async (quoteId: string, finalAgreedValue?: number) => {
     setActionLoading(true);
     try {
-      const res = await approveAndConvertQuote(quoteId, currentUser?.id || "");
+      const res = await approveAndConvertQuote(quoteId, currentUser?.id || "", finalAgreedValue);
       if (res.success) {
         setQuotePendingApproval(null);
         toast(
-          "Orçamento aprovado! OS de manutenção criada com sucesso.",
+          finalAgreedValue
+            ? `Orçamento aprovado pelo valor fechado de ${formatCurrency(finalAgreedValue)}! OS gerada.`
+            : "Orçamento aprovado! OS de manutenção criada com sucesso.",
           "success",
         );
         loadQuotes();
@@ -3505,6 +3516,84 @@ export default function OrcamentosTab({
                   </div>
                 </div>
 
+                {/* Seção de Escolha do Valor Fechado Negociado */}
+                <div className="space-y-3 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 block">
+                    Valor Final Fechado da Proposta
+                  </span>
+
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 cursor-pointer transition-all hover:border-[#d4af37]/50 dark:border-zinc-800 dark:bg-zinc-900">
+                      <input
+                        type="radio"
+                        name="closedValueOption"
+                        checked={closedValueOption === "ORIGINAL"}
+                        onChange={() => setClosedValueOption("ORIGINAL")}
+                        className="h-4 w-4 text-[#d4af37] focus:ring-[#d4af37]"
+                      />
+                      <div className="flex-1">
+                        <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                          Manter o valor original calculado ({formatCurrency(quotePendingApproval.total || 0)})
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 cursor-pointer transition-all hover:border-[#d4af37]/50 dark:border-zinc-800 dark:bg-zinc-900">
+                      <input
+                        type="radio"
+                        name="closedValueOption"
+                        checked={closedValueOption === "CUSTOM"}
+                        onChange={() => setClosedValueOption("CUSTOM")}
+                        className="h-4 w-4 text-[#d4af37] focus:ring-[#d4af37]"
+                      />
+                      <div className="flex-1">
+                        <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                          Definir outro valor fechado / negociado com o cliente
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {closedValueOption === "CUSTOM" && (
+                    <div className="mt-3 space-y-2 animate-in fade-in duration-150 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                      <Input
+                        label="Digite o valor final fechado (R$)"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        selectOnFocus={true}
+                        value={customClosedValue === "0" ? "" : customClosedValue}
+                        onChange={(e) => setCustomClosedValue(e.target.value)}
+                        placeholder="0.00"
+                        className="font-bold text-sm text-[#d4af37]"
+                      />
+
+                      {(() => {
+                        const original = Number(quotePendingApproval.total || 0);
+                        const custom = Number(customClosedValue || 0);
+                        const diff = custom - original;
+
+                        if (custom > 0 && Math.abs(diff) > 0.01) {
+                          if (diff < 0) {
+                            return (
+                              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                ✓ Desconto negociado concedido: {formatCurrency(Math.abs(diff))} ({((Math.abs(diff) / original) * 100).toFixed(1)}%)
+                              </p>
+                            );
+                          } else {
+                            return (
+                              <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                                ℹ Acréscimo negociado: +{formatCurrency(diff)}
+                              </p>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  )}
+                </div>
+
                 <div className="rounded-xl bg-zinc-50 p-4 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                   Ao confirmar, o orçamento será marcado como convertido e uma
                   nova Ordem de Serviço será aberta com os itens, cliente e
@@ -3533,9 +3622,13 @@ export default function OrcamentosTab({
                     <Button
                       variant="success"
                       loading={actionLoading}
-                      onClick={() =>
-                        void handleApprove(quotePendingApproval.id)
-                      }
+                      onClick={() => {
+                        const finalVal =
+                          closedValueOption === "CUSTOM" && Number(customClosedValue) > 0
+                            ? Number(customClosedValue)
+                            : undefined;
+                        void handleApprove(quotePendingApproval.id, finalVal);
+                      }}
                     >
                       <CheckCircle size={14} /> Confirmar aprovação e gerar OS
                     </Button>
