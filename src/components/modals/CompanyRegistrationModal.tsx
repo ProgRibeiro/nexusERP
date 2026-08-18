@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+
 import {
   Building2,
   Upload,
@@ -862,10 +864,11 @@ export function CompanyRegistrationModal({
   );
 
   if (isFloating) {
-    return (
+    if (typeof window === "undefined") return null;
+    return createPortal(
       <div
         onClick={onClose}
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+        className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
       >
         <div
           onClick={(e) => e.stopPropagation()}
@@ -873,9 +876,11 @@ export function CompanyRegistrationModal({
         >
           {content}
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
+
 
   return (
     <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-xl overflow-hidden">
