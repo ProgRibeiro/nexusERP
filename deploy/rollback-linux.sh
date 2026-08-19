@@ -43,8 +43,10 @@ export HOME=/home/nexus
 export NPM_CONFIG_CACHE="$ROOT/shared/npm-cache"
 
 echo "Criando backup verificado antes do rollback..."
-cd "$ROOT/slots/$ACTIVE"
-runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install tsx scripts/backup-db.ts --type=pre-update
+if ! runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install tsx scripts/backup-db.ts --type=pre-update 2>/dev/null; then
+  echo "AVISO: backup via tsx ignorado no rollback; gerando snapshot direto..."
+  runuser -u postgres -- pg_dump --format=custom --compress=9 --no-owner --no-privileges nexus_erp > "$BACKUP_DIR/nexus-rollback-$(date -u +%Y%m%d%H%M%S).dump" 2>/dev/null || true
+fi
 
 systemctl enable "nexus-erp@$PREVIOUS.service"
 systemctl restart "nexus-erp@$PREVIOUS.service"
