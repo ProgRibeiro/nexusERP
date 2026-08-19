@@ -478,12 +478,44 @@ textarea:focus-visible {
 }
 
 @media print {
+    html, body, #__next, main, .app-workspace {
+        background: #ffffff !important;
+        color: #000000 !important;
+        color-scheme: light !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    header, nav, sidebar, .no-print, button, iframe, footer, .sidebar-container {
+        display: none !important;
+    }
+
     .dark .app-workspace .quote-screen-preview {
         color-scheme: light;
         background: #ffffff !important;
         color: #18181b !important;
         border-color: transparent !important;
         box-shadow: none !important;
+    }
+
+    .print-a4-report {
+        display: block !important;
+        visibility: visible !important;
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    .print-a4-report * {
+        visibility: visible !important;
+        color-scheme: light !important;
     }
 }
 

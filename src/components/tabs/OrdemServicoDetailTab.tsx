@@ -2777,25 +2777,32 @@ export default function OrdemServicoDetailTab({
             dangerouslySetInnerHTML={{
               __html: `
             @media print {
-              @page { size: A4 portrait; margin: 10mm; }
-              html, body { print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important; }
+              @page { size: A4 portrait; margin: 8mm; }
+              html, body, #__next, main, .app-workspace {
+                background: #ffffff !important;
+                color: #000000 !important;
+                color-scheme: light !important;
+                print-color-adjust: exact !important;
+                -webkit-print-color-adjust: exact !important;
+              }
               body * {
                 visibility: hidden;
               }
               .print-a4-report, .print-a4-report * {
-                visibility: visible;
+                visibility: visible !important;
+                color-scheme: light !important;
               }
               .print-a4-report {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                margin: 0;
-                padding: 0;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 border: none !important;
                 box-shadow: none !important;
-                background: white !important;
-                color: black !important;
+                background: #ffffff !important;
+                color: #000000 !important;
               }
               .no-print {
                 display: none !important;
