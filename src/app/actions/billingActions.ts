@@ -58,19 +58,21 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
         address: true,
         items: true,
         materials: true,
-        quote: { select: { code: true } },
+        quote: { select: { code: true, total: true, subtotal: true } },
       },
       orderBy: { completedAt: "asc" },
     });
 
     return queue.map((os) => {
-      // Calcular valor total da OS (itens de serviço + materiais utilizados)
+      // Valor total integral da OS/Orçamento (serviços + materiais/peças vendidas no orçamento)
       const itemsVal = os.items.reduce((sum, item) => sum + Number(item.total), 0);
-      const materialsVal = os.materials
-        .filter((m) => m.status === "UTILIZADO")
-        .reduce((sum, m) => sum + m.usedQuantity * Number(m.salePrice), 0);
+      const materialsVal = os.materials.reduce((sum, m) => {
+        const qty = m.status === "UTILIZADO" ? (m.usedQuantity > 0 ? m.usedQuantity : m.quantity) : m.quantity;
+        return sum + qty * Number(m.salePrice);
+      }, 0);
 
-      const calculatedValue = itemsVal + materialsVal;
+      const quoteTotal = os.quote?.total ? Number(os.quote.total) : 0;
+      const calculatedValue = quoteTotal > 0 ? quoteTotal : (itemsVal + materialsVal);
       const address = os.address || os.client.addresses[0] || null;
       const mirror = os.billingMirrorJson && typeof os.billingMirrorJson === "object" && !Array.isArray(os.billingMirrorJson)
         ? os.billingMirrorJson as Record<string, unknown>

@@ -518,19 +518,23 @@ export async function getServiceOrders(filters?: {
           include: { storeAsset: true, clientEquipment: true },
         },
         evidences: { orderBy: { createdAt: "desc" } },
+        quote: { select: { code: true, total: true, subtotal: true } },
         items: true,
         materials: true,
+        completionReport: true,
+        invoices: true,
       },
-      orderBy: { code: "desc" },
+      orderBy: { createdAt: "desc" },
     });
 
     return serviceOrders.map((os) => {
       const totalItems = os.items.reduce((sum, item) => sum + Number(item.total), 0);
       const totalMaterials = os.materials.reduce((sum, m) => {
-        const qty = m.status === "UTILIZADO" ? m.usedQuantity : m.quantity;
+        const qty = m.status === "UTILIZADO" ? (m.usedQuantity > 0 ? m.usedQuantity : m.quantity) : m.quantity;
         return sum + qty * Number(m.salePrice);
       }, 0);
-      const totalValue = totalItems + totalMaterials;
+      const quoteTotal = os.quote?.total ? Number(os.quote.total) : 0;
+      const totalValue = quoteTotal > 0 ? quoteTotal : (totalItems + totalMaterials);
 
       return {
         id: os.id,
@@ -599,6 +603,7 @@ export async function getServiceOrderDetails(id: string) {
             },
           },
         },
+        quote: { select: { id: true, code: true, total: true, subtotal: true } },
         items: true,
         materials: {
           include: {
@@ -652,10 +657,11 @@ export async function getServiceOrderDetails(id: string) {
 
     const totalItems = os.items.reduce((sum, item) => sum + Number(item.total), 0);
     const totalMaterials = os.materials.reduce((sum, m) => {
-      const qty = m.status === "UTILIZADO" ? m.usedQuantity : m.quantity;
+      const qty = m.status === "UTILIZADO" ? (m.usedQuantity > 0 ? m.usedQuantity : m.quantity) : m.quantity;
       return sum + qty * Number(m.salePrice);
     }, 0);
-    const totalValue = totalItems + totalMaterials;
+    const quoteTotal = os.quote?.total ? Number(os.quote.total) : 0;
+    const totalValue = quoteTotal > 0 ? quoteTotal : (totalItems + totalMaterials);
 
     return {
       ...os,
