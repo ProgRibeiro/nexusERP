@@ -852,64 +852,13 @@ export default function OrdemServicoDetailTab({
     if (preparingPrint) return;
     setPreparingPrint(true);
     try {
-      if (document.fonts?.ready) await document.fonts.ready;
-      const report = document.querySelector<HTMLElement>(".print-a4-report");
-      const images = Array.from(
-        report?.querySelectorAll<HTMLImageElement>("img") || [],
-      );
-      const failed: HTMLImageElement[] = [];
-
-      await Promise.all(
-        images.map(async (image) => {
-          if (!image.complete) {
-            await new Promise<void>((resolve) => {
-              const timeout = window.setTimeout(() => {
-                failed.push(image);
-                resolve();
-              }, 12_000);
-              image.addEventListener(
-                "load",
-                () => {
-                  window.clearTimeout(timeout);
-                  resolve();
-                },
-                { once: true },
-              );
-              image.addEventListener(
-                "error",
-                () => {
-                  window.clearTimeout(timeout);
-                  failed.push(image);
-                  resolve();
-                },
-                { once: true },
-              );
-            });
-          }
-          if (!image.naturalWidth) {
-            if (!failed.includes(image)) failed.push(image);
-            return;
-          }
-          try {
-            if (image.decode) await image.decode();
-          } catch {
-            if (!image.naturalWidth && !failed.includes(image))
-              failed.push(image);
-          }
-        }),
-      );
-
-      if (failed.length) {
-        toast(
-          `${failed.length} imagem(ns) não carregaram. Verifique os arquivos antes de gerar o PDF.`,
-          "error",
-        );
-        return;
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
       }
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
+      await new Promise<void>((resolve) => setTimeout(resolve, 250));
       window.print();
+    } catch {
+      toast("Não foi possível acionar a caixa de impressão.", "error");
     } finally {
       setPreparingPrint(false);
     }
@@ -2776,24 +2725,29 @@ export default function OrdemServicoDetailTab({
           <style
             dangerouslySetInnerHTML={{
               __html: `
+            @media screen {
+              .print-a4-report-wrapper {
+                display: none !important;
+              }
+            }
             @media print {
               @page { size: A4 portrait; margin: 8mm; }
               html, body, #__next, main, .app-workspace {
                 background: #ffffff !important;
                 color: #000000 !important;
                 color-scheme: light !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 print-color-adjust: exact !important;
                 -webkit-print-color-adjust: exact !important;
               }
-              body * {
-                visibility: hidden;
+              header, nav, sidebar, footer, button, .no-print, .sidebar-container {
+                display: none !important;
               }
-              .print-a4-report, .print-a4-report * {
+              .print-a4-report-wrapper, .print-a4-report {
+                display: block !important;
                 visibility: visible !important;
-                color-scheme: light !important;
-              }
-              .print-a4-report {
-                position: absolute !important;
+                position: relative !important;
                 left: 0 !important;
                 top: 0 !important;
                 width: 100% !important;
@@ -2804,8 +2758,9 @@ export default function OrdemServicoDetailTab({
                 background: #ffffff !important;
                 color: #000000 !important;
               }
-              .no-print {
-                display: none !important;
+              .print-a4-report * {
+                visibility: visible !important;
+                color-scheme: light !important;
               }
               .print-photo-card {
                 break-inside: avoid-page !important;
@@ -2828,7 +2783,8 @@ export default function OrdemServicoDetailTab({
           `,
             }}
           />
-          <div className="print-a4-report hidden print:block bg-white text-zinc-850 font-sans space-y-5">
+          <div className="print-a4-report-wrapper">
+            <div className="print-a4-report bg-white text-zinc-900 font-sans space-y-5">
             {/* Header Block */}
             <div className="rounded-xl bg-slate-950 p-5 text-white flex justify-between items-start">
               <div className="max-w-[68%]">
@@ -3237,6 +3193,7 @@ export default function OrdemServicoDetailTab({
                     "Representante do Cliente"}
                 </span>
               </div>
+            </div>
             </div>
           </div>
         </>
