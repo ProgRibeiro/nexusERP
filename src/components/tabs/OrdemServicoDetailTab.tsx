@@ -17,7 +17,7 @@ import {
 } from "@/app/actions/osActions";
 import { getProducts } from "@/app/actions/inventoryActions";
 import { getCompanySettingsAction } from "@/app/actions/settingsActions";
-import { printExecutiveReport } from "@/lib/reportPdfGenerator";
+import { printExecutiveReport, ReportModelType } from "@/lib/reportPdfGenerator";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -849,16 +849,20 @@ export default function OrdemServicoDetailTab({
     await saveReport(false);
   };
 
-  const handlePrintReport = async () => {
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  const handlePrintReport = async (modelType: ReportModelType = "SEM_VALORES") => {
     if (preparingPrint || !details) return;
     setPreparingPrint(true);
     try {
       await printExecutiveReport({
+        modelType,
         company: companyParams,
         details,
         reportForm,
         checklist,
       });
+      setIsPrintModalOpen(false);
     } catch (err) {
       console.error(err);
       toast("Não foi possível acionar a caixa de impressão.", "error");
@@ -1178,11 +1182,11 @@ export default function OrdemServicoDetailTab({
             </Button>
             <Button
               variant="secondary"
-              onClick={handlePrintReport}
+              onClick={() => setIsPrintModalOpen(true)}
               loading={preparingPrint}
               className="flex-1 border-white/15 bg-white text-blue-800 hover:bg-blue-50 sm:flex-none"
             >
-              <Printer size={15} /> Emitir PDF
+              <Printer size={15} /> Emitir PDF / Escolher Modelo
             </Button>
           </div>
         </div>
@@ -2131,10 +2135,10 @@ export default function OrdemServicoDetailTab({
                     <Button
                       variant="secondary"
                       type="button"
-                      onClick={handlePrintReport}
+                      onClick={() => setIsPrintModalOpen(true)}
                       loading={preparingPrint}
                     >
-                      <Printer size={14} /> Visualizar / salvar PDF
+                      <Printer size={14} /> Emitir PDF / Escolher Modelo
                     </Button>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Button
@@ -3201,6 +3205,78 @@ export default function OrdemServicoDetailTab({
           </div>
         </>
       )}
+      {/* Modal de Escolha do Modelo de Relatorio A4 */}
+      <Modal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        title="Selecionar Modelo do Relatório A4"
+        size="md"
+      >
+        <div className="space-y-4 py-2">
+          <p className="text-xs text-zinc-400">
+            Escolha o modelo de relatório ideal para este atendimento:
+          </p>
+
+          <div className="grid gap-3">
+            <button
+              type="button"
+              onClick={() => void handlePrintReport("SEM_VALORES")}
+              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#d4af37] hover:bg-zinc-800 group"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20">
+                <FileText size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  Relatório de Campo (Sem Valores R$)
+                  <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-400 uppercase">
+                    Recomendado
+                  </span>
+                </h4>
+                <p className="mt-1 text-xs text-zinc-400">
+                  Ideal para entrega ao cliente ou equipe de campo. Exibe o escopo executado, quantidades de materiais, fotos e assinaturas sem exibir preços ou valores comerciais.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handlePrintReport("FOTOGRAFICO_EXPRESS")}
+              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#d4af37] hover:bg-zinc-800 group"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-400 group-hover:bg-teal-500/20">
+                <Camera size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">
+                  Relatório Fotográfico Express (Sem Valores R$)
+                </h4>
+                <p className="mt-1 text-xs text-zinc-400">
+                  Focado 100% nas evidências fotográficas em alta definição com legendas descritivas e bloco de assinaturas.
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handlePrintReport("COMERCIAL_COMPLETO")}
+              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#d4af37] hover:bg-zinc-800 group"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20">
+                <DollarSign size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">
+                  Dossiê Comercial Completo (Com Valores R$)
+                </h4>
+                <p className="mt-1 text-xs text-zinc-400">
+                  Detalhamento financeiro completo com discriminação de preços unitários e valores totais em R$ dos serviços e peças.
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

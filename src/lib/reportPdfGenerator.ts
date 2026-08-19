@@ -1,9 +1,15 @@
 /**
- * Gerador de Relatório Técnico de Execução A4 Executivo em Papel Branco Nítido.
- * Imprime o documento em iframe isolado para garantir 0% de interferência da interface da aplicação.
+ * Gerador de Relatórios Técnicos de Execução A4 Executivos em Papel Branco Nítido.
+ * Suporta múltiplos modelos selecionáveis:
+ * 1. SEM_VALORES: Relatório operacional de campo sem exibição de preços R$.
+ * 2. FOTOGRAFICO_EXPRESS: Relatório focado em fotos e evidências de campo.
+ * 3. COMERCIAL_COMPLETO: Dossiê técnico e comercial completo com valores R$.
  */
 
+export type ReportModelType = "SEM_VALORES" | "FOTOGRAFICO_EXPRESS" | "COMERCIAL_COMPLETO";
+
 export interface PrintReportParams {
+  modelType?: ReportModelType;
   company: {
     corporateName: string;
     cnpj: string;
@@ -26,6 +32,7 @@ export interface PrintReportParams {
 }
 
 export function printExecutiveReport({
+  modelType = "SEM_VALORES",
   company,
   details,
   reportForm,
@@ -65,11 +72,21 @@ export function printExecutiveReport({
     const photos = details.photos || [];
     const completedChecklist = checklist.filter((item) => item.checked);
 
+    const isShowValues = modelType === "COMERCIAL_COMPLETO";
+    const isPhotoExpress = modelType === "FOTOGRAFICO_EXPRESS";
+
+    const documentSubTitle =
+      modelType === "FOTOGRAFICO_EXPRESS"
+        ? "Relatório Fotográfico de Evidências de Atendimento Operacional"
+        : modelType === "SEM_VALORES"
+        ? "Relatório Técnico de Execução de Serviços de Campo (Sem Valores Comercial)"
+        : "Dossiê Técnico e Comercial Completo de Atendimento";
+
     const htmlContent = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Relatório Técnico OS #${codeStr}</title>
+  <title>Relatório OS #${codeStr} (${modelType})</title>
   <style>
     @page {
       size: A4 portrait;
@@ -223,7 +240,7 @@ export function printExecutiveReport({
     }
     .photo-img {
       width: 100%;
-      height: 160px;
+      height: ${isPhotoExpress ? "210px" : "160px"};
       object-fit: cover;
       border-radius: 6px;
       background: #f4f4f5;
@@ -286,7 +303,7 @@ export function printExecutiveReport({
   <!-- Header Executivo -->
   <div class="header-box">
     <div class="header-left">
-      <div class="header-tag">Relatório Técnico Operacional de Campo</div>
+      <div class="header-tag">Relatório Técnico de Execução</div>
       <div class="header-company">${company.corporateName}</div>
       <div class="header-meta">
         CNPJ: ${company.cnpj} | IE: ${company.stateRegistration || "ISENTO"}<br>
@@ -299,9 +316,9 @@ export function printExecutiveReport({
     </div>
   </div>
 
-  <!-- Titulo -->
+  <!-- Titulo do Modelo -->
   <div class="doc-title">
-    Dossiê de Conclusão Técnica de Atendimento Operacional
+    ${documentSubTitle}
   </div>
 
   <!-- Identificacao do Cliente e Local -->
@@ -328,6 +345,9 @@ export function printExecutiveReport({
   </table>
 
   <!-- Detalhamento dos Servicos Executados -->
+  ${
+    !isPhotoExpress
+      ? `
   <div class="section-header">2. Resumo dos Serviços Executados e Diagnóstico Técnico</div>
   <div class="text-block">
 <strong>Serviços Realizados:</strong>
@@ -336,19 +356,30 @@ ${reportForm.executedServices || "Serviço executado conforme especificação e 
 <strong>Parecer e Observações Técnicas:</strong>
 ${reportForm.technicalObservations || "Equipamento testado e entregue em perfeitas condições operacionais."}
   </div>
+  `
+      : `
+  <div class="section-header">2. Síntese do Atendimento</div>
+  <div class="text-block">
+<strong>Relatório Fotográfico de Evidências:</strong>
+${reportForm.executedServices || "Fotos e evidências de atendimento operacional registradas em campo."}
+  </div>
+  `
+  }
 
   <!-- Itens e Pecas Faturadas/Utilizadas -->
   ${
-    items.length > 0 || materials.length > 0
+    !isPhotoExpress && (items.length > 0 || materials.length > 0)
       ? `
-  <div class="section-header">3. Especificação de Itens e Materiais Utilizados</div>
+  <div class="section-header">3. Relação de Itens e Materiais Utilizados ${
+    isShowValues ? "(Com Valores)" : "(Sem Valores Comercial)"
+  }</div>
   <table class="grid-table">
     <thead>
       <tr>
-        <th style="width: 50%;">Descrição do Item / Componente</th>
+        <th style="width: ${isShowValues ? "45%" : "65%"};">Descrição do Item / Componente</th>
         <th style="width: 15%;">Tipo</th>
-        <th style="width: 15%; text-align: center;">Qtd</th>
-        <th style="width: 20%; text-align: right;">Total (R$)</th>
+        <th style="width: 20%; text-align: center;">Quantidade</th>
+        ${isShowValues ? '<th style="width: 20%; text-align: right;">Total (R$)</th>' : ""}
       </tr>
     </thead>
     <tbody>
@@ -359,9 +390,13 @@ ${reportForm.technicalObservations || "Equipamento testado e entregue em perfeit
           <td>${item.description}</td>
           <td>SERVIÇO</td>
           <td style="text-align: center;">${item.quantity} ${item.unit || "un"}</td>
-          <td style="text-align: right;">R$ ${(Number(item.total) || 0).toLocaleString("pt-BR", {
-            minimumFractionDigits: 2,
-          })}</td>
+          ${
+            isShowValues
+              ? `<td style="text-align: right;">R$ ${(Number(item.total) || 0).toLocaleString("pt-BR", {
+                  minimumFractionDigits: 2,
+                })}</td>`
+              : ""
+          }
         </tr>
       `,
         )
@@ -373,10 +408,14 @@ ${reportForm.technicalObservations || "Equipamento testado e entregue em perfeit
           <td>${mat.product?.name || "Material de aplicação"}</td>
           <td>MATERIAL</td>
           <td style="text-align: center;">${mat.usedQuantity} un</td>
-          <td style="text-align: right;">R$ ${(mat.usedQuantity * Number(mat.salePrice || 0)).toLocaleString(
-            "pt-BR",
-            { minimumFractionDigits: 2 },
-          )}</td>
+          ${
+            isShowValues
+              ? `<td style="text-align: right;">R$ ${(mat.usedQuantity * Number(mat.salePrice || 0)).toLocaleString(
+                  "pt-BR",
+                  { minimumFractionDigits: 2 },
+                )}</td>`
+              : ""
+          }
         </tr>
       `,
         )
@@ -389,7 +428,7 @@ ${reportForm.technicalObservations || "Equipamento testado e entregue em perfeit
 
   <!-- Checklist de Inspecao se houver -->
   ${
-    completedChecklist.length > 0
+    !isPhotoExpress && completedChecklist.length > 0
       ? `
   <div class="section-header">4. Itens de Inspeção e Checklist Concluído</div>
   <table class="grid-table">
@@ -420,8 +459,8 @@ ${reportForm.technicalObservations || "Equipamento testado e entregue em perfeit
   ${
     photos.length > 0
       ? `
-  <div style="page-break-before: always;"></div>
-  <div class="section-header">5. Registro Fotográfico de Evidências no Local</div>
+  ${!isPhotoExpress ? '<div style="page-break-before: always;"></div>' : ""}
+  <div class="section-header">${isPhotoExpress ? "3" : "5"}. Registro Fotográfico de Evidências no Local</div>
   <div class="photo-grid">
     ${photos
       .map(
