@@ -4,17 +4,29 @@ import crypto from "crypto";
  * Módulo Central de Criptografia e Segurança do Nexus ERP.
  *
  * Oferece:
- * 1. Criptografia Simétrica de Dados Sensíveis (AES-256-GCM com IV dinâmico e Tag de Autenticação).
- * 2. Hash Seguro de Senhas (PBKDF2-SHA512 com 100.000 iterações, Salt individual e comparação em tempo constante).
- * 3. Geração de Tokens de Alta Entropia (Criptograficamente Seguros).
- * 4. Utilitários de Mascaramento Seguro de Dados (LGPD/Segurança da Informação).
+ * 1. Criptografia Simétrica Militar (AES-256-GCM com IV dinâmico de 12 bytes e Tag de Autenticação AEAD).
+ * 2. Criptografia de Buffers/Arquivos de Backup (Criptografia AES-256-GCM para arquivos .dump e .tar.gz).
+ * 3. Hash Seguro de Senhas (PBKDF2-SHA512 com 100.000 iterações, Salt individual e comparação em tempo constante).
+ * 4. Assinatura e Verificação de Integridade de Dados (HMAC-SHA256).
+ * 5. Geração de Tokens de Alta Entropia (Criptograficamente Seguros).
+ * 6. Utilitários de Mascaramento Seguro de Dados (LGPD/Segurança da Informação).
  */
 
-const SECRET_KEY = process.env.INTEGRATION_ENCRYPTION_KEY || process.env.SESSION_SECRET || "dev-only-secret-troque-em-producao-1234567890abcdef";
+const SECRET_KEY =
+  process.env.INTEGRATION_ENCRYPTION_KEY ||
+  process.env.SESSION_SECRET ||
+  process.env.BACKUP_ENCRYPTION_KEY ||
+  "dev-only-secret-troque-em-producao-1234567890abcdef";
+
 const AES_VERSION = "v1";
 
-function deriveKey(): Buffer {
-  return crypto.createHash("sha256").update(SECRET_KEY, "utf8").digest();
+/**
+ * Deriva uma chave de 256 bits usando HKDF-SHA512.
+ */
+export function deriveKey(salt = "nexus-erp-salt-v1", info = "nexus-crypto-key"): Buffer {
+  return Buffer.from(
+    crypto.hkdfSync("sha512", Buffer.from(SECRET_KEY, "utf8"), Buffer.from(salt, "utf8"), Buffer.from(info, "utf8"), 32)
+  );
 }
 
 /**
@@ -55,6 +67,60 @@ export function decryptData(ciphertext: string): string {
   decipher.setAuthTag(tag);
 
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+}
+
+/**
+ * Criptografa um Buffer binário (ex: arquivo de backup do banco de dados) usando AES-256-GCM.
+ */
+export function encryptBuffer(data: Buffer): Buffer {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", deriveKey("backup-salt-v1", "backup-key"), iv);
+  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  // Cabeçalho de 28 bytes: Magic (4 bytes) + IV (12 bytes) + Tag (16 bytes) + Encrypted Payload
+  const magic = Buffer.from("NXBK", "utf8");
+  return Buffer.concat([magic, iv, tag, encrypted]);
+}
+
+/**
+ * Descriptografa um Buffer binário criptografado com AES-256-GCM.
+ */
+export function decryptBuffer(data: Buffer): Buffer {
+  if (data.length < 32) {
+    throw new Error("Buffer criptografado inválido ou muito curto.");
+  }
+
+  const magic = data.subarray(0, 4).toString("utf8");
+  if (magic !== "NXBK") {
+    throw new Error("Assinatura de arquivo de backup criptografado inválida.");
+  }
+
+  const iv = data.subarray(4, 16);
+  const tag = data.subarray(16, 32);
+  const encrypted = data.subarray(32);
+
+  const decipher = crypto.createDecipheriv("aes-256-gcm", deriveKey("backup-salt-v1", "backup-key"), iv);
+  decipher.setAuthTag(tag);
+
+  return Buffer.concat([decipher.update(encrypted), decipher.final()]);
+}
+
+/**
+ * Assina uma string de dados usando HMAC-SHA256 para prevenir adulteração.
+ */
+export function signData(data: string): string {
+  return crypto.createHmac("sha256", deriveKey("signature-salt", "hmac-key")).update(data, "utf8").digest("hex");
+}
+
+/**
+ * Verifica a assinatura HMAC-SHA256 de dados contra adulteração.
+ */
+export function verifyDataSignature(data: string, signature: string): boolean {
+  const expected = signData(data);
+  const actualBuf = Buffer.from(signature, "hex");
+  const expectedBuf = Buffer.from(expected, "hex");
+  return actualBuf.length === expectedBuf.length && crypto.timingSafeEqual(actualBuf, expectedBuf);
 }
 
 /**
