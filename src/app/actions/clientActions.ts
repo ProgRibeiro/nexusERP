@@ -70,6 +70,13 @@ export async function getClients(search?: string): Promise<ClientDTO[]> {
   try {
     await requireAuth();
     const term = search?.trim();
+    const cleanDigits = term ? term.replace(/\D/g, "") : "";
+    const formattedCnpj = cleanDigits.length === 14
+      ? `${cleanDigits.slice(0, 2)}.${cleanDigits.slice(2, 5)}.${cleanDigits.slice(5, 8)}/${cleanDigits.slice(8, 12)}-${cleanDigits.slice(12)}`
+      : "";
+    const formattedCpf = cleanDigits.length === 11
+      ? `${cleanDigits.slice(0, 3)}.${cleanDigits.slice(3, 6)}.${cleanDigits.slice(6, 9)}-${cleanDigits.slice(9)}`
+      : "";
 
     const clients = await prisma.client.findMany({
       where: term
@@ -78,9 +85,12 @@ export async function getClients(search?: string): Promise<ClientDTO[]> {
               { name: { contains: term, mode: "insensitive" } },
               { fancyName: { contains: term, mode: "insensitive" } },
               { socialName: { contains: term, mode: "insensitive" } },
-              { cpfCnpj: { contains: term.replace(/\D/g, "") || term } },
+              { cpfCnpj: { contains: term, mode: "insensitive" } },
+              ...(cleanDigits ? [{ cpfCnpj: { contains: cleanDigits } }] : []),
+              ...(formattedCnpj ? [{ cpfCnpj: { contains: formattedCnpj } }] : []),
+              ...(formattedCpf ? [{ cpfCnpj: { contains: formattedCpf } }] : []),
               { email: { contains: term, mode: "insensitive" } },
-              { phone: { contains: term } },
+              { phone: { contains: cleanDigits || term } },
             ],
           }
         : undefined,
