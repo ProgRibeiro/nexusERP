@@ -4,7 +4,6 @@ export const MODULE_CATALOG = [
   { id:"marketing", name:"Marketing", description:"Calendário e produção de conteúdo" },
   { id:"prestadores", name:"Prestadores", description:"Parceiros, portal e pagamentos" },
   { id:"faturamento", name:"Painel Fiscal", description:"Fila fiscal, notas e documentos" },
-  { id:"teia", name:"Teia de Dados", description:"Relacionamentos entre registros" },
   { id:"estoque", name:"Estoque", description:"Peças, materiais e movimentações" },
   { id:"servicos", name:"Catálogo de Serviços", description:"Custos e formação interna de preços" },
   { id:"contratos", name:"Contratos", description:"Recorrência e vigências" },

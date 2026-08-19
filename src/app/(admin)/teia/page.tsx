@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function TeiaPage() {
-  return null;
+  redirect("/ordens-servico");
 }

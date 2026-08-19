@@ -204,12 +204,7 @@ export default function Sidebar() {
     {
       name: "Gestão",
       items: [
-        {
-          title: "Teia de Dados",
-          href: "/teia",
-          icon: Network,
-          permission: "clients.read",
-        },
+
         {
           title: "Estoque / Peças",
           href: "/estoque",

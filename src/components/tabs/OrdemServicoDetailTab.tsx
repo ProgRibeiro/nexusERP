@@ -67,6 +67,7 @@ import {
   ShieldCheck,
   Store,
   RefreshCw,
+  Receipt,
 } from "lucide-react";
 
 interface OrdemServicoDetailTabProps {
@@ -1152,6 +1153,22 @@ export default function OrdemServicoDetailTab({
             <p className="mt-1 font-mono text-sm font-bold text-blue-200">
               OS #{details.code || details.id.slice(-4)}
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <span className="flex items-center gap-1.5 rounded-lg bg-blue-500/20 px-2.5 py-1 text-[11px] font-bold text-blue-200 border border-blue-400/30">
+                <ShieldCheck size={13} className="text-blue-300" /> CPF da Operação: <strong className="font-mono text-white">{details.code}</strong>
+              </span>
+              {details.quote?.code && (
+                <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/20 px-2.5 py-1 text-[11px] font-bold text-emerald-200 border border-emerald-400/30">
+                  <FileText size={13} className="text-emerald-300" /> Orçamento: <strong className="font-mono text-white">{details.quote.code}</strong>
+                </span>
+              )}
+              <span className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-2.5 py-1 text-[11px] font-bold text-amber-200 border border-amber-400/30">
+                <ClipboardList size={13} className="text-amber-300" /> Pedido de Compra (PO): <strong className="font-mono text-white">{details.purchaseOrder || "Não informado"}</strong>
+              </span>
+              <span className="flex items-center gap-1.5 rounded-lg bg-purple-500/20 px-2.5 py-1 text-[11px] font-bold text-purple-200 border border-purple-400/30">
+                <Receipt size={13} className="text-purple-300" /> NF: <strong className="font-mono text-white">{details.invoices?.[0]?.invoiceNumber || (details.status === "FATURADA" ? "Emitida" : "Aguardando Emissão")}</strong>
+              </span>
+            </div>
             <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-blue-50/90">
               <span className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
                 <Users size={15} className="text-blue-200" />{" "}
