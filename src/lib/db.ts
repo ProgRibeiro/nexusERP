@@ -38,7 +38,6 @@ function createPrismaClient(): { prisma: PrismaClient; pool: Pool } {
     max: isProduction ? 30 : 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
-    options: `-c app.tenant_id=${tenantId}`,
     ssl: isProduction && !connectionString.includes("sslmode=disable")
       ? { rejectUnauthorized: false }
       : undefined,
