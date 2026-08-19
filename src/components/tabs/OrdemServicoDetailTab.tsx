@@ -17,6 +17,7 @@ import {
 } from "@/app/actions/osActions";
 import { getProducts } from "@/app/actions/inventoryActions";
 import { getCompanySettingsAction } from "@/app/actions/settingsActions";
+import { printExecutiveReport } from "@/lib/reportPdfGenerator";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -849,15 +850,17 @@ export default function OrdemServicoDetailTab({
   };
 
   const handlePrintReport = async () => {
-    if (preparingPrint) return;
+    if (preparingPrint || !details) return;
     setPreparingPrint(true);
     try {
-      if (document.fonts?.ready) {
-        await document.fonts.ready;
-      }
-      await new Promise<void>((resolve) => setTimeout(resolve, 250));
-      window.print();
-    } catch {
+      await printExecutiveReport({
+        company: companyParams,
+        details,
+        reportForm,
+        checklist,
+      });
+    } catch (err) {
+      console.error(err);
       toast("Não foi possível acionar a caixa de impressão.", "error");
     } finally {
       setPreparingPrint(false);

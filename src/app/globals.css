@@ -478,15 +478,17 @@ textarea:focus-visible {
 }
 
 @media print {
-    html, body, #__next, main, .app-workspace {
+    html, body, #__next, main {
         background: #ffffff !important;
         color: #000000 !important;
         color-scheme: light !important;
+        margin: 0 !important;
+        padding: 0 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
-    header, nav, sidebar, .no-print, button, iframe, footer, .sidebar-container {
+    header, nav, sidebar, footer, button, .no-print, .sidebar-container, .app-workspace > *:not(.print-a4-report-wrapper) {
         display: none !important;
     }
 
@@ -496,6 +498,11 @@ textarea:focus-visible {
         color: #18181b !important;
         border-color: transparent !important;
         box-shadow: none !important;
+    }
+
+    .print-a4-report-wrapper {
+        display: block !important;
+        visibility: visible !important;
     }
 
     .print-a4-report {
