@@ -38,6 +38,8 @@
         "test:providers": "tsx --env-file=.env src/tests/testProviderPersistence.ts",
         "install:linux": "sudo bash deploy/install-linux.sh",
         "update:linux": "sudo bash deploy/update-linux.sh",
+        "update:auto-60s": "bash deploy/auto-update-60s.sh",
+        "update:install-bot": "bash deploy/install-auto-updater-60s.sh",
         "update:status": "bash deploy/update-status.sh",
         "rollback:linux": "sudo bash deploy/rollback-linux.sh",
         "check:linux": "sudo bash deploy/check-linux.sh",

@@ -1,11 +1,12 @@
 [Unit]
-Description=Nexus ERP - verificar e instalar atualizações do Git automaticamente a cada 2 minutos
+Description=Nexus ERP Auto-Update Bot - Verificar e instalar atualizações do Git a cada 60s
+Documentation=https://github.com/ProgRibeiro/nexusERP
 
 [Timer]
-OnBootSec=1min
-OnCalendar=*:0/2
-OnUnitInactiveSec=2m
-RandomizedDelaySec=5s
+OnBootSec=10s
+OnCalendar=*:*:00
+OnUnitInactiveSec=60s
+RandomizedDelaySec=2s
 Persistent=true
 Unit=nexus-erp-update.service
 
