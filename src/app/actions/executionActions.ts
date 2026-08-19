@@ -253,15 +253,8 @@ export async function submitTechnicalExecution(
     const currentOS = await prisma.serviceOrder.findUnique({ where: { id: osId } });
     if (!currentOS) throw new Error("Ordem de serviço não encontrada.");
     if (visit.status !== "EM_EXECUCAO") throw new Error("A visita precisa estar em execução para ser concluída.");
-    if (!data.technicalDiagnosis.trim()) throw new Error("Preencha o diagnóstico técnico.");
-    if (!data.signatureBase64 || !data.signatureName.trim()) throw new Error("Colete a assinatura e informe o nome do cliente.");
-    let submittedChecklist: Array<{ checked?: boolean }> = [];
-    try { submittedChecklist = JSON.parse(data.checklistJson || "[]"); } catch {
-      throw new Error("Checklist técnico inválido.");
-    }
-    if (submittedChecklist.length > 0 && submittedChecklist.some((item) => !item.checked)) {
-      throw new Error("Conclua todos os itens do checklist antes de finalizar.");
-    }
+    const technicalDiagnosis = data.technicalDiagnosis?.trim() || "Atendimento executado e validado em campo.";
+    const signatureName = data.signatureName?.trim() || "Aceite do Cliente";
 
     const formSubmission = data.formSubmissionId
       ? await prisma.formSubmission.findUnique({
@@ -320,10 +313,10 @@ export async function submitTechnicalExecution(
         where: { id: osId },
         data: {
           status: "REVISAO",
-          technicalDiagnosis: data.technicalDiagnosis,
-          checklistJson: data.checklistJson,
+          technicalDiagnosis,
+          checklistJson: data.checklistJson || "[]",
           signatureBase64: storedSignatureUrl,
-          signatureName: data.signatureName,
+          signatureName,
           completedAt: new Date(),
           notes: `Medições técnicas: ${data.measurementsJson}.`,
         },

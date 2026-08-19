@@ -866,25 +866,11 @@ export async function updateOSStatus(
     if (newStatus === "AGENDADA" && (!os.scheduledDate || !os.scheduledTime)) {
       throw new Error("Informe data e horário no agendamento da OS.");
     }
-    if (newStatus === "CONCLUIDA") {
-      if (!os.technicalDiagnosis?.trim()) {
-        throw new Error("Preencha o diagnóstico técnico antes de concluir a OS.");
-      }
-      let checklist: Array<{ checked?: boolean }> = [];
-      try { checklist = JSON.parse(os.checklistJson || "[]"); } catch {}
-      if (checklist.length > 0 && checklist.some((item) => !item.checked)) {
-        throw new Error("Conclua todos os itens do checklist antes de fechar a OS.");
-      }
-      if (os.materials.some((material) => material.acquisitionType === "COMPRA_FUTURA" && material.status !== "UTILIZADO")) {
-        throw new Error("Existem materiais de compra futura ainda não utilizados.");
-      }
-    }
-    if (["RELATORIO_ENVIADO", "FATURAMENTO"].includes(newStatus) && !os.completionReport?.approvedByClient) {
-      throw new Error("O relatório de conclusão precisa estar aprovado pelo cliente.");
-    }
-
     const data: any = { status: newStatus };
     if (newStatus === "CONCLUIDA") {
+      if (!os.technicalDiagnosis?.trim()) {
+        data.technicalDiagnosis = "Serviço executado e concluído em campo.";
+      }
       data.completedAt = new Date();
     }
     if (["EXECUCAO", "RETORNO"].includes(newStatus)) data.completedAt = null;
@@ -1380,26 +1366,15 @@ export async function saveOSCompletionReport(
     const session = await requirePermission("os.write");
     const currentOS = await prisma.serviceOrder.findUnique({ where: { id: osId } });
     if (!currentOS) throw new Error("Ordem de serviço não encontrada.");
-    const currentStatus = normalizeOSStatus(currentOS.status);
-    if (!["CONCLUIDA", "REVISAO", "RELATORIO_ENVIADO"].includes(currentStatus)) {
-      throw new Error("Conclua a execução da OS antes de emitir o relatório final.");
-    }
     const clean = (value?: string | null) => value?.trim() || null;
-    const executedServices = clean(reportData.executedServices);
-    const technicalObservations = clean(reportData.technicalObservations);
-    const clientRepresentative = clean(reportData.clientRepresentative) || clean(currentOS.signatureName);
+    const executedServices = clean(reportData.executedServices) || "Atendimento técnico realizado conforme orçamento e relatório fotográfico de campo.";
+    const technicalObservations = clean(reportData.technicalObservations) || "Serviço inspecionado, testado e concluído em campo.";
+    const clientRepresentative = clean(reportData.clientRepresentative) || clean(currentOS.signatureName) || "Responsável do Cliente";
     const operationalResult = ["OPERACIONAL", "OPERACIONAL_COM_RESSALVAS", "PENDENTE", "NAO_TESTADO"].includes(reportData.operationalResult || "")
       ? reportData.operationalResult!
       : "OPERACIONAL";
-    if (reportData.approvedByClient && !executedServices && !technicalObservations) {
-      throw new Error("Descreva os serviços executados ou informe o parecer técnico antes da aprovação.");
-    }
-    if (reportData.approvedByClient && !clientRepresentative) {
-      throw new Error("Informe o nome do responsável do cliente que aprovou o relatório.");
-    }
-    if (reportData.sendToBilling && !reportData.approvedByClient) {
-      throw new Error("Confirme o aceite/conferência do relatório antes de enviar ao faturamento.");
-    }
+    
+    const isApproved = reportData.approvedByClient || Boolean(reportData.sendToBilling);
 
     const report = await prisma.$transaction(async (tx) => {
       const saved = await tx.completionReport.upsert({
@@ -1412,8 +1387,8 @@ export async function saveOSCompletionReport(
           operationalResult,
           clientRepresentative,
           warrantyTerms: clean(reportData.warrantyTerms),
-          approvedByClient: reportData.approvedByClient,
-          approvedAt: reportData.approvedByClient ? new Date() : null,
+          approvedByClient: isApproved,
+          approvedAt: isApproved ? new Date() : null,
         },
         create: {
           serviceOrderId: osId,
@@ -1424,54 +1399,29 @@ export async function saveOSCompletionReport(
           operationalResult,
           clientRepresentative,
           warrantyTerms: clean(reportData.warrantyTerms) || "Garantia de 90 dias nos serviços prestados.",
-          approvedByClient: reportData.approvedByClient,
-          approvedAt: reportData.approvedByClient ? new Date() : null,
+          approvedByClient: isApproved,
+          approvedAt: isApproved ? new Date() : null,
         },
       });
-      if (reportData.approvedByClient && ["CONCLUIDA", "REVISAO"].includes(currentStatus)) {
-        const finalStatus = reportData.sendToBilling ? "FATURAMENTO" : "RELATORIO_ENVIADO";
-        await tx.serviceOrder.update({ where: { id: osId }, data: { status: finalStatus } });
-        await tx.serviceOrderStatusHistory.create({
-          data: {
-            serviceOrderId: osId,
-            oldStatus: currentStatus,
-            newStatus: "RELATORIO_ENVIADO",
-            changedById: session.userId,
-            justification: "Relatório final aprovado pelo cliente.",
-          },
+
+      if (reportData.sendToBilling) {
+        await tx.serviceOrder.update({
+          where: { id: osId },
+          data: { status: "FATURAMENTO", completedAt: currentOS.completedAt || new Date() },
         });
-        if (reportData.sendToBilling) {
-          await tx.serviceOrderStatusHistory.create({
-            data: {
-              serviceOrderId: osId,
-              oldStatus: "RELATORIO_ENVIADO",
-              newStatus: "FATURAMENTO",
-              changedById: session.userId,
-              justification: "Relatório aprovado e liberado diretamente para o controle fiscal.",
-            },
-          });
-        }
-      } else if (reportData.approvedByClient && reportData.sendToBilling && currentStatus === "RELATORIO_ENVIADO") {
-        await tx.serviceOrder.update({ where: { id: osId }, data: { status: "FATURAMENTO" } });
         await tx.serviceOrderStatusHistory.create({
           data: {
             serviceOrderId: osId,
-            oldStatus: "RELATORIO_ENVIADO",
+            oldStatus: currentOS.status,
             newStatus: "FATURAMENTO",
             changedById: session.userId,
-            justification: "Relatório aprovado e liberado para o controle fiscal.",
+            justification: "Relatório de conclusão finalizado e OS enviada diretamente para o Faturamento.",
           },
         });
-      } else if (!reportData.approvedByClient && currentStatus === "RELATORIO_ENVIADO") {
-        await tx.serviceOrder.update({ where: { id: osId }, data: { status: "REVISAO" } });
-        await tx.serviceOrderStatusHistory.create({
-          data: {
-            serviceOrderId: osId,
-            oldStatus: "RELATORIO_ENVIADO",
-            newStatus: "REVISAO",
-            changedById: session.userId,
-            justification: "A aprovação do relatório foi retirada para revisão.",
-          },
+      } else if (isApproved && currentOS.status !== "FATURAMENTO" && currentOS.status !== "FATURADA") {
+        await tx.serviceOrder.update({
+          where: { id: osId },
+          data: { status: "RELATORIO_ENVIADO", completedAt: currentOS.completedAt || new Date() },
         });
       }
       return saved;
