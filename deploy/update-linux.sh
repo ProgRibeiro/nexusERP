@@ -133,6 +133,7 @@ fi
 if [[ -n "$OLD_COMMIT" ]]; then
   write_update_status "backup" "Criando e verificando o backup anterior à atualização."
   echo "Criando backup verificado antes da atualização..."
+  bash "$SOURCE/deploy/backup-database-snapshot.sh" || true
   cd "$SLOTS/$ACTIVE"
   runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install tsx scripts/backup-db.ts --type=pre-update
   if [[ -d "$SLOTS/$ACTIVE/.next/static" ]]; then

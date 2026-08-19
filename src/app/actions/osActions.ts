@@ -482,11 +482,14 @@ export async function getServiceOrders(filters?: {
         },
       };
     }
-    if (filters?.search) {
+    if (filters?.search?.trim()) {
+      const term = filters.search.trim();
       where.OR = [
-        { code: { contains: filters.search } },
-        { client: { name: { contains: filters.search } } },
-        { problemReported: { contains: filters.search } },
+        { code: { contains: term, mode: "insensitive" } },
+        { client: { name: { contains: term, mode: "insensitive" } } },
+        { client: { fancyName: { contains: term, mode: "insensitive" } } },
+        { client: { socialName: { contains: term, mode: "insensitive" } } },
+        { problemReported: { contains: term, mode: "insensitive" } },
       ];
     }
 

@@ -65,11 +65,13 @@ export async function getQuotes(search?: string) {
     await requireAuth();
 
     const quotes = await prisma.quote.findMany({
-      where: search
+      where: search?.trim()
         ? {
             OR: [
-              { code: { contains: search } },
-              { client: { name: { contains: search } } },
+              { code: { contains: search.trim(), mode: "insensitive" } },
+              { client: { name: { contains: search.trim(), mode: "insensitive" } } },
+              { client: { fancyName: { contains: search.trim(), mode: "insensitive" } } },
+              { client: { socialName: { contains: search.trim(), mode: "insensitive" } } },
             ],
           }
         : undefined,
