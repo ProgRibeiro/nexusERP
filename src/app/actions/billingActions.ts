@@ -184,10 +184,13 @@ export async function updateBillingMirror(osId: string, data: BillingMirrorInput
 export async function processBilling(data: {
   osId: string;
   invoiceCode: string;
-  totalValue: number;
-  taxPercent: number; // ex: 5 (ISS)
-  installments: number; // número de parcelas
-  paymentMethod: string; // PIX, BOLETO, CARTAO, etc.
+  totalValue: number; // Valor Bruto
+  taxPercent?: number;
+  retentionValue?: number; // Valor de retenções fiscais em R$
+  netValueToReceive?: number; // Valor líquido a receber em R$
+  expectedDueDate?: string; // Data prevista para recebimento (vencimento)
+  installments: number;
+  paymentMethod: string;
   category?: string;
   costCenter?: string;
   notes?: string;
@@ -195,7 +198,7 @@ export async function processBilling(data: {
 }) {
   try {
     const session = await requirePermission("faturamento.write");
-    data.userId = session.userId; // nunca confiar no valor vindo do client
+    data.userId = session.userId;
 
     const os = await prisma.serviceOrder.findUnique({
       where: { id: data.osId },
@@ -212,12 +215,16 @@ export async function processBilling(data: {
     const duplicateInvoice = await prisma.invoice.findUnique({ where: { code: data.invoiceCode.trim() } });
     if (duplicateInvoice) throw new Error("Já existe uma nota fiscal cadastrada com este número.");
 
-    const taxValue = (data.totalValue * (data.taxPercent / 100)) || 0;
+    const taxValue = data.retentionValue !== undefined && Number.isFinite(data.retentionValue)
+      ? Math.max(0, data.retentionValue)
+      : (data.totalValue * ((data.taxPercent || 0) / 100)) || 0;
+
+    const netTotal = data.netValueToReceive !== undefined && Number.isFinite(data.netValueToReceive) && data.netValueToReceive > 0
+      ? data.netValueToReceive
+      : Math.max(0, data.totalValue - taxValue);
 
     // Usar transação para garantir integridade do faturamento
     const result = await prisma.$transaction(async (tx) => {
-      // Reserva atomica da OS. Em chamadas simultaneas, somente uma consegue
-      // trocar FATURAMENTO por FATURADA; a outra aborta sem criar NF/parcelas.
       const claimed = await tx.serviceOrder.updateMany({
         where: { id: data.osId, status: "FATURAMENTO" },
         data: { status: "FATURADA" },
@@ -226,7 +233,7 @@ export async function processBilling(data: {
         throw new Error("Esta OS já foi faturada ou está sendo processada por outro usuário.");
       }
 
-      // 1. Criar Nota Fiscal (Invoice)
+      // 1. Criar Nota Fiscal (Invoice) com valor bruto e retenção
       const invoice = await tx.invoice.create({
         data: {
           code: data.invoiceCode.trim(),
@@ -248,13 +255,16 @@ export async function processBilling(data: {
         },
       });
 
-      // 3. Gerar as contas a receber (Receivables) - Suporta parcelamento!
-      const valuePerInstallment = data.totalValue / data.installments;
+      // 3. Gerar as contas a receber (Receivables) com o valor líquido a receber e data prevista selecionada
+      const valuePerInstallment = netTotal / data.installments;
       const receivables = [];
+      const baseDueDate = data.expectedDueDate ? new Date(data.expectedDueDate) : new Date();
 
       for (let i = 1; i <= data.installments; i++) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 30 * i); // Parcelas com intervalo de 30 dias
+        const dueDate = new Date(baseDueDate);
+        if (i > 1) {
+          dueDate.setDate(dueDate.getDate() + 30 * (i - 1));
+        }
 
         const rec = await tx.accountsReceivable.create({
           data: {
@@ -269,7 +279,7 @@ export async function processBilling(data: {
             paymentMethod: data.paymentMethod,
             category: data.category || "RECEITA_SERVICO",
             costCenter: data.costCenter || "GERAL",
-            notes: `Parcela ${i}/${data.installments} da OS ${os.code}. Notas: ${data.notes || ""}`,
+            notes: `Parcela ${i}/${data.installments} da OS ${os.code}. Valor Bruto: R$ ${data.totalValue.toFixed(2)}. Retenção Impostos: R$ ${taxValue.toFixed(2)}. Líquido a Receber: R$ ${netTotal.toFixed(2)}. ${data.notes || ""}`,
           },
         });
         receivables.push(rec);

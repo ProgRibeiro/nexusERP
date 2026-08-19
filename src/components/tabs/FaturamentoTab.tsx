@@ -266,30 +266,62 @@ export default function FaturamentoTab() {
     }
   };
 
+  const [hasRetention, setHasRetention] = useState(false);
+  const [retentionValue, setRetentionValue] = useState("0");
+  const [netValueToReceive, setNetValueToReceive] = useState("0");
+  const [expectedDueDate, setExpectedDueDate] = useState("");
+
   const openRegister = (row: MirrorRow) => {
     setRegistering(row);
     setInvoiceCode("");
     setRegisteredValue(String(row.value));
+    setHasRetention(false);
+    setRetentionValue("0");
+    setNetValueToReceive(String(row.value));
+
+    const defaultDate = new Date();
+    defaultDate.setDate(defaultDate.getDate() + 30);
+    setExpectedDueDate(defaultDate.toISOString().slice(0, 10));
+
     setTaxPercent("0");
     setInstallments("1");
     setPaymentMethod("PIX");
   };
 
+  const handleGrossOrRetentionChange = (gross: number, ret: number, isRetActive: boolean) => {
+    const calculatedNet = isRetActive ? Math.max(0, gross - ret) : gross;
+    setNetValueToReceive(String(calculatedNet));
+  };
+
   const registerExternalInvoice = async (event: React.FormEvent) => {
     event.preventDefault();
     const invoiceValue = Number(registeredValue);
+    const retVal = hasRetention ? Number(retentionValue) : 0;
+    const netVal = Number(netValueToReceive);
+
     if (!registering || !invoiceCode.trim() || invoiceValue <= 0) {
-      toast("Informe o número da NF e um valor válido para a nota.", "warning");
+      toast("Informe o número da NF e um valor bruto válido para a nota.", "warning");
       return;
     }
     setActionLoading(true);
     try {
-      const result = await processBilling({ osId: registering.id, invoiceCode: invoiceCode.trim(), totalValue: invoiceValue, taxPercent: Number(taxPercent) || 0, installments: Number(installments) || 1, paymentMethod, notes: `Nota emitida no sistema externo. Pedido de compra: ${registering.purchaseOrder || "não informado"}. Valor original da OS: ${formatCurrency(registering.value)}.`, userId: user?.id || "" });
+      const result = await processBilling({
+        osId: registering.id,
+        invoiceCode: invoiceCode.trim(),
+        totalValue: invoiceValue,
+        retentionValue: retVal,
+        netValueToReceive: netVal > 0 ? netVal : invoiceValue - retVal,
+        expectedDueDate,
+        installments: Number(installments) || 1,
+        paymentMethod,
+        notes: `Nota emitida. Pedido de compra: ${registering.purchaseOrder || "não informado"}. Valor Bruto OS: ${formatCurrency(invoiceValue)}. Retenção: ${formatCurrency(retVal)}. Líquido: ${formatCurrency(netVal)}.`,
+        userId: user?.id || "",
+      });
       if (!result.success) {
         toast(result.error || "Não foi possível registrar a nota.", "error");
         return;
       }
-      toast("Nota externa registrada e contas a receber geradas.", "success");
+      toast("Nota fiscal confirmada e Contas a Receber gerado com o valor líquido e vencimento configurado!", "success");
       setRegistering(null);
       await loadData();
     } finally {
@@ -398,17 +430,121 @@ export default function FaturamentoTab() {
             <div><span className="block text-[9px] font-bold uppercase tracking-wide opacity-70">Pedido de compra</span><strong>{registering.purchaseOrder || "Não informado"}</strong></div>
             {!registering.purchaseOrder && <button type="button" className="shrink-0 rounded-lg border border-orange-300 bg-white px-3 py-1.5 text-[10px] font-bold text-orange-700 hover:bg-orange-100 dark:border-orange-800 dark:bg-zinc-900 dark:text-orange-300" onClick={() => { setRegistering(null); setEditing({ ...registering }); }}>Informar agora</button>}
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><Input label="Número / código da NF emitida *" required placeholder="Ex: 12345" value={invoiceCode} onChange={(e) => setInvoiceCode(e.target.value)} /><Input label="Valor efetivo da nota (R$) *" required min="0.01" step="0.01" type="number" value={registeredValue} onChange={(e) => setRegisteredValue(e.target.value)} /></div>
-          <div className="rounded-xl bg-zinc-50 p-3 text-xs dark:bg-zinc-800"><span className="text-zinc-500">Valor original calculado pela OS: </span><strong>{formatCurrency(registering.value)}</strong></div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3"><Input label="Imposto total (%)" type="number" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} /><Select label="Parcelas" value={installments} onChange={(e) => setInstallments(e.target.value)} options={[{ value: "1", label: "1 parcela" }, { value: "2", label: "2 parcelas" }, { value: "3", label: "3 parcelas" }]} /><Select label="Forma de pagamento" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} options={[{ value: "PIX", label: "PIX" }, { value: "BOLETO", label: "Boleto" }, { value: "TRANSFERENCIA", label: "Transferência" }, { value: "CARTAO", label: "Cartão" }]} /></div>
-          <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800"><Button type="button" variant="secondary" onClick={() => setRegistering(null)}>Cancelar</Button><Button type="submit" variant="success" loading={actionLoading}><Receipt size={14} /> Confirmar NF e valor</Button></div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input label="Número / código da NF emitida *" required placeholder="Ex: 12345" value={invoiceCode} onChange={(e) => setInvoiceCode(e.target.value)} />
+            <Input
+              label="Valor Bruto da OS / NF (R$) *"
+              required
+              min="0.01"
+              step="0.01"
+              type="number"
+              value={registeredValue}
+              onChange={(e) => {
+                const val = e.target.value;
+                setRegisteredValue(val);
+                handleGrossOrRetentionChange(Number(val), Number(retentionValue), hasRetention);
+              }}
+            />
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-[#12151d] p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-zinc-200 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasRetention}
+                  onChange={(e) => {
+                    const active = e.target.checked;
+                    setHasRetention(active);
+                    handleGrossOrRetentionChange(Number(registeredValue), Number(retentionValue), active);
+                  }}
+                  className="rounded border-zinc-700 bg-zinc-900 text-[#d4af37] focus:ring-[#d4af37]"
+                />
+                <span>Haverá retenção de impostos na fonte? (INSS / ISS / IRRF / PIS / COFINS)</span>
+              </label>
+            </div>
+
+            {hasRetention && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <Input
+                  label="Valor da Retenção (R$)"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={retentionValue}
+                  onChange={(e) => {
+                    const ret = e.target.value;
+                    setRetentionValue(ret);
+                    handleGrossOrRetentionChange(Number(registeredValue), Number(ret), true);
+                  }}
+                  placeholder="0,00"
+                />
+                <Input
+                  label="Valor Líquido a Receber (R$) *"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={netValueToReceive}
+                  onChange={(e) => setNetValueToReceive(e.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
+            )}
+
+            {!hasRetention && (
+              <p className="text-[11px] text-zinc-400">
+                Sem retenções fiscais salvas. O valor líquido a receber no Contas a Receber será <strong className="text-emerald-400">{formatCurrency(Number(registeredValue) || 0)}</strong>.
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Input
+              label="Data Prevista a Receber *"
+              type="date"
+              required
+              value={expectedDueDate}
+              onChange={(e) => setExpectedDueDate(e.target.value)}
+            />
+            <Select
+              label="Parcelas"
+              value={installments}
+              onChange={(e) => setInstallments(e.target.value)}
+              options={[
+                { value: "1", label: "1 parcela (À vista / 30 dias)" },
+                { value: "2", label: "2 parcelas" },
+                { value: "3", label: "3 parcelas" },
+                { value: "4", label: "4 parcelas" },
+              ]}
+            />
+            <Select
+              label="Forma de pagamento"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              options={[
+                { value: "PIX", label: "PIX" },
+                { value: "BOLETO", label: "Boleto bancário" },
+                { value: "TRANSFERENCIA", label: "Transferência bancária" },
+                { value: "CARTAO", label: "Cartão de crédito" },
+              ]}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+            <Button type="button" variant="secondary" onClick={() => setRegistering(null)}>
+              Cancelar
+            </Button>
+            <Button type="submit" variant="success" loading={actionLoading}>
+              <Receipt size={14} /> Confirmar NF & Liberar Contas a Receber
+            </Button>
+          </div>
         </form>}
       </Modal>
 
       <Modal isOpen={Boolean(documentInvoice)} onClose={() => setDocumentInvoice(null)} title="Arquivar documentos da nota" size="lg">
         {documentInvoice && <div className="space-y-5">
           <div className="rounded-xl border border-[#d4af37]/25 bg-[#d4af37]/10 p-4"><p className="text-[9px] font-black uppercase tracking-wider text-[#b88d1b]">Nota fiscal</p><p className="mt-1 text-lg font-black">{documentInvoice.code}</p><p className="mt-1 text-xs text-zinc-500">{documentInvoice.client?.name} · {documentInvoice.serviceOrder?.code}</p></div>
-          <Select label="Situação da nota" value={documentStatus} onChange={(e)=>setDocumentStatus(e.target.value)} options={[{value:"EMITIDA",label:"Emitida"},{value:"ENVIADA",label:"Enviada ao cliente"},{value:"CANCELADA",label:"Cancelada"},{value:"SUBSTITUIDA",label:"Substituída"}]}/>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="group cursor-pointer rounded-2xl border border-dashed border-zinc-300 p-5 text-center transition hover:border-blue-500 hover:bg-blue-50/50 dark:border-zinc-700 dark:hover:bg-blue-950/10"><FileText className="mx-auto text-blue-500"/><p className="mt-3 text-xs font-black">PDF / DANFE / NFS-e</p><p className="mt-1 truncate text-[10px] text-zinc-500">{pdfName || (documentInvoice.pdfUrl ? "PDF já armazenado · selecione para substituir" : "Selecione um PDF de até 4 MB")}</p><input className="hidden" type="file" accept="application/pdf,.pdf" onChange={async(e)=>{const file=e.target.files?.[0];if(!file)return;try{setPdfDataUrl(await fileToDataUrl(file,["application/pdf"]));setPdfName(file.name)}catch(error){toast(error instanceof Error?error.message:"Arquivo inválido","error")}}}/></label>
             <label className="group cursor-pointer rounded-2xl border border-dashed border-zinc-300 p-5 text-center transition hover:border-[#d4af37] hover:bg-[#d4af37]/5 dark:border-zinc-700"><FileCode2 className="mx-auto text-[#d4af37]"/><p className="mt-3 text-xs font-black">XML da nota fiscal</p><p className="mt-1 truncate text-[10px] text-zinc-500">{xmlName || (documentInvoice.xmlUrl ? "XML já armazenado · selecione para substituir" : "Selecione um XML de até 4 MB")}</p><input className="hidden" type="file" accept="application/xml,text/xml,.xml" onChange={async(e)=>{const file=e.target.files?.[0];if(!file)return;try{setXmlDataUrl(await fileToDataUrl(file,["application/xml","text/xml"]));setXmlName(file.name)}catch(error){toast(error instanceof Error?error.message:"Arquivo inválido","error")}}}/></label>
