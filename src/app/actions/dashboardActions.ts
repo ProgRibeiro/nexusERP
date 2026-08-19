@@ -327,7 +327,7 @@ export async function getDashboardData(period: DashboardPeriod = "month"): Promi
         alertas.push({
           id: `invoice-rejected-${i.id}`,
           title: "Nota Fiscal Rejeitada",
-          message: `NFS-e do cliente ${i.serviceOrder.client.name} foi rejeitada pelo provedor municipal.`,
+          message: `NFS-e do cliente ${i.serviceOrder?.client?.name || "Cliente"} foi rejeitada pelo provedor municipal.`,
           type: "FISCAL",
           link: "/faturamento?tab=rejeitadas",
         });
@@ -496,7 +496,7 @@ export async function getDashboardData(period: DashboardPeriod = "month"): Promi
         ultimasOS: [...allOS].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 6).map((os) => ({ id: os.id, code: os.code, client: os.client.name, status: os.status, date: os.createdAt })),
         contasVencidas: contasVencidas.slice(0, 6).map((item) => ({ id: item.id, client: item.client.name, value: Number(item.pendingValue), dueDate: item.dueDate })),
         orcamentosNegociacao: orcamentosAberto.slice(0, 6).map((quote) => ({ id: quote.id, code: quote.code, client: quote.client.name, value: Number(quote.total), validUntil: quote.validUntil })),
-        notasComErro: notasRejeitadas.slice(0, 6).map((invoice) => ({ id: invoice.id, code: invoice.code, client: invoice.serviceOrder.client.name, value: invoice.value })),
+        notasComErro: notasRejeitadas.slice(0, 6).map((invoice) => ({ id: invoice.id, code: invoice.code, client: invoice.serviceOrder?.client?.name || "—", value: invoice.value })),
       },
     };
   } catch (error) {

@@ -71,6 +71,8 @@ model Client {
   segment               String? // e.g. Climatização, Eletricista, Refrigeração
   origin                String? // Como chegou: Google, Indicação, etc.
   status                String               @default("ATIVO") // ATIVO, INATIVO
+  defaultPaymentTerms   String? // e.g. "HERING_60", "LIQUIDO_30", "LIQUIDO_21"
+  billingGroup          String? // e.g. "Hering", "Grupo Soma", "Azzas 2154", "Cidade Maravilhosa"
   notes                 String?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
@@ -862,8 +864,8 @@ model CompletionReport {
 model Invoice {
   id             String               @id @default(uuid())
   code           String               @unique // NF-000123
-  serviceOrderId String
-  serviceOrder   ServiceOrder         @relation(fields: [serviceOrderId], references: [id])
+  serviceOrderId String?
+  serviceOrder   ServiceOrder?        @relation(fields: [serviceOrderId], references: [id])
   clientId       String
   client         Client               @relation(fields: [clientId], references: [id])
   issueDate      DateTime             @default(now())
@@ -872,6 +874,8 @@ model Invoice {
   status         String               @default("EMITIDA") // EMITIDA, ENVIADA, CANCELADA, SUBSTITUIDA
   pdfUrl         String?
   xmlUrl         String?
+  paymentTerms   String?
+  notes          String?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   receivables    AccountsReceivable[]

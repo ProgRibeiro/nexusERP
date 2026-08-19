@@ -21,6 +21,8 @@ export interface ClientDTO {
   segment: string | null;
   origin: string | null;
   status: string;
+  defaultPaymentTerms?: string | null;
+  billingGroup?: string | null;
   notes: string | null;
   createdAt: Date;
 }

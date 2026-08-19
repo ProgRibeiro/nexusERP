@@ -194,7 +194,7 @@ export async function searchGlobalAction(query: string): Promise<SearchResult[]>
         results.push({
           id: i.id,
           type: "nota",
-          title: `NFS-e #${i.code || "Rascunho"} - ${i.serviceOrder.client.name}`,
+          title: `NFS-e #${i.code || "Rascunho"} - ${i.serviceOrder?.client?.name || "Cliente"}`,
           subtitle: `Status: ${i.status} • Valor: R$ ${i.value.toFixed(2)}`,
           link: `/faturamento?id=${i.id}`,
         });

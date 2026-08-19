@@ -11,8 +11,11 @@ import { deleteUploadedAsset, saveBase64Asset } from "@/lib/storage";
 export interface BillingQueueItem {
   id: string;
   code: string;
+  clientId: string;
   clientName: string;
   clientDocument: string;
+  defaultPaymentTerms?: string | null;
+  billingGroup?: string | null;
   type: string;
   completedAt: Date | null;
   value: number;
@@ -106,8 +109,11 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
       return {
         id: os.id,
         code: os.code,
+        clientId: os.clientId,
         clientName: os.client.name,
         clientDocument: os.client.cpfCnpj || "",
+        defaultPaymentTerms: os.client.defaultPaymentTerms,
+        billingGroup: os.client.billingGroup,
         type: os.type,
         completedAt: os.completedAt,
         value: finalBillingValue,
@@ -177,16 +183,19 @@ export async function updateBillingMirror(osId: string, data: BillingMirrorInput
   }
 }
 
+import { calculateDueDate } from "@/lib/paymentTerms";
+
 /**
  * Registra no ERP uma nota já emitida no sistema fiscal externo:
- * 1. Salva os dados de controle da nota.
+ * 1. Salva os dados de controle e anexos (PDF/XML) da nota.
  * 2. Atualiza a OS para "FATURADA".
- * 3. Gera a cobrança no contas a receber (com suporte a parcelamento!).
+ * 3. Gera a cobrança no contas a receber com cálculo inteligente de vencimento (Hering 60d, 30d, 21d etc.).
  * 4. Alimenta logs de auditoria e notificações.
  */
 export async function processBilling(data: {
   osId: string;
   invoiceCode: string;
+<<<<<<< HEAD
   totalValue: number; // Valor Bruto
   taxPercent?: number;
   retentionValue?: number; // Valor de retenções fiscais em R$
@@ -194,6 +203,16 @@ export async function processBilling(data: {
   expectedDueDate?: string; // Data prevista para recebimento (vencimento)
   installments: number;
   paymentMethod: string;
+=======
+  totalValue: number;
+  taxPercent: number; // ex: 5 (ISS)
+  installments: number; // número de parcelas
+  paymentMethod: string; // PIX, BOLETO, CARTAO, etc.
+  paymentTerms?: string; // LIQUIDO_30, HERING_60, LIQUIDO_21, etc.
+  issueDate?: string; // ISO date string (ex: "2026-08-19")
+  pdfDataUrl?: string; // Anexo PDF
+  xmlDataUrl?: string; // Anexo XML
+>>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
   category?: string;
   costCenter?: string;
   notes?: string;
@@ -218,6 +237,7 @@ export async function processBilling(data: {
     const duplicateInvoice = await prisma.invoice.findUnique({ where: { code: data.invoiceCode.trim() } });
     if (duplicateInvoice) throw new Error("Já existe uma nota fiscal cadastrada com este número.");
 
+<<<<<<< HEAD
     const taxValue = data.retentionValue !== undefined && Number.isFinite(data.retentionValue)
       ? Math.max(0, data.retentionValue)
       : (data.totalValue * ((data.taxPercent || 0) / 100)) || 0;
@@ -228,6 +248,26 @@ export async function processBilling(data: {
 
     // Usar transação para garantir integridade do faturamento
     const result = await prisma.$transaction(async (tx) => {
+=======
+    const taxValue = (data.totalValue * (data.taxPercent / 100)) || 0;
+    const issueDateParsed = data.issueDate ? new Date(data.issueDate) : new Date();
+    const paymentTermsCode = data.paymentTerms || "LIQUIDO_30";
+
+    // Processar anexos de PDF e XML se enviados na baixa da nota
+    let pdfUrl: string | null = null;
+    let xmlUrl: string | null = null;
+    if (data.pdfDataUrl) {
+      pdfUrl = await saveBase64Asset(data.pdfDataUrl, `nf-${data.invoiceCode.trim()}-pdf`);
+    }
+    if (data.xmlDataUrl) {
+      xmlUrl = await saveBase64Asset(data.xmlDataUrl, `nf-${data.invoiceCode.trim()}-xml`);
+    }
+
+    // Usar transação para garantir integridade do faturamento
+    const result = await prisma.$transaction(async (tx) => {
+      // Reserva atômica da OS. Em chamadas simultâneas, somente uma consegue
+      // trocar FATURAMENTO por FATURADA; a outra aborta sem criar NF/parcelas.
+>>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
       const claimed = await tx.serviceOrder.updateMany({
         where: { id: data.osId, status: "FATURAMENTO" },
         data: { status: "FATURADA" },
@@ -245,7 +285,11 @@ export async function processBilling(data: {
           value: data.totalValue,
           taxValue,
           status: "EMITIDA",
-          pdfUrl: null,
+          issueDate: issueDateParsed,
+          paymentTerms: paymentTermsCode,
+          pdfUrl,
+          xmlUrl,
+          notes: data.notes || null,
         },
       });
 
@@ -258,16 +302,25 @@ export async function processBilling(data: {
         },
       });
 
+<<<<<<< HEAD
       // 3. Gerar as contas a receber (Receivables) com o valor líquido a receber e data prevista selecionada
       const valuePerInstallment = netTotal / data.installments;
+=======
+      // 3. Gerar as contas a receber (Receivables) com cálculo da regra de pagamento (ex: Hering 60d)
+      const valuePerInstallment = data.totalValue / data.installments;
+>>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
       const receivables = [];
       const baseDueDate = data.expectedDueDate ? new Date(data.expectedDueDate) : new Date();
 
       for (let i = 1; i <= data.installments; i++) {
+<<<<<<< HEAD
         const dueDate = new Date(baseDueDate);
         if (i > 1) {
           dueDate.setDate(dueDate.getDate() + 30 * (i - 1));
         }
+=======
+        const dueDate = calculateDueDate(issueDateParsed, paymentTermsCode, i);
+>>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
 
         const rec = await tx.accountsReceivable.create({
           data: {
@@ -277,12 +330,17 @@ export async function processBilling(data: {
             totalValue: valuePerInstallment,
             receivedValue: 0.0,
             pendingValue: valuePerInstallment,
+            issueDate: issueDateParsed,
             dueDate,
             status: "ABERTO",
             paymentMethod: data.paymentMethod,
             category: data.category || "RECEITA_SERVICO",
             costCenter: data.costCenter || "GERAL",
+<<<<<<< HEAD
             notes: `Parcela ${i}/${data.installments} da OS ${os.code}. Valor Bruto: R$ ${data.totalValue.toFixed(2)}. Retenção Impostos: R$ ${taxValue.toFixed(2)}. Líquido a Receber: R$ ${netTotal.toFixed(2)}. ${data.notes || ""}`,
+=======
+            notes: `Parcela ${i}/${data.installments} da OS ${os.code}. Regra: ${paymentTermsCode}. ${data.notes || ""}`,
+>>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
           },
         });
         receivables.push(rec);
@@ -295,7 +353,7 @@ export async function processBilling(data: {
           oldStatus: os.status,
           newStatus: "FATURADA",
           changedById: data.userId,
-          justification: `Faturamento processado. Emitida NF ${data.invoiceCode} no valor de R$ ${data.totalValue.toFixed(
+          justification: `Faturamento processado com a regra ${paymentTermsCode}. Emitida NF ${data.invoiceCode} no valor de R$ ${data.totalValue.toFixed(
             2
           )} em ${data.installments} parcela(s).`,
         },
@@ -307,7 +365,7 @@ export async function processBilling(data: {
           title: "Contas a Receber Gerado",
           message: `Faturamento concluído para ${os.client.name}. Geradas ${
             data.installments
-          } parcelas no valor unitário de R$ ${valuePerInstallment.toFixed(2)}.`,
+          } parcelas (Regra: ${paymentTermsCode}) no valor unitário de R$ ${valuePerInstallment.toFixed(2)}.`,
           type: "FINANCEIRO",
           link: "/financeiro",
         },
@@ -327,8 +385,12 @@ export async function processBilling(data: {
           osCode: os.code,
           invoiceCode: data.invoiceCode,
           purchaseOrder: os.purchaseOrder || null,
+          paymentTerms: paymentTermsCode,
+          issueDate: issueDateParsed.toISOString(),
           installments: data.installments,
           totalValue: data.totalValue,
+          hasPdf: Boolean(pdfUrl),
+          hasXml: Boolean(xmlUrl),
         }),
       },
     });
@@ -346,19 +408,33 @@ export async function processBilling(data: {
 }
 
 /**
- * Obtém as Notas Fiscais emitidas
+ * Obtém as Notas Fiscais emitidas com seus comprovantes e dados para auditoria mensal.
  */
 export async function getInvoices() {
   try {
     await requireAuth();
 
-    return await prisma.invoice.findMany({
+    const list = await prisma.invoice.findMany({
       include: {
-        client: true,
+        client: {
+          select: { id: true, name: true, defaultPaymentTerms: true, billingGroup: true },
+        },
         serviceOrder: { select: { code: true, purchaseOrder: true } },
+        receivables: { select: { id: true, dueDate: true, status: true, pendingValue: true, totalValue: true, paymentDate: true, paymentMethod: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { issueDate: "desc" },
     });
+
+    return list.map((inv) => ({
+      ...inv,
+      receivables: inv.receivables.map((r) => ({
+        id: r.id,
+        dueDate: r.dueDate,
+        status: r.status,
+        pendingValue: Number(r.pendingValue),
+        totalValue: Number(r.totalValue),
+      })),
+    }));
   } catch (error) {
     logger.error("Erro ao obter notas fiscais:", error);
     return [];
@@ -396,5 +472,301 @@ export async function saveInvoiceDocuments(data: {
   } catch (error: unknown) {
     logger.error("Erro ao armazenar documentos fiscais:", error);
     return { success: false, error: error instanceof Error ? error.message : "Não foi possível armazenar os documentos." };
+  }
+}
+
+/**
+ * Registra faturamento avulso / direto (sem OS) no ERP:
+ * Para terceirização, prestação de serviços diretos, consultorias ou vendas sem OS.
+ */
+export async function processDirectBilling(data: {
+  clientId: string;
+  serviceDescription: string;
+  invoiceCode: string;
+  totalValue: number;
+  taxPercent: number;
+  installments: number;
+  paymentMethod: string;
+  paymentTerms?: string;
+  issueDate?: string;
+  pdfDataUrl?: string;
+  xmlDataUrl?: string;
+  purchaseOrder?: string;
+  notes?: string;
+  userId: string;
+}) {
+  try {
+    const session = await requirePermission("faturamento.write");
+    data.userId = session.userId;
+
+    const client = await prisma.client.findUnique({ where: { id: data.clientId } });
+    if (!client) throw new Error("Cliente não encontrado.");
+
+    if (!data.invoiceCode.trim()) throw new Error("Informe o número da nota fiscal.");
+    if (!Number.isFinite(data.totalValue) || data.totalValue <= 0) throw new Error("Informe um valor válido.");
+    if (!Number.isInteger(data.installments) || data.installments < 1) throw new Error("Informe ao menos 1 parcela.");
+
+    const duplicate = await prisma.invoice.findUnique({ where: { code: data.invoiceCode.trim() } });
+    if (duplicate) throw new Error("Já existe uma nota fiscal cadastrada com este número.");
+
+    const taxValue = (data.totalValue * (data.taxPercent / 100)) || 0;
+    const issueDateParsed = data.issueDate ? new Date(data.issueDate) : new Date();
+    const paymentTermsCode = data.paymentTerms || client.defaultPaymentTerms || "LIQUIDO_30";
+
+    let pdfUrl: string | null = null;
+    let xmlUrl: string | null = null;
+    if (data.pdfDataUrl) pdfUrl = await saveBase64Asset(data.pdfDataUrl, `nf-direta-${data.invoiceCode.trim()}-pdf`);
+    if (data.xmlDataUrl) xmlUrl = await saveBase64Asset(data.xmlDataUrl, `nf-direta-${data.invoiceCode.trim()}-xml`);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.create({
+        data: {
+          code: data.invoiceCode.trim(),
+          serviceOrderId: null,
+          clientId: client.id,
+          value: data.totalValue,
+          taxValue,
+          status: "EMITIDA",
+          issueDate: issueDateParsed,
+          paymentTerms: paymentTermsCode,
+          pdfUrl,
+          xmlUrl,
+          notes: `Faturamento Avulso (sem OS): ${data.serviceDescription}. ${data.notes || ""}`,
+        },
+      });
+
+      const valuePerInstallment = data.totalValue / data.installments;
+      const receivables = [];
+
+      for (let i = 1; i <= data.installments; i++) {
+        const dueDate = calculateDueDate(issueDateParsed, paymentTermsCode, i);
+        const rec = await tx.accountsReceivable.create({
+          data: {
+            clientId: client.id,
+            serviceOrderId: null,
+            invoiceId: invoice.id,
+            totalValue: valuePerInstallment,
+            receivedValue: 0.0,
+            pendingValue: valuePerInstallment,
+            issueDate: issueDateParsed,
+            dueDate,
+            status: "ABERTO",
+            paymentMethod: data.paymentMethod,
+            category: "RECEITA_SERVICO",
+            costCenter: "GERAL",
+            notes: `Faturamento Avulso - Parcela ${i}/${data.installments}. ${data.serviceDescription}. Regra: ${paymentTermsCode}`,
+          },
+        });
+        receivables.push(rec);
+      }
+
+      await tx.notification.create({
+        data: {
+          title: "Faturamento Avulso Registrado",
+          message: `Faturamento direto de R$ ${data.totalValue.toFixed(2)} registrado para ${client.name} (NF ${data.invoiceCode}).`,
+          type: "FINANCEIRO",
+          link: "/faturamento",
+        },
+      });
+
+      return { invoice, receivables };
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: data.userId,
+        action: "CRIACAO",
+        entity: "FaturamentoAvulso",
+        entityId: result.invoice.id,
+        changesJson: JSON.stringify({
+          clientName: client.name,
+          invoiceCode: data.invoiceCode,
+          totalValue: data.totalValue,
+          serviceDescription: data.serviceDescription,
+        }),
+      },
+    });
+
+    revalidatePath("/faturamento");
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+
+    return { success: true, invoice: result.invoice, receivables: result.receivables };
+  } catch (error: any) {
+    logger.error("Erro no faturamento avulso:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Atualiza e ajusta os dados do Prontuário da Nota Fiscal faturada:
+ * Permite alterar código da NF, data de emissão, regra de pagamento, vencimento customizado das parcelas, valores, notas e anexos.
+ */
+export async function updateInvoiceProntuario(data: {
+  invoiceId: string;
+  invoiceCode?: string;
+  issueDate?: string;
+  paymentTerms?: string;
+  customDueDate?: string;
+  totalValue?: number;
+  taxPercent?: number;
+  status?: string;
+  notes?: string;
+  pdfDataUrl?: string;
+  xmlDataUrl?: string;
+}) {
+  try {
+    const session = await requirePermission("faturamento.write");
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: data.invoiceId },
+      include: { receivables: true },
+    });
+
+    if (!invoice) throw new Error("Nota fiscal não encontrada.");
+
+    let pdfUrl = invoice.pdfUrl;
+    let xmlUrl = invoice.xmlUrl;
+    if (data.pdfDataUrl) pdfUrl = await saveBase64Asset(data.pdfDataUrl, `nf-${data.invoiceCode || invoice.code}-pdf`);
+    if (data.xmlDataUrl) xmlUrl = await saveBase64Asset(data.xmlDataUrl, `nf-${data.invoiceCode || invoice.code}-xml`);
+
+    const issueDateParsed = data.issueDate ? new Date(data.issueDate) : invoice.issueDate;
+    const paymentTermsCode = data.paymentTerms || invoice.paymentTerms || "LIQUIDO_30";
+    const totalVal = data.totalValue !== undefined ? Number(data.totalValue) : invoice.value;
+    const taxVal = data.taxPercent !== undefined ? (totalVal * (Number(data.taxPercent) / 100)) : invoice.taxValue;
+
+    const updatedInvoice = await prisma.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        code: data.invoiceCode?.trim() || invoice.code,
+        issueDate: issueDateParsed,
+        paymentTerms: paymentTermsCode,
+        value: totalVal,
+        taxValue: taxVal,
+        status: data.status || invoice.status,
+        notes: data.notes !== undefined ? data.notes : invoice.notes,
+        pdfUrl,
+        xmlUrl,
+      },
+    });
+
+    // Se a data de vencimento customizada ou a regra/data de emissão foram alteradas, atualizar Receivables não pagos
+    const openReceivables = invoice.receivables.filter((r) => r.status !== "PAGO");
+    if (openReceivables.length > 0) {
+      for (let i = 0; i < openReceivables.length; i++) {
+        const rec = openReceivables[i];
+        let newDueDate: Date;
+        if (data.customDueDate) {
+          newDueDate = new Date(data.customDueDate);
+        } else {
+          newDueDate = calculateDueDate(issueDateParsed, paymentTermsCode, i + 1);
+        }
+
+        await prisma.accountsReceivable.update({
+          where: { id: rec.id },
+          data: {
+            issueDate: issueDateParsed,
+            dueDate: newDueDate,
+            totalValue: totalVal / invoice.receivables.length,
+            pendingValue: totalVal / invoice.receivables.length,
+          },
+        });
+      }
+    }
+
+    if (data.pdfDataUrl && invoice.pdfUrl && invoice.pdfUrl !== pdfUrl) await deleteUploadedAsset(invoice.pdfUrl);
+    if (data.xmlDataUrl && invoice.xmlUrl && invoice.xmlUrl !== xmlUrl) await deleteUploadedAsset(invoice.xmlUrl);
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ATUALIZACAO",
+        entity: "ProntuarioFaturamento",
+        entityId: invoice.id,
+        changesJson: JSON.stringify({
+          code: updatedInvoice.code,
+          paymentTerms: paymentTermsCode,
+          issueDate: issueDateParsed.toISOString(),
+          customDueDate: data.customDueDate || null,
+        }),
+      },
+    });
+
+    revalidatePath("/faturamento");
+    revalidatePath("/financeiro");
+    return { success: true, invoice: updatedInvoice };
+  } catch (error: any) {
+    logger.error("Erro ao atualizar prontuário de faturamento:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Registra o recebimento/quitação manual ("Dar Baixa no Recebimento") de uma Nota Fiscal e suas parcelas.
+ */
+export async function markInvoiceAsPaid(invoiceId: string, paymentDate?: string, paymentMethod?: string) {
+  try {
+    const session = await requirePermission("financeiro.write");
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { receivables: true, client: true },
+    });
+
+    if (!invoice) throw new Error("Nota fiscal não encontrada.");
+
+    const payDate = paymentDate ? new Date(paymentDate) : new Date();
+    const payMethod = paymentMethod || "PIX";
+
+    await prisma.$transaction(async (tx) => {
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { status: "ENVIADA" },
+      });
+
+      for (const rec of invoice.receivables) {
+        if (rec.status !== "PAGO") {
+          await tx.accountsReceivable.update({
+            where: { id: rec.id },
+            data: {
+              status: "PAGO",
+              paymentDate: payDate,
+              paymentMethod: payMethod,
+              receivedValue: rec.totalValue,
+              pendingValue: 0.0,
+            },
+          });
+
+          await tx.financialTransaction.create({
+            data: {
+              type: "RECEITA",
+              value: rec.totalValue,
+              date: payDate,
+              category: "RECEITA_SERVICO",
+              costCenter: "GERAL",
+              accountsReceivableId: rec.id,
+              description: `Recebimento da NF ${invoice.code} - ${invoice.client.name}`,
+            },
+          });
+        }
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ATUALIZACAO",
+        entity: "QuitacaoFaturamento",
+        entityId: invoiceId,
+        changesJson: JSON.stringify({ code: invoice.code, payDate }),
+      },
+    });
+
+    revalidatePath("/faturamento");
+    revalidatePath("/financeiro");
+    return { success: true };
+  } catch (error: any) {
+    logger.error("Erro ao dar baixa de pagamento na NF:", error);
+    return { success: false, error: error.message };
   }
 }
