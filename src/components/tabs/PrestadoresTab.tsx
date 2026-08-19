@@ -36,6 +36,7 @@ import {
   ProviderDetailsInput,
 } from "@/app/actions/providerActions";
 import { useToast } from "@/components/ui/Toast";
+import { consultarCNPJAction } from "@/app/actions/clientActions";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -90,6 +91,46 @@ export default function PrestadoresTab() {
   const [copiedPix, setCopiedPix] = useState(false);
 
   const [form, setForm] = useState<ProviderDetailsInput>(DEFAULT_FORM);
+  const [cnpjLoading, setCnpjLoading] = useState(false);
+
+  const handleLookupCNPJ = async () => {
+    const clean = form.cnpj.replace(/\D/g, "");
+    if (clean.length !== 14) {
+      toast("Informe um CNPJ válido com 14 dígitos para consultar online.", "warning");
+      return;
+    }
+
+    setCnpjLoading(true);
+    try {
+      const res = await consultarCNPJAction(clean);
+      if (res.success && res.data) {
+        setForm((prev) => ({
+          ...prev,
+          name: res.data.corporateName || prev.name,
+          tradeName: res.data.tradeName || prev.tradeName,
+          email: res.data.email || prev.email,
+          phone: res.data.phone || prev.phone,
+          address: res.data.addressDetails?.street
+            ? `${res.data.addressDetails.street}, ${res.data.addressDetails.number}${
+                res.data.addressDetails.neighborhood ? ` - ${res.data.addressDetails.neighborhood}` : ""
+              }`
+            : prev.address,
+          city: res.data.addressDetails?.city || prev.city,
+          state: res.data.addressDetails?.state || prev.state,
+          cep: res.data.addressDetails?.cep || prev.cep,
+          pixKey: prev.pixKey ? prev.pixKey : clean,
+          pixType: prev.pixType ? prev.pixType : "CPF_CNPJ",
+        }));
+        toast("Dados do prestador importados com sucesso da Receita Federal!", "success");
+      } else {
+        toast(res.error || "Não foi possível consultar os dados deste CNPJ.", "error");
+      }
+    } catch {
+      toast("Erro de conexão ao buscar dados do CNPJ.", "error");
+    } finally {
+      setCnpjLoading(false);
+    }
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -603,22 +644,43 @@ export default function PrestadoresTab() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Input
-                label="CPF ou CNPJ *"
-                required
-                disabled={busy === "saving"}
-                placeholder="Apenas números (11 ou 14 dígitos)"
-                value={form.cnpj}
-                onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
-              />
-              <Input
-                label="Inscrição Estadual (IE)"
-                disabled={busy === "saving"}
-                placeholder="Isento ou nº da IE"
-                value={form.ie}
-                onChange={(e) => setForm({ ...form, ie: e.target.value })}
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div className="sm:col-span-2 flex items-end gap-2">
+                <div className="flex-1">
+                  <Input
+                    label="CPF ou CNPJ *"
+                    required
+                    disabled={busy === "saving" || cnpjLoading}
+                    placeholder="Apenas números (11 ou 14 dígitos)"
+                    value={form.cnpj}
+                    onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={cnpjLoading || busy === "saving" || form.cnpj.replace(/\D/g, "").length !== 14}
+                  onClick={handleLookupCNPJ}
+                  className="bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#e6c653] hover:bg-[#d4af37]/25 h-10 px-3 font-bold text-xs shrink-0"
+                  title="Consultar dados da empresa na Receita Federal"
+                >
+                  {cnpjLoading ? <Loader2 className="animate-spin text-[#d4af37]" size={15} /> : <Search size={15} />}
+                  <span className="hidden sm:inline">{cnpjLoading ? "Buscando..." : "Buscar CNPJ"}</span>
+                </Button>
+              </div>
+
+              <div>
+                <Input
+                  label="Inscrição Estadual (IE)"
+                  disabled={busy === "saving"}
+                  placeholder="Isento ou nº da IE"
+                  value={form.ie}
+                  onChange={(e) => setForm({ ...form, ie: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Select
                 label="Especialidade Principal"
                 value={form.specialty}
