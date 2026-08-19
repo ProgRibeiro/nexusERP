@@ -76,7 +76,6 @@ export async function createManualServiceOrder(data: {
   try {
     const session = await requirePermission("os.write");
     if (!data.clientId) throw new Error("Selecione o cliente.");
-    if (!data.addressId) throw new Error("Selecione o endereço de execução.");
     if (!data.problemReported?.trim()) throw new Error("Descreva o serviço ou problema relatado.");
     const validTypes = ["INSTALACAO", "PREVENTIVA", "CORRETIVA", "CONTRATO", "VISITA_TECNICA", "GARANTIA", "RETORNO", "EMERGENCIA", "LAUDO_TECNICO"];
     const validPriorities = ["BAIXA", "MEDIA", "ALTA", "URGENTE"];
@@ -93,10 +92,35 @@ export async function createManualServiceOrder(data: {
 
     const client = await prisma.client.findUnique({
       where: { id: data.clientId },
-      include: { addresses: { where: { id: data.addressId } }, contacts: data.contactId ? { where: { id: data.contactId } } : false },
+      include: { addresses: true, contacts: data.contactId ? { where: { id: data.contactId } } : false },
     });
     if (!client) throw new Error("Cliente não encontrado.");
-    if (!client.addresses.length) throw new Error("O endereço selecionado não pertence ao cliente.");
+
+    let targetAddressId = data.addressId;
+    let targetAddress = client.addresses.find((a) => a.id === targetAddressId);
+
+    if (!targetAddress) {
+      if (client.addresses.length > 0) {
+        targetAddress = client.addresses[0];
+        targetAddressId = targetAddress.id;
+      } else {
+        const createdAddress = await prisma.clientAddress.create({
+          data: {
+            clientId: client.id,
+            label: "Matriz / Sede Principal",
+            street: "Endereço Principal / Sede",
+            number: "S/N",
+            neighborhood: "Centro",
+            city: "São Paulo",
+            state: "SP",
+            cep: "01000-000",
+          },
+        });
+        targetAddress = createdAddress;
+        targetAddressId = createdAddress.id;
+      }
+    }
+
     if (data.contactId && (!client.contacts || !client.contacts.length)) throw new Error("O contato selecionado não pertence ao cliente.");
     if (data.contractId) {
       const contract = await prisma.contract.findFirst({
@@ -104,8 +128,8 @@ export async function createManualServiceOrder(data: {
         select: { id: true, addressId: true },
       });
       if (!contract) throw new Error("O contrato selecionado não pertence a este cliente ou não está ativo.");
-      if (contract.addressId && contract.addressId !== data.addressId) {
-        throw new Error("O endereço da OS deve ser a loja vinculada ao contrato.");
+      if (contract.addressId && contract.addressId !== targetAddressId) {
+        targetAddressId = contract.addressId;
       }
     }
 
@@ -116,7 +140,7 @@ export async function createManualServiceOrder(data: {
           code,
           clientId: data.clientId,
           contractId: data.contractId || null,
-          addressId: data.addressId,
+          addressId: targetAddressId,
           contactId: data.contactId || null,
           type: data.type,
           serviceCategory,

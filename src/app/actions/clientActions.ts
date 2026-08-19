@@ -141,6 +141,48 @@ export async function getClientDetails(id: string): Promise<ClientDetailsDTO | n
 
     if (!client) return null;
 
+    // Se o cliente não possuir endereço cadastrado na sub-tabela ClientAddress,
+    // sincroniza automaticamente a partir da consulta do CNPJ
+    if (client.addresses.length === 0) {
+      try {
+        let street = "Endereço Principal / Sede";
+        let number = "S/N";
+        let neighborhood = "Centro";
+        let city = "São Paulo";
+        let state = "SP";
+        let cep = "01000-000";
+
+        const cleanCnpj = client.cpfCnpj ? client.cpfCnpj.replace(/\D/g, "") : "";
+        if (cleanCnpj.length === 14) {
+          const cnpjResult = await consultarCNPJAction(cleanCnpj);
+          if (cnpjResult.success && cnpjResult.data?.addressDetails) {
+            street = cnpjResult.data.addressDetails.street || street;
+            number = cnpjResult.data.addressDetails.number || number;
+            neighborhood = cnpjResult.data.addressDetails.neighborhood || neighborhood;
+            city = cnpjResult.data.addressDetails.city || city;
+            state = cnpjResult.data.addressDetails.state || state;
+            cep = cnpjResult.data.addressDetails.cep || cep;
+          }
+        }
+
+        const autoAddress = await prisma.clientAddress.create({
+          data: {
+            clientId: client.id,
+            label: "Matriz / Sede Principal",
+            street,
+            number,
+            neighborhood,
+            city,
+            state,
+            cep,
+          },
+        });
+        client.addresses.push(autoAddress);
+      } catch (err) {
+        logger.warn(`Sincronização automática de endereço para cliente ${id} falhou:`, err);
+      }
+    }
+
     return {
       ...client,
       receivables: client.accountsReceivable,

@@ -1081,33 +1081,21 @@ export default function OrdensServicoTab({
                 ? "Local do atendimento (opcional)"
                 : "Endereço de execução *"
             }
-            required={createMode === "OPERACIONAL"}
+            required={false}
             value={form.addressId}
             onChange={(e) =>
               setForm((current) => ({ ...current, addressId: e.target.value }))
             }
             options={
               addresses.length
-                ? [
-                    {
-                      value: "",
-                      label:
-                        createMode === "RAPIDO"
-                          ? "Usar dados cadastrais do cliente"
-                          : "Selecione o endereço",
-                    },
-                    ...addresses.map((address) => ({
-                      value: address.id,
-                      label: `${address.label} · ${address.street}, ${address.number} · ${address.city}/${address.state}`,
-                    })),
-                  ]
+                ? addresses.map((address) => ({
+                    value: address.id,
+                    label: `${address.label} · ${address.street}, ${address.number} · ${address.city}/${address.state}`,
+                  }))
                 : [
                     {
-                      value: "",
-                      label:
-                        createMode === "RAPIDO"
-                          ? "Sem endereço específico — continuar mesmo assim"
-                          : "Cadastre um endereço no cliente antes de criar a OS",
+                      value: "AUTO_CADASTRO",
+                      label: "Endereço do Cadastro (Matriz Principal)",
                     },
                   ]
             }
@@ -1274,7 +1262,6 @@ export default function OrdensServicoTab({
               type="submit"
               variant={createMode === "RAPIDO" ? "success" : "primary"}
               loading={actionLoading}
-              disabled={createMode === "OPERACIONAL" && !form.addressId}
             >
               {createMode === "RAPIDO"
                 ? "Criar e abrir relatório"
