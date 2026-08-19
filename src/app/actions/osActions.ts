@@ -678,11 +678,13 @@ export async function getServiceOrderDetails(id: string) {
         ...material,
         costPrice: Number(material.costPrice),
         salePrice: Number(material.salePrice),
-        product: {
-          ...material.product,
-          costPrice: Number(material.product.costPrice),
-          salePrice: Number(material.product.salePrice),
-        },
+        product: material.product
+          ? {
+              ...material.product,
+              costPrice: Number(material.product.costPrice),
+              salePrice: Number(material.product.salePrice),
+            }
+          : null,
       })),
       totalValue,
     };
