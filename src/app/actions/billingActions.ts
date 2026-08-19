@@ -71,14 +71,15 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
         return sum + qty * Number(m.salePrice);
       }, 0);
 
-      const quoteTotal = os.quote?.total ? Number(os.quote.total) : 0;
-      const calculatedValue = quoteTotal > 0 ? quoteTotal : (itemsVal + materialsVal);
       const address = os.address || os.client.addresses[0] || null;
       const mirror = os.billingMirrorJson && typeof os.billingMirrorJson === "object" && !Array.isArray(os.billingMirrorJson)
         ? os.billingMirrorJson as Record<string, unknown>
         : {};
       const mirrorString = (field: string, fallback: string) => typeof mirror[field] === "string" ? mirror[field] as string : fallback;
-      const mirrorValue = typeof mirror.value === "number" && Number.isFinite(mirror.value) ? mirror.value : calculatedValue;
+
+      const quoteTotal = os.quote?.total ? Number(os.quote.total) : 0;
+      const calculatedValue = itemsVal + materialsVal;
+      const finalBillingValue = quoteTotal > 0 ? quoteTotal : (calculatedValue > 0 ? calculatedValue : (typeof mirror.value === "number" && Number.isFinite(mirror.value) ? mirror.value as number : 0));
       const legalName = mirrorString("legalName", os.client.socialName || os.client.name);
       const serviceDescription = os.items.map((item) => item.description).filter(Boolean).join("; ");
       const purchaseOrder = os.purchaseOrder || "";
@@ -97,7 +98,7 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
       const missingFields: string[] = [];
       if (!legalName) missingFields.push("Razão social / tomador");
       if (![11, 14].includes(document.length)) missingFields.push("CPF/CNPJ válido");
-      if (mirrorValue <= 0) missingFields.push("Valor");
+      if (finalBillingValue <= 0) missingFields.push("Valor");
       if (!email || email.endsWith("@importado.local")) missingFields.push("E-mail válido");
       if (!cep) missingFields.push("CEP");
       if (!addressNumber) missingFields.push("Número do endereço");
@@ -109,7 +110,7 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
         clientDocument: os.client.cpfCnpj || "",
         type: os.type,
         completedAt: os.completedAt,
-        value: mirrorValue,
+        value: finalBillingValue,
         marginReal: os.marginReal,
         legalName,
         description,
