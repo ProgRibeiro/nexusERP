@@ -8,6 +8,7 @@ import {
   createManualServiceOrder,
   createMonthlyContractPreventive,
   createQuickCompletedServiceOrder,
+  deleteServiceOrder,
   getContractOperationsOverview,
   getServiceOrders,
 } from "@/app/actions/osActions";
@@ -41,6 +42,7 @@ import {
   Search,
   ShieldCheck,
   Store,
+  Trash2,
   User,
   Wrench,
   Zap,
@@ -96,6 +98,7 @@ export default function OrdensServicoTab({
   const [addresses, setAddresses] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
+  const [osToDelete, setOsToDelete] = useState<any | null>(null);
   const [form, setForm] = useState({
     clientId: clientId || "",
     contractId: contractId || "",
@@ -656,16 +659,31 @@ export default function OrdensServicoTab({
                             </p>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openTab("ordens-servico", os.code, { id: os.id });
-                          }}
-                          className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 text-[10px] font-black text-blue-700 transition group-hover:border-blue-300 group-hover:bg-blue-600 group-hover:text-white dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
-                        >
-                          Abrir ficha <ArrowRight size={13} />
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openTab("ordens-servico", os.code, { id: os.id });
+                            }}
+                            className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 text-[10px] font-black text-blue-700 transition group-hover:border-blue-300 group-hover:bg-blue-600 group-hover:text-white dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
+                          >
+                            Abrir ficha <ArrowRight size={13} />
+                          </button>
+                          {hasPermission("os.write") && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOsToDelete(os);
+                              }}
+                              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-rose-50 text-rose-600 transition hover:bg-rose-600 hover:text-white dark:border-rose-950 dark:bg-rose-950/30"
+                              title="Excluir Ordem de Serviço"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </article>
@@ -1269,6 +1287,51 @@ export default function OrdensServicoTab({
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal de Confirmação de Exclusão de OS */}
+      <Modal
+        isOpen={Boolean(osToDelete)}
+        onClose={() => setOsToDelete(null)}
+        title="Excluir Ordem de Serviço"
+        size="md"
+      >
+        {osToDelete && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900 dark:border-rose-950 dark:bg-rose-950/30 dark:text-rose-200">
+              <strong className="block text-sm">Atenção: Exclusão Permanente</strong>
+              <p className="mt-1">
+                Tem certeza que deseja excluir a <strong>{osToDelete.code}</strong> ({osToDelete.clientName || osToDelete.client?.name})? Todos os histórico, materiais, visitas e fotos vinculados serão removidos.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setOsToDelete(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="danger"
+                loading={actionLoading}
+                onClick={async () => {
+                  setActionLoading(true);
+                  try {
+                    const res = await deleteServiceOrder(osToDelete.id);
+                    if (!res.success) {
+                      toast(res.error || "Não foi possível excluir a OS.", "error");
+                      return;
+                    }
+                    toast(`Ordem de Serviço ${osToDelete.code} excluída com sucesso!`, "success");
+                    setOsToDelete(null);
+                    await loadOrders();
+                  } finally {
+                    setActionLoading(false);
+                  }
+                }}
+              >
+                <Trash2 size={14} /> Confirmar Exclusão
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

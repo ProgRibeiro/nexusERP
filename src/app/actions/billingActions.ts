@@ -195,24 +195,17 @@ import { calculateDueDate } from "@/lib/paymentTerms";
 export async function processBilling(data: {
   osId: string;
   invoiceCode: string;
-<<<<<<< HEAD
   totalValue: number; // Valor Bruto
   taxPercent?: number;
   retentionValue?: number; // Valor de retenções fiscais em R$
   netValueToReceive?: number; // Valor líquido a receber em R$
   expectedDueDate?: string; // Data prevista para recebimento (vencimento)
+  paymentTerms?: string;
+  issueDate?: string;
+  pdfDataUrl?: string;
+  xmlDataUrl?: string;
   installments: number;
   paymentMethod: string;
-=======
-  totalValue: number;
-  taxPercent: number; // ex: 5 (ISS)
-  installments: number; // número de parcelas
-  paymentMethod: string; // PIX, BOLETO, CARTAO, etc.
-  paymentTerms?: string; // LIQUIDO_30, HERING_60, LIQUIDO_21, etc.
-  issueDate?: string; // ISO date string (ex: "2026-08-19")
-  pdfDataUrl?: string; // Anexo PDF
-  xmlDataUrl?: string; // Anexo XML
->>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
   category?: string;
   costCenter?: string;
   notes?: string;
@@ -237,7 +230,6 @@ export async function processBilling(data: {
     const duplicateInvoice = await prisma.invoice.findUnique({ where: { code: data.invoiceCode.trim() } });
     if (duplicateInvoice) throw new Error("Já existe uma nota fiscal cadastrada com este número.");
 
-<<<<<<< HEAD
     const taxValue = data.retentionValue !== undefined && Number.isFinite(data.retentionValue)
       ? Math.max(0, data.retentionValue)
       : (data.totalValue * ((data.taxPercent || 0) / 100)) || 0;
@@ -246,14 +238,9 @@ export async function processBilling(data: {
       ? data.netValueToReceive
       : Math.max(0, data.totalValue - taxValue);
 
-    // Usar transação para garantir integridade do faturamento
-    const result = await prisma.$transaction(async (tx) => {
-=======
-    const taxValue = (data.totalValue * (data.taxPercent / 100)) || 0;
     const issueDateParsed = data.issueDate ? new Date(data.issueDate) : new Date();
-    const paymentTermsCode = data.paymentTerms || "LIQUIDO_30";
+    const paymentTermsCode = data.paymentTerms || os.client?.defaultPaymentTerms || "LIQUIDO_30";
 
-    // Processar anexos de PDF e XML se enviados na baixa da nota
     let pdfUrl: string | null = null;
     let xmlUrl: string | null = null;
     if (data.pdfDataUrl) {
@@ -263,11 +250,7 @@ export async function processBilling(data: {
       xmlUrl = await saveBase64Asset(data.xmlDataUrl, `nf-${data.invoiceCode.trim()}-xml`);
     }
 
-    // Usar transação para garantir integridade do faturamento
     const result = await prisma.$transaction(async (tx) => {
-      // Reserva atômica da OS. Em chamadas simultâneas, somente uma consegue
-      // trocar FATURAMENTO por FATURADA; a outra aborta sem criar NF/parcelas.
->>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
       const claimed = await tx.serviceOrder.updateMany({
         where: { id: data.osId, status: "FATURAMENTO" },
         data: { status: "FATURADA" },
@@ -276,7 +259,6 @@ export async function processBilling(data: {
         throw new Error("Esta OS já foi faturada ou está sendo processada por outro usuário.");
       }
 
-      // 1. Criar Nota Fiscal (Invoice) com valor bruto e retenção
       const invoice = await tx.invoice.create({
         data: {
           code: data.invoiceCode.trim(),
@@ -293,7 +275,6 @@ export async function processBilling(data: {
         },
       });
 
-      // 2. Atualizar OS para FATURADA e vincular a NF
       await tx.serviceOrder.update({
         where: { id: data.osId },
         data: {
@@ -302,25 +283,13 @@ export async function processBilling(data: {
         },
       });
 
-<<<<<<< HEAD
-      // 3. Gerar as contas a receber (Receivables) com o valor líquido a receber e data prevista selecionada
       const valuePerInstallment = netTotal / data.installments;
-=======
-      // 3. Gerar as contas a receber (Receivables) com cálculo da regra de pagamento (ex: Hering 60d)
-      const valuePerInstallment = data.totalValue / data.installments;
->>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
       const receivables = [];
-      const baseDueDate = data.expectedDueDate ? new Date(data.expectedDueDate) : new Date();
 
       for (let i = 1; i <= data.installments; i++) {
-<<<<<<< HEAD
-        const dueDate = new Date(baseDueDate);
-        if (i > 1) {
-          dueDate.setDate(dueDate.getDate() + 30 * (i - 1));
-        }
-=======
-        const dueDate = calculateDueDate(issueDateParsed, paymentTermsCode, i);
->>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
+        const dueDate = data.expectedDueDate
+          ? new Date(new Date(data.expectedDueDate).setDate(new Date(data.expectedDueDate).getDate() + 30 * (i - 1)))
+          : calculateDueDate(issueDateParsed, paymentTermsCode, i);
 
         const rec = await tx.accountsReceivable.create({
           data: {
@@ -336,17 +305,12 @@ export async function processBilling(data: {
             paymentMethod: data.paymentMethod,
             category: data.category || "RECEITA_SERVICO",
             costCenter: data.costCenter || "GERAL",
-<<<<<<< HEAD
-            notes: `Parcela ${i}/${data.installments} da OS ${os.code}. Valor Bruto: R$ ${data.totalValue.toFixed(2)}. Retenção Impostos: R$ ${taxValue.toFixed(2)}. Líquido a Receber: R$ ${netTotal.toFixed(2)}. ${data.notes || ""}`,
-=======
             notes: `Parcela ${i}/${data.installments} da OS ${os.code}. Regra: ${paymentTermsCode}. ${data.notes || ""}`,
->>>>>>> a8487e3 (feat(faturamento): anexo de NF, prontuario com edicao de vencimento, regra Hering 60d/clientes e faturamento avulso)
           },
         });
         receivables.push(rec);
       }
 
-      // 4. Salvar histórico de alteração de status
       await tx.serviceOrderStatusHistory.create({
         data: {
           serviceOrderId: data.osId,

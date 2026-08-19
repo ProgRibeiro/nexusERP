@@ -1588,3 +1588,80 @@ export async function deleteOSPhoto(photoId: string) {
     return { success: false, error: error.message };
   }
 }
+
+/**
+ * Exclui uma Ordem de Serviço (OS) criada e limpa seus vínculos com segurança.
+ */
+export async function deleteServiceOrder(osId: string) {
+  try {
+    const session = await requirePermission("os.write");
+
+    const os = await prisma.serviceOrder.findUnique({
+      where: { id: osId },
+      include: {
+        invoices: true,
+        photos: true,
+      },
+    });
+
+    if (!os) throw new Error("Ordem de Serviço não encontrada.");
+
+    if (os.invoices.length > 0) {
+      throw new Error(
+        `Esta OS possui a Nota Fiscal ${os.invoices[0].code} emitida. Cancele ou remova a nota fiscal antes de excluir a OS.`
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Remover mídias e formulários
+      await tx.serviceOrderPhoto.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.evidence.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.measurementReading.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.formSubmission.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.completionReport.deleteMany({ where: { serviceOrderId: osId } });
+
+      // 2. Remover itens e materiais
+      await tx.serviceOrderItem.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.serviceOrderMaterial.deleteMany({ where: { serviceOrderId: osId } });
+
+      // 3. Remover histórico de status, técnicos e visitas
+      await tx.serviceOrderStatusHistory.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.serviceOrderTechnician.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.serviceOrderAsset.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.serviceVisit.deleteMany({ where: { serviceOrderId: osId } });
+
+      // 4. Remover contas a receber / pagar sem NF
+      await tx.accountsReceivable.deleteMany({ where: { serviceOrderId: osId } });
+      await tx.accountsPayable.deleteMany({ where: { serviceOrderId: osId } });
+
+      // 5. Deletar a OS
+      await tx.serviceOrder.delete({ where: { id: osId } });
+
+      // 6. Registrar Log de Auditoria
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          action: "EXCLUSAO",
+          entity: "OrdemServico",
+          entityId: osId,
+          changesJson: JSON.stringify({ code: os.code, clientId: os.clientId }),
+        },
+      });
+    });
+
+    if (os.photos.length > 0) {
+      await Promise.allSettled(os.photos.map((p) => deleteUploadedAsset(p.url)));
+    }
+
+    revalidatePath("/ordens-servico");
+    revalidatePath("/faturamento");
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (error: any) {
+    logger.error("Erro ao excluir Ordem de Serviço:", error);
+    return { success: false, error: error.message };
+  }
+}
+

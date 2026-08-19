@@ -14,6 +14,7 @@ import {
   saveOSCompletionReport,
   addOSPhotos,
   deleteOSPhoto,
+  deleteServiceOrder,
 } from "@/app/actions/osActions";
 import { getProducts } from "@/app/actions/inventoryActions";
 import { getCompanySettingsAction } from "@/app/actions/settingsActions";
@@ -193,6 +194,7 @@ export default function OrdemServicoDetailTab({
   // Modals & Action loading
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [pipelineExpanded, setPipelineExpanded] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
@@ -1188,6 +1190,15 @@ export default function OrdemServicoDetailTab({
             >
               <Printer size={15} /> Emitir PDF / Escolher Modelo
             </Button>
+            {hasPermission("os.write") && (
+              <Button
+                variant="danger"
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="flex-1 sm:flex-none"
+              >
+                <Trash2 size={15} /> Excluir OS
+              </Button>
+            )}
           </div>
         </div>
       </section>
@@ -3274,6 +3285,48 @@ export default function OrdemServicoDetailTab({
                 </p>
               </div>
             </button>
+          </div>
+        </div>
+      </Modal>
+      {/* Modal de Confirmação de Exclusão da OS */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Excluir Ordem de Serviço"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-900 dark:border-rose-950 dark:bg-rose-950/30 dark:text-rose-200">
+            <strong className="block text-sm font-bold">Exclusão Permanente da OS</strong>
+            <p className="mt-1">
+              Tem certeza que deseja excluir a <strong>OS #{details.code || details.id.slice(-4)}</strong> ({details.client?.name || details.clientName})? Todos os histórico, relatórios, fotos e materiais cadastrados serão removidos permanentemente.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setIsDeleteModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              loading={actionLoading}
+              onClick={async () => {
+                setActionLoading(true);
+                try {
+                  const res = await deleteServiceOrder(details.id);
+                  if (!res.success) {
+                    toast(res.error || "Não foi possível excluir a OS.", "error");
+                    return;
+                  }
+                  toast(`Ordem de Serviço ${details.code} excluída com sucesso!`, "success");
+                  setIsDeleteModalOpen(false);
+                  openTab("ordens-servico", "Ordens de Serviço");
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+            >
+              <Trash2 size={14} /> Confirmar Exclusão
+            </Button>
           </div>
         </div>
       </Modal>
