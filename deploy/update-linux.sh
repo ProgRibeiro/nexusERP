@@ -157,8 +157,33 @@ if [[ -n "$OLD_COMMIT" ]]; then
       exit 1
     }
     echo "Confirmando a terceira camada criptografada via rclone..."
-    runuser -u nexus --preserve-environment -- rclone copy "$SHARED/backups" "$BACKUP_RCLONE_REMOTE"
-    runuser -u nexus --preserve-environment -- rclone check "$SHARED/backups" "$BACKUP_RCLONE_REMOTE" --one-way --size-only
+    mapfile -t BACKUP_FILES < <(BACKUP_DIR="$SHARED/backups" node <<'NODE'
+const fs = require("fs");
+const path = require("path");
+const metadata = JSON.parse(fs.readFileSync(path.join(process.env.BACKUP_DIR, "latest.json"), "utf8"));
+const files = [
+  metadata.fileName,
+  `${metadata.fileName}.sha256`,
+  metadata.fileName.replace(/\.dump$/, ".json"),
+  "latest.json",
+  metadata.uploadsFileName,
+  metadata.uploadsFileName ? `${metadata.uploadsFileName}.sha256` : null,
+].filter(Boolean);
+for (const file of files) {
+  if (path.basename(file) !== file) throw new Error("Nome de backup externo inválido.");
+  process.stdout.write(`${file}\n`);
+}
+NODE
+)
+    for backup_file in "${BACKUP_FILES[@]}"; do
+      local_file="$SHARED/backups/$backup_file"
+      [[ -f "$local_file" ]] || { echo "Arquivo obrigatório do backup ausente: $backup_file" >&2; exit 1; }
+      remote_file="${BACKUP_RCLONE_REMOTE%/}/$backup_file"
+      runuser -u nexus --preserve-environment -- rclone copyto "$local_file" "$remote_file"
+      local_size="$(stat -c '%s' "$local_file")"
+      remote_size="$(runuser -u nexus --preserve-environment -- rclone size "$remote_file" --json | node -e 'let s=""; process.stdin.on("data", c => s += c); process.stdin.on("end", () => process.stdout.write(String(JSON.parse(s).bytes)));')"
+      [[ "$local_size" == "$remote_size" ]] || { echo "Tamanho remoto divergente: $backup_file" >&2; exit 1; }
+    done
     RCLONE_GATE=true
   fi
 
