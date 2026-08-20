@@ -38,7 +38,7 @@ export async function getMaintenanceStatus(): Promise<MaintenanceStatus> {
 
     const settingsMap = new Map(settings.map((s) => [s.key, s.value]));
 
-    const isMaintenanceActive = settingsMap.get(SETTING_MAINTENANCE_ACTIVE) === "true";
+    const isMaintenanceActive = settingsMap.get(SETTING_MAINTENANCE_ACTIVE) === "true" && false;
     const maintenanceReason = settingsMap.get(SETTING_MAINTENANCE_REASON) || null;
 
     let scheduledUpdate: ScheduledUpdateInfo | null = null;
