@@ -82,6 +82,7 @@ model Client {
   quotes                Quote[]
   serviceOrders         ServiceOrder[]
   invoices              Invoice[]
+  nfseRecords           NfseRecord[]
   accountsReceivable    AccountsReceivable[]
   contracts             Contract[]
   storeProjects         ClientStoreProject[]
@@ -465,6 +466,7 @@ model ServiceOrder {
   measurementReadings MeasurementReading[]
   completionReport    CompletionReport?
   invoices            Invoice[]
+  nfseRecords         NfseRecord[]
   accountsReceivable  AccountsReceivable[]
   accountsPayable     AccountsPayable[]
   stockMovements      StockMovement[]
@@ -1267,4 +1269,52 @@ model ImportRow {
   @@unique([batchId, rowNumber])
   @@index([batchId, status])
   @@index([entityType, entityId])
+}
+
+// 8. Módulo Fiscal NFS-e Duque de Caxias / Padrão Nacional v1.01
+model NfseRecord {
+  id                       String        @id @default(uuid())
+  tenantId                 String        @default("00000000-0000-4000-8000-000000000001")
+  serviceOrderId           String?
+  serviceOrder             ServiceOrder? @relation(fields: [serviceOrderId], references: [id])
+  clientId                 String
+  client                   Client        @relation(fields: [clientId], references: [id])
+  environment              String        @default("homologation") // homologation, production
+  dpsSeries                String        @default("1")
+  dpsNumber                Int
+  dpsCompetence            DateTime      @default(now())
+  status                   String        @default("RASCUNHO") // RASCUNHO, AGUARDANDO_CONFIRMACAO, VALIDANDO, ENVIANDO, RESULTADO_INCERTO, AUTORIZADA, REJEITADA, ERRO_COMUNICACAO, CANCELAMENTO_PENDENTE, CANCELADA
+  serviceValue             Decimal       @db.Decimal(12, 2)
+  cTribNac                 String
+  cTribMun                 String?
+  cNBS                     String?
+  accessKey                String?       // Chave de Acesso da NFS-e Nacional de 50 dígitos
+  nfseNumber               String?       // Número da NFS-e autorizada
+  requestXml               String?       @db.Text
+  responseXml              String?       @db.Text
+  authorizedXml            String?       @db.Text
+  visualizationUrl         String?       @db.Text
+  nationalVisualizationUrl String?       @db.Text
+  errorCode                String?
+  errorMessage             String?       @db.Text
+  createdBy                String?
+  confirmedBy              String?
+  sentAt                   DateTime?
+  authorizedAt             DateTime?
+  cancelledAt              DateTime?
+  cancelReasonCode         String?
+  cancelReasonDesc         String?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  @@index([dpsSeries, dpsNumber])
+  @@index([serviceOrderId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model DpsSequence {
+  series     String   @id
+  lastNumber Int      @default(0)
+  updatedAt  DateTime @updatedAt
 }

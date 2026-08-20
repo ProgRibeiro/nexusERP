@@ -23,7 +23,7 @@ import ModuleCatalogSettings from "@/components/ModuleCatalogSettings";
 import ErrorReportQueue from "@/components/ErrorReportQueue";
 import { getUsers, createUserAction, updateUserAction, deleteUserAction } from "@/app/actions/userActions";
 import { AutoUpdateMaintenancePanel } from "@/components/AutoUpdateMaintenancePanel";
-
+import NfseCompanyConfigTab from "@/components/nfse/NfseCompanyConfigTab";
 
 type GmailSettings = Awaited<ReturnType<typeof getGmailIntegrationSettings>>;
 
@@ -31,7 +31,7 @@ export default function ConfiguracoesTab() {
   const { user: currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
 
-  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "users" | "matrix" | "importador" | "mobile" | "integrations" | "security" | "updates">("system");
+  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "nfse" | "users" | "matrix" | "importador" | "mobile" | "integrations" | "security" | "updates">("system");
 
   // User management states
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -590,6 +590,14 @@ export default function ConfiguracoesTab() {
             <Building size={13} className="inline mr-1" /> Minha Empresa
           </button>
           <button
+            onClick={() => setActiveSubTab("nfse")}
+            className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === "nfse" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
+            }`}
+          >
+            <ShieldCheck size={13} className="inline mr-1 text-emerald-400" /> NFS-e & Fiscal (Duque de Caxias)
+          </button>
+          <button
             onClick={() => setActiveSubTab("users")}
             className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === "users" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
@@ -812,6 +820,13 @@ export default function ConfiguracoesTab() {
           {activeSubTab === "empresa" && (
             <div className="py-2">
               <CompanyRegistrationModal isFloating={false} />
+            </div>
+          )}
+
+          {/* 2.1. Configuracao Fiscal & NFS-e Duque de Caxias */}
+          {activeSubTab === "nfse" && (
+            <div className="py-2">
+              <NfseCompanyConfigTab />
             </div>
           )}
 

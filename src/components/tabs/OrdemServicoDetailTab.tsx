@@ -18,6 +18,9 @@ import {
 } from "@/app/actions/osActions";
 import { getProducts } from "@/app/actions/inventoryActions";
 import { getCompanySettingsAction } from "@/app/actions/settingsActions";
+import { getNfsePreviewAction } from "@/app/actions/nfseActions";
+import { NfsePreviewModal } from "@/components/nfse/NfsePreviewModal";
+import { NfseDetailsModal } from "@/components/nfse/NfseDetailsModal";
 import { printExecutiveReport, ReportModelType } from "@/lib/reportPdfGenerator";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card } from "../ui/Card";
@@ -200,6 +203,28 @@ export default function OrdemServicoDetailTab({
   const [pipelineExpanded, setPipelineExpanded] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [preparingPrint, setPreparingPrint] = useState(false);
+  // NFS-e State
+  const [isNfsePreviewOpen, setIsNfsePreviewOpen] = useState(false);
+  const [isNfseDetailsOpen, setIsNfseDetailsOpen] = useState(false);
+  const [nfsePreviewData, setNfsePreviewData] = useState<any>(null);
+  const [nfsePreviewLoading, setNfsePreviewLoading] = useState(false);
+
+  const handleOpenNfsePreview = async () => {
+    setNfsePreviewLoading(true);
+    try {
+      const res = await getNfsePreviewAction(id);
+      if (res.success && res.preview) {
+        setNfsePreviewData(res.preview);
+        setIsNfsePreviewOpen(true);
+      } else {
+        toast(res.error || "Não foi possível carregar a prévia fiscal.", "error");
+      }
+    } catch (err) {
+      toast("Erro ao carregar prévia fiscal.", "error");
+    } finally {
+      setNfsePreviewLoading(false);
+    }
+  };
 
   // Inventário (estoque)
   const [dbProducts, setDbProducts] = useState<any[]>([]);
@@ -1201,6 +1226,14 @@ export default function OrdemServicoDetailTab({
             </Button>
             <Button
               variant="secondary"
+              onClick={handleOpenNfsePreview}
+              loading={nfsePreviewLoading}
+              className="flex-1 border-emerald-400/40 bg-emerald-500 text-white font-bold hover:bg-emerald-400 sm:flex-none"
+            >
+              <FileText size={15} /> Emitir NFS-e (Duque de Caxias)
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setIsPrintModalOpen(true)}
               loading={preparingPrint}
               className="flex-1 border-white/15 bg-white text-blue-800 hover:bg-blue-50 sm:flex-none"
@@ -1219,6 +1252,21 @@ export default function OrdemServicoDetailTab({
           </div>
         </div>
       </section>
+
+      {/* Modais Fiscais de NFS-e Assistida */}
+      <NfsePreviewModal
+        isOpen={isNfsePreviewOpen}
+        onClose={() => setIsNfsePreviewOpen(false)}
+        preview={nfsePreviewData}
+        onIssueSuccess={() => void loadDetails()}
+      />
+
+      <NfseDetailsModal
+        isOpen={isNfseDetailsOpen}
+        onClose={() => setIsNfseDetailsOpen(false)}
+        nfseRecord={details.nfseRecords?.[0]}
+        onRefresh={() => void loadDetails()}
+      />
 
       {details.contract && (
         <section className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm dark:border-indigo-950 dark:bg-zinc-900">
