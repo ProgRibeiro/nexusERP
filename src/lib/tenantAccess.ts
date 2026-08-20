@@ -75,3 +75,34 @@ export async function bindUserToTenant(userId: string, tenantId?: string) {
     throw error;
   }
 }
+
+export async function getTenantUserIds(tenantId?: string): Promise<string[]> {
+  const resolvedTenantId = resolveTenantFallback(tenantId);
+
+  try {
+    const rows = await prisma.$queryRaw<Array<{ userId: string }>>`
+      SELECT "userId"::text AS "userId"
+      FROM "UserTenantAccess"
+      WHERE "tenantId" = ${resolvedTenantId}::uuid
+        AND "active" = true
+    `;
+    return rows.map((row) => row.userId);
+  } catch (error) {
+    if (isMissingTenantAccessTable(error)) {
+      logger.warn("tenant_access_table_missing", { tenantId: resolvedTenantId });
+      return [];
+    }
+    throw error;
+  }
+}
+
+export async function tenantScopedUserFilter(tenantId?: string, allowPlatformWideAccess = false) {
+  if (allowPlatformWideAccess) {
+    return {};
+  }
+
+  const tenantUserIds = await getTenantUserIds(tenantId);
+  return {
+    id: { in: tenantUserIds.length > 0 ? tenantUserIds : ["00000000-0000-0000-0000-000000000000"] },
+  };
+}

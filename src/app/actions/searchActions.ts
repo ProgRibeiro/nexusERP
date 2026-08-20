@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
+import { tenantScopedUserFilter } from "@/lib/tenantAccess";
 
 export interface SearchResult {
   id: string;
@@ -291,10 +292,16 @@ export async function searchGlobalAction(query: string): Promise<SearchResult[]>
       });
     }
 
-    // 7. Buscar Usuários (apenas administradores)
+    // 7. Buscar Usuários com escopo de tenant
     if (hasPerm(permissions, roleName, "admin.all")) {
+      const userFilter = await tenantScopedUserFilter(
+        session.tenantId,
+        ["SUPER_ADMIN", "DEVELOPER", "SUPPORT"].includes(session.platformRole ?? "")
+      );
+
       const users = await prisma.user.findMany({
         where: {
+          ...userFilter,
           OR: [
             { name: { contains: cleanQuery } },
             { email: { contains: cleanQuery } },

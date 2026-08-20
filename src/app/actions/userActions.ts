@@ -14,7 +14,7 @@ import { getSession, requireAuth, requirePermission, AuthError } from "@/lib/aut
 import { logger } from "@/lib/logger";
 import { inferLandingArea, type LandingArea } from "@/lib/portalRouting";
 import { resolvePlatformRole, type PlatformRole } from "@/lib/rbac";
-import { bindUserToTenant, resolvePrimaryTenantForUser, resolveTenantFallback } from "@/lib/tenantAccess";
+import { bindUserToTenant, resolvePrimaryTenantForUser, resolveTenantFallback, tenantScopedUserFilter } from "@/lib/tenantAccess";
 
 export interface UserSession {
   id: string;
@@ -32,9 +32,12 @@ export interface UserSession {
  */
 export async function getUsers() {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    const allowPlatformWideAccess = ["SUPER_ADMIN", "DEVELOPER", "SUPPORT"].includes(session.platformRole ?? "");
+    const userFilter = await tenantScopedUserFilter(session.tenantId, allowPlatformWideAccess);
 
     const dbUsers = await prisma.user.findMany({
+      where: userFilter,
       include: { role: true },
       orderBy: { name: "asc" },
     });
