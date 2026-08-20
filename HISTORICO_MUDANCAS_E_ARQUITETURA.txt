@@ -1,0 +1,126 @@
+================================================================================
+           NEXUS ERP - HISTORICO DE MUDANCAS, TRAJETORIA E ARQUITETURA
+================================================================================
+Data de Geracao: 2026-08-20
+Repositorio Git: https://github.com/ProgRibeiro/nexusERP (branch: main)
+Servidor de Producao: 192.168.1.26 (Hostname: nexus122 / OS: Ubuntu 26.04 LTS)
+Dominio Corporativo: https://erp.nexusmanutencao.com / https://nexusmanutencao.com
+
+--------------------------------------------------------------------------------
+1. RESUMO DA INFRAESTRUTURA E CLOUD
+--------------------------------------------------------------------------------
+- Servidor Web / Proxy: Nginx + Cloudflare Tunnel (cloudflared)
+- Banco de Dados: PostgreSQL 18 (Database: nexus_erp, User App: nexus_erp)
+- Arquitetura de Deploy: Blue / Green Zero-Downtime
+  - Slot Blue: Porta Interna 3001 (Servico: nexus-erp@blue.service)
+  - Slot Green: Porta Interna 3002 (Servico: nexus-erp@green.service)
+  - Arquivo do Slot Ativo: /opt/nexus-erp/active-slot
+  - Arquivo de Variaveis de Ambiente: /etc/nexus-erp.env
+  - Pasta de Backups: /opt/nexus-erp/shared/backups/
+- Tenant ID Principal: 00000000-0000-4000-8000-000000000001 ("Empresa principal")
+
+--------------------------------------------------------------------------------
+2. SCRIPTS DE DEPLOY E MANUTENCAO (DIRETORIO deploy/)
+--------------------------------------------------------------------------------
+a) deploy/update-linux.sh:
+   - Realiza o fetch/merge do Git, compila a release em Turbopack fora do slot ativo,
+     roda 'prisma migrate deploy', faz backup pre-update automatico e chaveia o Nginx.
+
+b) deploy/rollback-linux.sh:
+   - Reverte instantaneamente (em 2 segundos) o Nginx e o systemd para o slot anterior
+     caso qualquer atualização falhe ou seja cancelada.
+
+c) deploy/restore-snapshot.sh:
+   - Restaura em 1 clique o arquivo de dump .dump do banco de dados a partir da pasta
+     /opt/nexus-erp/shared/backups/ e reaplica o BYPASSRLS na role nexus_erp.
+
+d) deploy/clean-reset-server.sh:
+   - Executa um reset limpo do servidor: grava snapshot de seguranca, zera o banco de dados
+     nexus_erp, limpa caches e recompila a aplicacao do zero.
+
+--------------------------------------------------------------------------------
+3. HISTORICO DE DIAGNOSTICOS E CORRECOES EFETUADAS
+--------------------------------------------------------------------------------
+
+[MUDANCA 1] Resolucao de Ocultacao de Dados por RLS (Row Level Security)
+- Diagnostico: O banco nexus_erp continha 601 clientes, 3 orcamentos e 2 OSs sob o
+  tenant 00000000-0000-4000-8000-000000000001, mas as consultas da aplicacao nao exibiam
+  devido ao papel nexus_erp no PostgreSQL ter sido configurado com NOBYPASSRLS.
+- Solucao: Restaurado 'ALTER ROLE nexus_erp WITH BYPASSRLS;' no PostgreSQL e alinhado o
+  TENANT_ID no arquivo de ambiente /etc/nexus-erp.env.
+
+[MUDANCA 2] Resiliencia de Sever Actions (Orçamentos, OS e Faturamento)
+- Diagnostico: As Server Actions (quoteActions.ts, osActions.ts, billingActions.ts)
+  acessavam diretamente propriedades de objetos vinculados (q.client.name, os.client.name).
+  Se a relacao client fosse nula, a Action gerava erro interno e retornava array vazio [].
+- Solucao: Implementada navegacao nulo-segura (q.client?.name || "Cliente nao informado")
+  em todas as Server Actions.
+
+[MUDANCA 3] Correção do Erro de Prerender em Paginas Publicas (/portal/prestador)
+- Diagnostico: O comando 'next build' falhava no servidor Linux com a mensagem
+  "Error: useAuth deve ser usado dentro de um AuthProvider on /portal/prestador" durante
+  a prerenderizacao estatica de paginas publicas pelo MaintenanceBanner.tsx.
+- Solucao: Criado o hook useSafeAuth() em MaintenanceBanner.tsx e desativado o bloqueio
+  modal em tela cheia (retornando null), garantindo builds 100% limpos no Turbopack.
+
+[MUDANCA 4] Correção da Migration de Banco de Dados UserTenantAccess
+- Diagnostico: A migracao 20260817130000_add_user_tenant_access falhava ao executar
+  'prisma migrate deploy' com o erro: "Key columns userId and id are of incompatible types:
+  uuid and text".
+- Solucao: O arquivo prisma/migrations/20260817130000_add_user_tenant_access/migration.sql
+  teve a coluna "userId" alterada de UUID NOT NULL para TEXT NOT NULL, alinhando com a
+  chave primaria "User"."id" (TEXT).
+
+[MUDANCA 5] Correção do Redirecionamento de Login (DNS_PROBE_FINISHED_NXDOMAIN)
+- Diagnostico: Ao efetuar login com sucesso, o arquivo src/app/auth/login/page.tsx usava
+  portalBaseUrls().app ("https://app.nexusmanutencao.com"). Como o subdominio "app." nao
+  estava cadastrado no DNS do Cloudflare, o navegador exibia a tela de erro NXDOMAIN.
+- Solucao: Alterado o destino de login em destinationFor() para retornar a rota relativa "/"
+  (raiz do proprio dominio/IP do servidor atual: https://erp.nexusmanutencao.com/).
+
+[MUDANCA 6] Limpeza da Trava de Rate-Limit de Login (SecurityThrottle)
+- Diagnostico: Tentativas de login com senhas incorretas ativaram a trava de seguranca de 30 min:
+  "Muitas tentativas. Aguarde 28 minuto(s) para tentar novamente."
+- Solucao: A tabela SecurityThrottle e limpa no PostgreSQL via:
+  DELETE FROM "SecurityThrottle";
+
+--------------------------------------------------------------------------------
+4. COMANDOS DE ATUALIZACAO E ADMINISTRAÇÃO NO SERVIDOR
+--------------------------------------------------------------------------------
+
+A) Atualizar o Servidor com a Versao Mais Recente:
+   sudo -u nexus git -C /opt/nexus-erp/source fetch origin main && sudo -u nexus git -C /opt/nexus-erp/source reset --hard origin/main
+   sudo bash /opt/nexus-erp/source/deploy/update-linux.sh
+
+B) Cadastrar/Resetar Usuario Administrador:
+   sudo bash -c '
+   ACTIVE_SLOT=$(cat /opt/nexus-erp/active-slot 2>/dev/null || echo "blue")
+   set -a; source /etc/nexus-erp.env; set +a
+   runuser -u nexus --preserve-environment -- env ADMIN_EMAIL="lucas@nexusmanutencao.com" ADMIN_NAME="Lucas Ribeiro" ADMIN_PASSWORD="SuaSenhaForte123!" /usr/bin/npm --prefix "/opt/nexus-erp/slots/$ACTIVE_SLOT" run admin:bootstrap
+   '
+
+C) Desbloquear IP/Identity da Trava de Login:
+   sudo -u postgres psql -d nexus_erp -c "DELETE FROM \"SecurityThrottle\";"
+
+D) Fazer Rollback de Emergentia (2 segundos):
+   sudo bash /opt/nexus-erp/source/deploy/rollback-linux.sh
+
+E) Restaurar Banco a Partir de Snapshot:
+   sudo bash /opt/nexus-erp/source/deploy/restore-snapshot.sh
+
+--------------------------------------------------------------------------------
+5. LOG RECENTE DE COMMITS GIT (BRANCH main)
+--------------------------------------------------------------------------------
+- 719ca98: fix(auth): redirecionar login para raiz / no mesmo dominio evitando falha de DNS em app.nexusmanutencao.com
+- 8818f6f: fix(db): corrigir tipo de userId de UUID para TEXT na migration UserTenantAccess
+- 74cd37d: fix(maintenance): usar useSafeAuth em MaintenanceBanner para prevenir erros de prerender
+- 9aad48d: feat(deploy): criar script clean-reset-server.sh para instalacao 100% limpa do zero
+- 16aa388: feat(deploy): criar script restore-snapshot.sh e resiliencia de rollback no Linux
+- 0b847d2: fix(maintenance): desativa modo manutencao no banco e adiciona protecao de carregamento
+- de74a13: feat(security): administradores possuem acesso irrestrito durante modo de manutencao
+- 6849479: feat(nfse): modulo fiscal real de NFS-e Duque de Caxias/RJ (Padrao Nacional v1.01)
+- 9cfed19: feat(settings): adicionado botao de backup instantaneo e recurso de zeramento/purge seguro
+
+================================================================================
+FIM DO DOCUMENTO DE HISTORICO E ARQUITETURA
+================================================================================
