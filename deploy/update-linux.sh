@@ -152,12 +152,18 @@ if [[ -n "$OLD_COMMIT" ]]; then
   BACKUP_GATE_RESULT="$(BACKUP_DIR="$SHARED/backups" node <<'NODE'
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const directory = process.env.BACKUP_DIR;
 const metadata = JSON.parse(fs.readFileSync(path.join(directory, "latest.json"), "utf8"));
 const dump = path.join(directory, metadata.fileName || "");
 const checksum = `${dump}.sha256`;
-const ok = metadata.type === "pre-update" && fs.existsSync(dump) && fs.statSync(dump).size >= 1024 && fs.existsSync(checksum);
-process.stdout.write(JSON.stringify({ ok, remoteUploaded: metadata.remoteUploaded === true, fileName: metadata.fileName || null }));
+const digest = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+const expected = fs.existsSync(checksum) ? fs.readFileSync(checksum, "utf8").trim().split(/\s+/)[0] : "";
+const dumpValid = fs.existsSync(dump) && fs.statSync(dump).size >= 1024 && /^[a-f0-9]{64}$/i.test(expected) && digest(dump) === expected.toLowerCase();
+const uploads = metadata.uploadsFileName ? path.join(directory, metadata.uploadsFileName) : null;
+const uploadsValid = !uploads || (fs.existsSync(uploads) && (!metadata.uploadsSha256 || digest(uploads) === metadata.uploadsSha256));
+const ok = metadata.type === "pre-update" && dumpValid && uploadsValid;
+process.stdout.write(JSON.stringify({ ok, dumpValid, uploadsValid, remoteUploaded: metadata.remoteUploaded === true, fileName: metadata.fileName || null }));
 NODE
 )"
   if ! grep -q '"ok":true' <<<"$BACKUP_GATE_RESULT"; then

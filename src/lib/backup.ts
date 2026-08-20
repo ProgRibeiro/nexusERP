@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { spawn } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
@@ -18,6 +18,7 @@ export interface BackupMetadata {
   appVersion: string;
   gitCommit: string | null;
   uploadsFileName: string | null;
+  uploadsSha256?: string | null;
   remoteUploaded: boolean;
 }
 
@@ -178,12 +179,21 @@ function remoteClient() {
 async function uploadFile(filePath: string, contentType: string) {
   const remote = remoteClient();
   if (!remote) return false;
+  const key = `${remote.prefix}/${path.basename(filePath)}`;
+  const expectedSize = fs.statSync(filePath).size;
   await remote.client.send(new PutObjectCommand({
     Bucket: remote.bucket,
-    Key: `${remote.prefix}/${path.basename(filePath)}`,
+    Key: key,
     Body: fs.createReadStream(filePath),
     ContentType: contentType,
   }));
+  const uploaded = await remote.client.send(new HeadObjectCommand({
+    Bucket: remote.bucket,
+    Key: key,
+  }));
+  if (uploaded.ContentLength !== expectedSize) {
+    throw new Error(`Cópia externa incompleta para ${path.basename(filePath)}.`);
+  }
   return true;
 }
 
@@ -196,7 +206,13 @@ function cleanupExpiredBackups(directory: string) {
       const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf8")) as BackupMetadata;
       const retention = RETENTION_MS[metadata.type] || RETENTION_MS.manual;
       if (now - new Date(metadata.createdAt).getTime() <= retention) continue;
-      for (const candidate of [metadata.fileName, `${metadata.fileName}.sha256`, metadata.uploadsFileName, fileName]) {
+      for (const candidate of [
+        metadata.fileName,
+        `${metadata.fileName}.sha256`,
+        metadata.uploadsFileName,
+        metadata.uploadsFileName ? `${metadata.uploadsFileName}.sha256` : null,
+        fileName,
+      ]) {
         if (!candidate) continue;
         const candidatePath = path.join(directory, candidate);
         if (fs.existsSync(candidatePath)) fs.unlinkSync(candidatePath);
@@ -255,6 +271,8 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
       await run("tar", ["-tzf", temporaryUploads]);
       fs.renameSync(temporaryUploads, uploadsPath);
       fs.chmodSync(uploadsPath, 0o600);
+      const uploadsDigest = sha256(uploadsPath);
+      fs.writeFileSync(`${uploadsPath}.sha256`, `${uploadsDigest}  ${uploadsName}\n`, { mode: 0o600 });
     }
 
     const metadata: BackupMetadata = {
@@ -268,6 +286,7 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
       appVersion: process.env.npm_package_version || "unknown",
       gitCommit: await currentGitCommit(),
       uploadsFileName: uploadsName,
+      uploadsSha256: uploadsName ? sha256(path.join(directory, uploadsName)) : null,
       remoteUploaded: false,
     };
 
@@ -277,11 +296,17 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
     const uploadsUploaded = uploadsName
       ? await uploadFile(path.join(directory, uploadsName), "application/gzip")
       : true;
+    const uploadsChecksumUploaded = uploadsName
+      ? await uploadFile(`${path.join(directory, uploadsName)}.sha256`, "text/plain")
+      : true;
     const dumpUploaded = await uploadFile(dumpPath, "application/octet-stream");
     const checksumUploaded = await uploadFile(`${dumpPath}.sha256`, "text/plain");
-    metadata.remoteUploaded = dumpUploaded && checksumUploaded && uploadsUploaded;
+    metadata.remoteUploaded = dumpUploaded && checksumUploaded && uploadsUploaded && uploadsChecksumUploaded;
     fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), { mode: 0o600 });
-    await uploadFile(metadataPath, "application/json");
+    const metadataUploaded = await uploadFile(metadataPath, "application/json");
+    metadata.remoteUploaded = metadata.remoteUploaded && metadataUploaded;
+    fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), { mode: 0o600 });
+    if (metadata.remoteUploaded) await uploadFile(metadataPath, "application/json");
     fs.writeFileSync(path.join(directory, "latest.json"), JSON.stringify(metadata, null, 2), { mode: 0o600 });
 
     const cleanedCount = cleanupExpiredBackups(directory);
@@ -365,6 +390,18 @@ export function verifyRecentBackups(limit = 3): BackupVerificationResult[] {
         reason: `Pacote de uploads ausente: ${backup.uploadsFileName}.`,
         checkedAt: new Date().toISOString(),
       };
+    }
+    if (backup.uploadsFileName && backup.uploadsSha256) {
+      const uploadsPath = path.join(directory, backup.uploadsFileName);
+      const checksumPath = `${uploadsPath}.sha256`;
+      if (!fs.existsSync(checksumPath) || sha256(uploadsPath) !== backup.uploadsSha256) {
+        return {
+          fileName: backup.fileName,
+          valid: false,
+          reason: `Checksum do pacote de uploads inválido: ${backup.uploadsFileName}.`,
+          checkedAt: new Date().toISOString(),
+        };
+      }
     }
     return result;
   });

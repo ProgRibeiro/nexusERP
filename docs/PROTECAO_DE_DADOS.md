@@ -12,7 +12,12 @@ estas três camadas obrigatórias:
    `pg_restore --list`.
 3. **Cópia externa:** com `REQUIRE_OFFSITE_BACKUP=true`, o deploy só continua
    quando dump, checksum, metadados e uploads forem confirmados no bucket
-   S3/R2/MinIO configurado em `/etc/nexus-erp.env`.
+   S3/R2/MinIO configurado em `/etc/nexus-erp.env`. Cada envio é confirmado
+   novamente no armazenamento remoto, inclusive pelo tamanho gravado.
+
+O banco e o pacote de anexos possuem checksums independentes. O teste semanal
+restaura o dump em um banco temporário, executa consulta real e remove esse
+banco ao terminar, sem tocar na produção.
 
 Além das cópias, `scripts/critical-data-manifest.mjs` registra contagens e
 totais financeiros antes da migration e reprova a publicação se qualquer
