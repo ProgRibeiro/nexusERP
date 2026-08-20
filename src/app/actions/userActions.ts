@@ -12,12 +12,17 @@ import {
 } from "@/lib/session";
 import { getSession, requireAuth, requirePermission, AuthError } from "@/lib/auth";
 import { logger } from "@/lib/logger";
+import { inferLandingArea, type LandingArea } from "@/lib/portalRouting";
+import { resolvePlatformRole, type PlatformRole } from "@/lib/rbac";
+import { bindUserToTenant, resolvePrimaryTenantForUser, resolveTenantFallback } from "@/lib/tenantAccess";
 
 export interface UserSession {
   id: string;
   name: string;
   email: string;
   roleName: string;
+  platformRole: PlatformRole;
+  tenantId?: string;
   permissions: string[];
 }
 
@@ -40,6 +45,10 @@ export async function getUsers() {
       email: user.email,
       roleName: user.role?.name || "Sem Perfil",
       permissions: JSON.parse(user.permissions) as string[],
+      platformRole: resolvePlatformRole({
+        roleName: user.role?.name || "Sem Perfil",
+        permissions: JSON.parse(user.permissions) as string[],
+      }),
     }));
   } catch (error) {
     logger.error("Erro ao obter usuários:", error);
@@ -59,6 +68,8 @@ export async function getSessionUserAction(): Promise<UserSession | null> {
     name: session.name,
     email: session.email,
     roleName: session.roleName,
+    platformRole: resolvePlatformRole({ roleName: session.roleName, permissions: session.permissions }),
+    tenantId: resolveTenantFallback(session.tenantId),
     permissions: session.permissions,
   };
 }
@@ -99,7 +110,7 @@ function hashPasswordLegacyFixedSalt(password: string): string {
 export async function loginAction(
   email: string,
   password: string
-): Promise<{ success: boolean; user?: UserSession; error?: string }> {
+): Promise<{ success: boolean; user?: UserSession; landingArea?: LandingArea; error?: string }> {
   try {
     await assertLoginAllowed(email);
     const user = await prisma.user.findUnique({
@@ -145,12 +156,16 @@ export async function loginAction(
     const roleName = user.role?.name || "Sem Perfil";
     await clearLoginFailures(email);
     const permissions = JSON.parse(user.permissions) as string[];
+    const platformRole = resolvePlatformRole({ roleName, permissions });
+    const tenantId = await resolvePrimaryTenantForUser(user.id);
 
     const payload: SessionPayload = {
       userId: user.id,
       name: user.name,
       email: user.email,
       roleName,
+      platformRole,
+      tenantId,
       permissions,
       exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
     };
@@ -166,10 +181,12 @@ export async function loginAction(
     });
 
     logger.info("login_success", { userId: user.id, email: user.email, roleName });
+    const landingArea = inferLandingArea({ roleName, permissions });
 
     return {
       success: true,
-      user: { id: user.id, name: user.name, email: user.email, roleName, permissions },
+      landingArea,
+      user: { id: user.id, name: user.name, email: user.email, roleName, platformRole, tenantId, permissions },
     };
   } catch (error: any) {
     logger.error("login_error", { message: error.message });
@@ -206,12 +223,16 @@ export async function switchUserAction(
 
     const roleName = target.role?.name || "Sem Perfil";
     const permissions = JSON.parse(target.permissions) as string[];
+    const platformRole = resolvePlatformRole({ roleName, permissions });
+    const tenantId = await resolvePrimaryTenantForUser(target.id, current.tenantId);
 
     const payload: SessionPayload = {
       userId: target.id,
       name: target.name,
       email: target.email,
       roleName,
+      platformRole,
+      tenantId,
       permissions,
       exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
     };
@@ -238,7 +259,7 @@ export async function switchUserAction(
 
     return {
       success: true,
-      user: { id: target.id, name: target.name, email: target.email, roleName, permissions },
+      user: { id: target.id, name: target.name, email: target.email, roleName, platformRole, tenantId, permissions },
     };
   } catch (error: any) {
     if (error instanceof AuthError) {
@@ -325,6 +346,7 @@ export async function createUserAction(data: {
       },
       include: { role: true },
     });
+    await bindUserToTenant(newUser.id, current.tenantId);
 
     await prisma.auditLog.create({
       data: {
@@ -345,6 +367,7 @@ export async function createUserAction(data: {
         name: newUser.name,
         email: newUser.email,
         roleName: newUser.role?.name || data.roleName,
+        platformRole: resolvePlatformRole({ roleName: newUser.role?.name || data.roleName, permissions }),
         permissions,
       },
     };
@@ -454,4 +477,3 @@ export async function deleteUserAction(userId: string): Promise<{ success: boole
     return { success: false, error: error.message || "Não foi possível excluir o usuário." };
   }
 }
-

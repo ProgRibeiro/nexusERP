@@ -2,13 +2,15 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { loginAction, UserSession } from "@/app/actions/userActions";
+import { LandingArea } from "@/lib/portalRouting";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { CheckCircle2, Eye, EyeOff, KeyRound, Mail, ShieldAlert, ShieldCheck, Sparkles, Wifi } from "lucide-react";
 
 interface LoginViewProps {
-  onLoginSuccess: (user: UserSession) => void;
+  onLoginSuccess: (user: UserSession, landingArea: LandingArea) => void;
 }
 
 export default function LoginView({ onLoginSuccess }: LoginViewProps) {
@@ -40,7 +42,7 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
     try {
       const res = await loginAction(email, password);
       if (res.success && res.user) {
-        onLoginSuccess(res.user);
+        onLoginSuccess(res.user, res.landingArea || "app");
       } else {
         setErrorMsg(res.error || "Falha na autenticação.");
       }
@@ -135,6 +137,10 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
             </form>
 
             <div className="mt-7 space-y-3 border-t border-slate-200 pt-5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                <Link href="/recuperar-senha" className="hover:text-blue-600">Esqueci minha senha</Link>
+                <Link href="/cadastro" className="hover:text-blue-600">Criar conta</Link>
+              </div>
               <button type="button" onClick={() => setShowQuickSelect(!showQuickSelect)} className="flex w-full items-center justify-center gap-1.5 text-xs font-bold text-slate-500 transition hover:text-blue-600">
                 <Sparkles size={13} />
                 <span>{showQuickSelect ? "Fechar acesso rápido" : "Acesso rápido de teste"}</span>

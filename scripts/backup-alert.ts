@@ -101,21 +101,31 @@ async function sendTelegramMessage(token: string, chatId: string, title: string,
 
 async function sendEmail(to: string, title: string, summary: string) {
   const mailCommand = process.env.ALERT_MAIL_COMMAND || "mail";
-  const content = [
-    `Subject: ${title}`,
-    `To: ${to}`,
-    `From: ${process.env.ALERT_EMAIL_FROM || "noreply@nexus-erp.local"}`,
-    "",
-    summary,
-    "",
-  ].join("\n");
-
-  const { execFile } = await import("node:child_process");
-  const util = await import("node:util");
-  const execFileAsync = util.promisify(execFile);
+  const content = `${summary}\n`;
+  const { spawn } = await import("node:child_process");
 
   try {
-    await execFileAsync(mailCommand, ["-s", title, to], { input: content, shell: false });
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(mailCommand, ["-s", title, to], {
+        shell: false,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      let stderr = "";
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk.toString();
+      });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(stderr || `Comando de e-mail finalizou com código ${code ?? "desconhecido"}.`));
+      });
+      child.stdin.write(content);
+      child.stdin.end();
+    });
   } catch (error) {
     throw new Error(`E-mail falhou: ${error instanceof Error ? error.message : String(error)}`);
   }

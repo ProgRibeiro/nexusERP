@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { requireAuth, AuthError } from "@/lib/auth";
+import { requirePortalAccess } from "@/lib/auth";
 import { cookies } from "next/headers";
 import {
   encryptSession,
@@ -10,9 +10,11 @@ import {
   SESSION_MAX_AGE_SECONDS,
 } from "@/lib/session";
 import { createBackup, listBackups } from "@/lib/backup";
-import { getMaintenanceStatus, setMaintenanceMode } from "@/lib/maintenance";
+import { getMaintenanceStatus } from "@/lib/maintenance";
 import { revalidatePath } from "next/cache";
-import { verifyPassword as passwordMatches, hashPassword, generateSalt } from "@/lib/crypto";
+import { verifyPassword as passwordMatches } from "@/lib/crypto";
+import { resolvePlatformRole } from "@/lib/rbac";
+import { resolvePrimaryTenantForUser } from "@/lib/tenantAccess";
 
 /**
  * Autenticação dedicada no Portal do Desenvolvedor (/dev/login)
@@ -37,7 +39,8 @@ export async function devLoginAction(email: string, password: string) {
       permissions = [];
     }
 
-    const isDev = roleName === "Desenvolvedor" || roleName === "SuperAdmin" || permissions.includes("dev.all");
+    const platformRole = resolvePlatformRole({ roleName, permissions });
+    const isDev = platformRole === "DEVELOPER" || platformRole === "SUPER_ADMIN" || platformRole === "SUPPORT";
     if (!isDev) {
       return {
         success: false as const,
@@ -61,6 +64,8 @@ export async function devLoginAction(email: string, password: string) {
       name: user.name,
       email: user.email,
       roleName: user.role?.name || "Desenvolvedor",
+      platformRole,
+      tenantId: await resolvePrimaryTenantForUser(user.id),
       permissions: permissions.includes("dev.all") ? permissions : [...permissions, "dev.all", "admin.all"],
       exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
     };
@@ -85,12 +90,7 @@ export async function devLoginAction(email: string, password: string) {
  * Garante que o usuário da requisição seja do perfil Desenvolvedor
  */
 async function requireDevPermission() {
-  const session = await requireAuth();
-  const isDev = session.roleName === "Desenvolvedor" || session.roleName === "SuperAdmin" || session.permissions.includes("dev.all");
-  if (!isDev) {
-    throw new AuthError("SEM_PERMISSAO", "Acesso restrito ao Console do Desenvolvedor.");
-  }
-  return session;
+  return requirePortalAccess("developer");
 }
 
 /**

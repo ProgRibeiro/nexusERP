@@ -17,13 +17,16 @@ ENV_FILE="${NEXUS_ENV_FILE:-/etc/nexus-erp.env}"
 BRANCH="${DEPLOY_BRANCH:-main}"
 DOMAIN="${NEXUS_DOMAIN:-nexusmanutencao.com}"
 WWW_DOMAIN="${NEXUS_WWW_DOMAIN:-www.nexusmanutencao.com}"
+APP_DOMAIN="${NEXUS_APP_DOMAIN:-app.nexusmanutencao.com}"
+COMMERCIAL_DOMAIN="${NEXUS_COMMERCIAL_DOMAIN:-comercial.nexusmanutencao.com}"
+DEV_DOMAIN="${NEXUS_DEV_DOMAIN:-dev.nexusmanutencao.com}"
 LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@erp.local}"
 ADMIN_NAME="${ADMIN_NAME:-Administrador}"
 GENERATED_ADMIN_PASSWORD=false
 AUTO_UPDATE="${NEXUS_AUTO_UPDATE:-false}"
 
-for domain_name in "$DOMAIN" "$WWW_DOMAIN"; do
+for domain_name in "$DOMAIN" "$WWW_DOMAIN" "$APP_DOMAIN" "$COMMERCIAL_DOMAIN" "$DEV_DOMAIN"; do
   if [[ ! "$domain_name" =~ ^[A-Za-z0-9.-]+$ ]]; then
     echo "Domínio inválido: $domain_name" >&2
     exit 1
@@ -80,6 +83,15 @@ DATABASE_URL=postgresql://nexus_erp:${DB_PASSWORD}@127.0.0.1:5432/nexus_erp?sche
 TENANT_ID=${TENANT_ID}
 SESSION_SECRET=${SESSION_SECRET}
 ALLOW_ROLE_SWITCH=false
+NEXUS_MARKETING_HOSTS=${DOMAIN},${WWW_DOMAIN}
+NEXUS_APP_HOST=${APP_DOMAIN}
+NEXUS_COMMERCIAL_HOST=${COMMERCIAL_DOMAIN}
+NEXUS_DEV_HOST=${DEV_DOMAIN}
+NEXUS_DEVELOPER_HOST=${DEV_DOMAIN}
+NEXT_PUBLIC_NEXUS_MARKETING_URL=https://${DOMAIN}
+NEXT_PUBLIC_NEXUS_APP_URL=https://${APP_DOMAIN}
+NEXT_PUBLIC_NEXUS_COMMERCIAL_URL=https://${COMMERCIAL_DOMAIN}
+NEXT_PUBLIC_NEXUS_DEVELOPER_URL=https://${DEV_DOMAIN}
 BACKUP_DIR=$ROOT/shared/backups
 STORAGE_BUCKET=
 STORAGE_REGION=us-east-1
@@ -143,7 +155,12 @@ chmod 0755 \
   "$SOURCE/deploy/rollback-linux.sh" \
   "$SOURCE/deploy/check-linux.sh"
 
-sed -e "s/__NEXUS_DOMAIN__/$DOMAIN/g" -e "s/__NEXUS_WWW_DOMAIN__/$WWW_DOMAIN/g" "$SOURCE/deploy/nginx-nexus-erp.conf" > /etc/nginx/sites-available/nexus-erp
+sed -e "s/__NEXUS_DOMAIN__/$DOMAIN/g" \
+  -e "s/__NEXUS_WWW_DOMAIN__/$WWW_DOMAIN/g" \
+  -e "s/__NEXUS_APP_DOMAIN__/$APP_DOMAIN/g" \
+  -e "s/__NEXUS_COMMERCIAL_DOMAIN__/$COMMERCIAL_DOMAIN/g" \
+  -e "s/__NEXUS_DEV_DOMAIN__/$DEV_DOMAIN/g" \
+  "$SOURCE/deploy/nginx-nexus-erp.conf" > /etc/nginx/sites-available/nexus-erp
 cat > /etc/nginx/nexus-erp-upstream.conf <<'EOF'
 upstream nexus_erp_backend {
     server 127.0.0.1:3001;

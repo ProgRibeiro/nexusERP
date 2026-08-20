@@ -40,7 +40,7 @@ function latestBackupPath() {
 }
 
 async function run(command: string, args: string[], env: NodeJS.ProcessEnv = process.env) {
-  await execFileAsync(command, args, { env, stdio: "inherit" });
+  await execFileAsync(command, args, { env });
 }
 
 function withTempDbUrl(value: string, name: string) {

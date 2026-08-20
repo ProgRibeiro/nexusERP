@@ -16,6 +16,7 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
   pool: Pool | undefined;
 };
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function createPrismaClient(): { prisma: PrismaClient; pool: Pool } {
   const connectionString = process.env.DATABASE_URL;
@@ -26,7 +27,7 @@ function createPrismaClient(): { prisma: PrismaClient; pool: Pool } {
   }
 
   const tenantId = process.env.TENANT_ID || "00000000-0000-4000-8000-000000000001";
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenantId)) {
+  if (!UUID_PATTERN.test(tenantId)) {
     throw new Error("TENANT_ID inválido. Informe um UUID válido para isolar os dados da empresa.");
   }
 
@@ -45,6 +46,12 @@ function createPrismaClient(): { prisma: PrismaClient; pool: Pool } {
 
   pool.on("error", (err) => {
     logger.error("Erro inesperado no Pool de Conexões do PostgreSQL:", err);
+  });
+
+  pool.on("connect", (client) => {
+    client
+      .query("SELECT set_config('app.tenant_id', $1, false)", [tenantId])
+      .catch((error) => logger.error("Falha ao aplicar tenant context no pool PostgreSQL.", error));
   });
 
   const adapter = new PrismaPg(pool);

@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { decryptSession, SESSION_COOKIE_NAME } from "@/lib/session";
+import {
+  classifyPortalArea,
+  hasCommercialAccess,
+  hasDeveloperAccess,
+  inferLandingArea,
+  isAuthPublicPath,
+  isMarketingPublicPath,
+  normalizeHostname,
+  toInternalAuthPath,
+  toInternalMarketingPath,
+  toPublicMarketingPath,
+} from "@/lib/portalRouting";
 
 /**
  * Camada de defesa em profundidade: redireciona navegação direta a rotas
@@ -23,6 +35,8 @@ const PASSTHROUGH_PREFIXES = [
   "/sw.js",
   "/offline.html",
   "/icons",
+  "/site",
+  "/auth",
   // Evidências são arquivos estáticos com nomes aleatórios. Elas precisam
   // carregar também no relatório/PDF, onde a requisição da tag <img> pode
   // não carregar o cookie usado pela navegação principal.
@@ -79,6 +93,8 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const userAgent = request.headers.get("user-agent");
   const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "127.0.0.1";
+  const requestHost = normalizeHostname(request.headers.get("x-forwarded-host") || request.headers.get("host"));
+  const hostArea = classifyPortalArea(requestHost);
 
   // WAF / Bot Fight Mode: Bloquear bots de varredura maliciosa
   if (isMaliciousBot(userAgent)) {
@@ -111,17 +127,45 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(uploadUrl);
   }
 
-  if (PASSTHROUGH_PREFIXES.some((p) => pathname.startsWith(p))) {
-    const response = NextResponse.next();
-    response.headers.set("X-RateLimit-Limit", "120");
-    response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
-    return response;
+  if (pathname.startsWith("/site") && hostArea !== "marketing") {
+    const target = request.nextUrl.clone();
+    target.pathname = toPublicMarketingPath(pathname);
+    target.search = request.nextUrl.search;
+    return NextResponse.redirect(target);
   }
 
-  // A raiz ("/") é o próprio shell do app: quando não há sessão, o
-  // AuthProvider (client-side) já renderiza a tela de login no lugar do
-  // dashboard. Não redirecionamos "/" para não criar um loop.
-  if (pathname === "/") {
+  if (isAuthPublicPath(pathname)) {
+    const authUrl = request.nextUrl.clone();
+    authUrl.pathname = toInternalAuthPath(pathname);
+    return NextResponse.rewrite(authUrl);
+  }
+
+  if (hostArea === "marketing" && isMarketingPublicPath(pathname)) {
+    const marketingUrl = request.nextUrl.clone();
+    marketingUrl.pathname = toInternalMarketingPath(pathname);
+    return NextResponse.rewrite(marketingUrl);
+  }
+
+  if (hostArea !== "marketing" && pathname !== "/" && isMarketingPublicPath(pathname)) {
+    const target = new URL(process.env.NEXUS_MARKETING_REDIRECT_URL || "https://nexusmanutencao.com");
+    target.pathname = pathname;
+    target.search = request.nextUrl.search;
+    return NextResponse.redirect(target);
+  }
+
+  if (hostArea === "developer" && pathname === "/") {
+    const devUrl = request.nextUrl.clone();
+    devUrl.pathname = "/dev";
+    return NextResponse.rewrite(devUrl);
+  }
+
+  if (hostArea === "commercial" && pathname === "/") {
+    const commercialUrl = request.nextUrl.clone();
+    commercialUrl.pathname = "/comercial";
+    return NextResponse.rewrite(commercialUrl);
+  }
+
+  if (PASSTHROUGH_PREFIXES.some((p) => pathname.startsWith(p))) {
     const response = NextResponse.next();
     response.headers.set("X-RateLimit-Limit", "120");
     response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
@@ -132,9 +176,26 @@ export async function middleware(request: NextRequest) {
   const session = token ? await decryptSession(token) : null;
 
   if (!session) {
-    const loginUrl = new URL("/", request.url);
+    const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirectTo", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  const landingArea = inferLandingArea({ roleName: session.roleName, permissions: session.permissions });
+  if (hostArea === "developer" && !hasDeveloperAccess(session)) {
+    const fallback = request.nextUrl.clone();
+    fallback.pathname = "/login";
+    return NextResponse.redirect(fallback);
+  }
+  if (hostArea === "commercial" && !hasCommercialAccess(session)) {
+    const fallback = request.nextUrl.clone();
+    fallback.pathname = "/login";
+    return NextResponse.redirect(fallback);
+  }
+  if (hostArea === "app" && landingArea === "commercial") {
+    const fallback = request.nextUrl.clone();
+    fallback.pathname = "/login";
+    return NextResponse.redirect(fallback);
   }
 
   const response = NextResponse.next();

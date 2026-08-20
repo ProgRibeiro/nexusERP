@@ -60,6 +60,23 @@ npm run dev
 ```
 O site estará no ar em: **[http://localhost:3000](http://localhost:3000)**
 
+### Rotas públicas SaaS (marketing + autenticação)
+
+No modo SaaS, as páginas públicas ficam disponíveis em:
+
+- `/` (home)
+- `/recursos`
+- `/solucoes`
+- `/planos`
+- `/demonstracao`
+- `/contato`
+- `/login`
+- `/cadastro`
+- `/recuperar-senha`
+
+Em produção, o roteamento por subdomínio usa as variáveis `NEXUS_*_HOST` e
+`NEXT_PUBLIC_NEXUS_*_URL` definidas no `.env`.
+
 ---
 
 ## 🔄 Fluxo de Negócio Operacional

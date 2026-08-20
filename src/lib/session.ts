@@ -9,12 +9,24 @@
 
 const ALGORITHM = "AES-GCM";
 const IV_LENGTH_BYTES = 12;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PLATFORM_ROLES = new Set([
+  "SUPER_ADMIN",
+  "DEVELOPER",
+  "SUPPORT",
+  "SALES_MANAGER",
+  "SALES_ANALYST",
+  "CUSTOMER_ADMIN",
+  "CUSTOMER_USER",
+]);
 
 export interface SessionPayload {
   userId: string;
   name: string;
   email: string;
   roleName: string;
+  platformRole?: string;
+  tenantId?: string;
   permissions: string[];
   /** epoch ms de expiração da sessão */
   exp: number;
@@ -87,6 +99,8 @@ export async function decryptSession(token: string): Promise<SessionPayload | nu
       typeof payload.name !== "string" ||
       typeof payload.email !== "string" ||
       typeof payload.roleName !== "string" ||
+      (payload.platformRole !== undefined && (typeof payload.platformRole !== "string" || !PLATFORM_ROLES.has(payload.platformRole))) ||
+      (payload.tenantId !== undefined && (typeof payload.tenantId !== "string" || !UUID_PATTERN.test(payload.tenantId))) ||
       !Array.isArray(payload.permissions) ||
       !payload.permissions.every((permission) => typeof permission === "string") ||
       typeof payload.exp !== "number" ||

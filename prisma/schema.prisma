@@ -40,6 +40,31 @@ model User {
   proposalEmails      ProposalEmail[]             @relation("ProposalEmailSender")
   marketingPosts      MarketingPost[]
   errorReports        ErrorReport[]
+  tenantAccesses      UserTenantAccess[]
+}
+
+model Tenant {
+  id           String             @id @db.Uuid
+  name         String
+  active       Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  userAccesses UserTenantAccess[]
+}
+
+model UserTenantAccess {
+  userId    String
+  tenantId  String   @db.Uuid
+  isDefault Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([userId, tenantId])
+  @@index([tenantId])
+  @@index([userId, active])
 }
 
 model Role {

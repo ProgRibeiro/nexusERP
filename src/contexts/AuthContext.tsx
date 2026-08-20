@@ -8,6 +8,7 @@ import {
   logoutAction,
   switchUserAction,
 } from "@/app/actions/userActions";
+import { LandingArea, portalBaseUrls } from "@/lib/portalRouting";
 import LoginView from "@/components/LoginView";
 import { Loader2 } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -23,17 +24,32 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function isAlwaysPublicPath(pathname: string) {
+  if (pathname.startsWith("/portal/loja/")) return true;
+  if (pathname.startsWith("/portal/prestador")) return true;
+  if (pathname.startsWith("/site")) return true;
+  if (pathname.startsWith("/auth")) return true;
+  return false;
+}
+
+function landingUrl(area: LandingArea) {
+  const urls = portalBaseUrls();
+  if (area === "developer") return urls.developer;
+  if (area === "commercial") return urls.commercial;
+  return urls.app;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublicStorePortal = pathname.startsWith("/portal/loja/") || pathname.startsWith("/portal/prestador");
+  const isPublicRoute = isAlwaysPublicPath(pathname);
   const [user, setUser] = useState<UserSession | null>(null);
   const [users, setUsers] = useState<UserSession[]>([]);
-  const [loading, setLoading] = useState(!isPublicStorePortal);
+  const [loading, setLoading] = useState(!isPublicRoute);
 
   // A sessão agora vive num cookie httpOnly lido no servidor — não há mais
   // nenhuma fonte de verdade de autenticação no localStorage.
   useEffect(() => {
-    if (isPublicStorePortal) return;
+    if (isPublicRoute) return;
     async function initAuth() {
       try {
         const sessionUser = await getSessionUserAction();
@@ -51,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     initAuth();
-  }, [isPublicStorePortal]);
+  }, [isPublicRoute]);
 
   const switchUser = useCallback(async (email: string) => {
     const res = await switchUserAction(email);
@@ -61,13 +77,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: res.success, error: res.error };
   }, []);
 
-  const handleLoginSuccess = useCallback(async (sessionUser: UserSession) => {
+  const handleLoginSuccess = useCallback(async (sessionUser: UserSession, area: LandingArea) => {
     setUser(sessionUser);
     try {
       const allUsers = await getUsers();
       setUsers(allUsers);
     } catch (error) {
       console.error("Erro ao carregar lista de usuários:", error);
+    }
+    const target = landingUrl(area);
+    if (typeof window !== "undefined") {
+      const current = window.location.origin;
+      if (target && target !== current) {
+        window.location.assign(target);
+      }
     }
   }, []);
 
@@ -86,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return user.permissions.includes(permissionCode);
   };
 
-  if (isPublicStorePortal) {
+  if (isPublicRoute) {
     return <>{children}</>;
   }
 

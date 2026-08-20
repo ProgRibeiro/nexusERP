@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import {
   decryptSession,
   SessionPayload,
@@ -6,6 +7,20 @@ import {
 } from "./session";
 import { logger } from "./logger";
 import { prisma } from "./db";
+import { classifyPortalArea, normalizeHostname } from "./portalRouting";
+import { hasCommercialAccess, hasDeveloperAccess, isAdminSession, resolvePlatformRole } from "./rbac";
+import { ensureUserTenantAccess, resolvePrimaryTenantForUser } from "./tenantAccess";
+
+async function resolveUserTenantId(userId: string, fallbackTenantId?: string) {
+  if (!userId) {
+    throw new AuthError("NAO_AUTENTICADO", "Usuário inválido para contexto de tenant.");
+  }
+  return resolvePrimaryTenantForUser(userId, fallbackTenantId);
+}
+
+async function applyTenantContext(tenantId: string) {
+  await prisma.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
+}
 
 /**
  * Lê e valida a sessão atual a partir do cookie httpOnly. Uso exclusivo em
@@ -63,11 +78,22 @@ export async function requireAuth(): Promise<SessionPayload> {
 
   // Autorizações são sempre atualizadas a partir do banco. Assim, revogar um
   // papel/permissão surte efeito sem esperar os sete dias do cookie.
+  const platformRole = resolvePlatformRole({ roleName: user.role?.name || "Sem Perfil", permissions });
+  const tenantId = await resolveUserTenantId(user.id, session.tenantId);
+  if (platformRole === "CUSTOMER_ADMIN" || platformRole === "CUSTOMER_USER") {
+    const hasTenantAccess = await ensureUserTenantAccess(user.id, tenantId);
+    if (!hasTenantAccess) {
+      throw new AuthError("SEM_PERMISSAO", "Usuário sem vínculo ativo com o tenant.");
+    }
+  }
+  await applyTenantContext(tenantId);
   return {
     ...session,
     name: user.name,
     email: user.email,
     roleName: user.role?.name || "Sem Perfil",
+    platformRole,
+    tenantId,
     permissions,
   };
 }
@@ -78,11 +104,7 @@ export async function requireAuth(): Promise<SessionPayload> {
  */
 export async function requirePermission(code: string): Promise<SessionPayload> {
   const session = await requireAuth();
-  const isAdmin =
-    session.roleName === "Desenvolvedor" ||
-    session.roleName === "Administrador" ||
-    session.permissions.includes("admin.all") ||
-    session.permissions.includes("dev.all");
+  const isAdmin = isAdminSession(session);
 
   if (!isAdmin && !session.permissions.includes(code)) {
     logger.warn("permission_denied", { userId: session.userId, email: session.email, code });
@@ -100,11 +122,7 @@ export async function requirePermission(code: string): Promise<SessionPayload> {
  */
 export async function requireAnyPermission(codes: string[]): Promise<SessionPayload> {
   const session = await requireAuth();
-  const isAdmin =
-    session.roleName === "Desenvolvedor" ||
-    session.roleName === "Administrador" ||
-    session.permissions.includes("admin.all") ||
-    session.permissions.includes("dev.all");
+  const isAdmin = isAdminSession(session);
   if (!isAdmin && !codes.some((code) => session.permissions.includes(code))) {
     logger.warn("permission_denied", { userId: session.userId, email: session.email, codes });
     throw new AuthError(
@@ -112,5 +130,31 @@ export async function requireAnyPermission(codes: string[]): Promise<SessionPayl
       `Você não tem permissão para executar esta ação (${codes.join(" ou ")}).`
     );
   }
+  return session;
+}
+
+export async function requirePortalAccess(area: "app" | "commercial" | "developer"): Promise<SessionPayload> {
+  const session = await requireAuth();
+  const allowed = area === "developer"
+    ? hasDeveloperAccess(session)
+    : area === "commercial"
+      ? hasCommercialAccess(session)
+      : true;
+
+  if (!allowed) {
+    throw new AuthError("SEM_PERMISSAO", `Você não tem acesso ao portal ${area}.`);
+  }
+
+  try {
+    const headerStore = await headers();
+    const host = normalizeHostname(headerStore.get("x-forwarded-host") || headerStore.get("host"));
+    const currentArea = classifyPortalArea(host);
+    if (currentArea !== "unknown" && currentArea !== "marketing" && currentArea !== area) {
+      throw new AuthError("SEM_PERMISSAO", `Acesso por hostname inválido para o portal ${area}.`);
+    }
+  } catch (error) {
+    if (error instanceof AuthError) throw error;
+  }
+
   return session;
 }
