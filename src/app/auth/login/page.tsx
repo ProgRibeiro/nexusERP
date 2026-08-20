@@ -6,10 +6,13 @@ import { UserSession } from "@/app/actions/userActions";
 import { LandingArea, portalBaseUrls } from "@/lib/portalRouting";
 
 function destinationFor(area: LandingArea) {
-  const urls = portalBaseUrls();
-  if (area === "developer") return urls.developer;
-  if (area === "commercial") return urls.commercial;
-  return urls.app;
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname.toLowerCase();
+    if (area === "developer" && host.startsWith("dev.")) return portalBaseUrls().developer;
+    if (area === "commercial" && host.startsWith("comercial.")) return portalBaseUrls().commercial;
+    return "/";
+  }
+  return "/";
 }
 
 export default function CentralLoginPage() {
