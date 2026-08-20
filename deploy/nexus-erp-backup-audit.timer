@@ -1,0 +1,11 @@
+[Unit]
+Description=Nexus ERP - executar auditoria de backup duas vezes por dia
+
+[Timer]
+OnCalendar=*-*-* 01:00:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=nexus-erp-backup-audit.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Nexus ERP - auditoria de integridade e SLA de backup
+
+[Service]
+Type=oneshot
+User=nexus
+Group=nexus
+EnvironmentFile=/etc/nexus-erp.env
+ExecStart=/opt/nexus-erp/source/deploy/run-backup-audit.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
