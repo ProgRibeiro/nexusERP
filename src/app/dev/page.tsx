@@ -103,9 +103,11 @@ export default function DevConsolePage() {
   };
 
   const handleRestartServer = async () => {
+    const confirmation = window.prompt("Para confirmar a solicitação, digite REINICIAR_SERVIDOR");
+    if (!confirmation) return;
     setActionLoading(true);
     try {
-      const res = await triggerDevServerRestartAction();
+      const res = await triggerDevServerRestartAction(confirmation);
       if (res.success) {
         setMessage(res.message);
       } else {
@@ -254,6 +256,20 @@ export default function DevConsolePage() {
           >
             <Server size={15} /> Controle do Servidor
           </button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a href="/dev/tenants" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
+            Abrir módulo Tenants
+          </a>
+          <a href="/dev/monitoramento" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
+            Abrir módulo Monitoramento
+          </a>
+          <a href="/dev/logs" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
+            Abrir módulo Logs
+          </a>
+          <a href="/dev/backups" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
+            Abrir módulo Backups
+          </a>
         </div>
 
         {/* Tab 1: Saúde & Telemetria */}

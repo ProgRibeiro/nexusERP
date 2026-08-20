@@ -165,6 +165,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(commercialUrl);
   }
 
+  if (hostArea === "developer" && !pathname.startsWith("/dev")) {
+    const devScopedUrl = request.nextUrl.clone();
+    devScopedUrl.pathname = `/dev${pathname}`;
+    return NextResponse.rewrite(devScopedUrl);
+  }
+
+  if (hostArea === "commercial" && !pathname.startsWith("/comercial")) {
+    const commercialScopedUrl = request.nextUrl.clone();
+    commercialScopedUrl.pathname = `/comercial${pathname}`;
+    return NextResponse.rewrite(commercialScopedUrl);
+  }
+
   if (PASSTHROUGH_PREFIXES.some((p) => pathname.startsWith(p))) {
     const response = NextResponse.next();
     response.headers.set("X-RateLimit-Limit", "120");

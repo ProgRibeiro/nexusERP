@@ -77,6 +77,25 @@ No modo SaaS, as páginas públicas ficam disponíveis em:
 Em produção, o roteamento por subdomínio usa as variáveis `NEXUS_*_HOST` e
 `NEXT_PUBLIC_NEXUS_*_URL` definidas no `.env`.
 
+### Portais internos SaaS
+
+- **Comercial** (`comercial.nexusmanutencao.com`)
+  - `/` (dashboard)
+  - `/leads`
+  - `/pipeline`
+  - `/agenda`
+  - `/relatorios`
+- **Desenvolvimento** (`dev.nexusmanutencao.com`)
+  - `/` (console técnico)
+  - `/tenants`
+  - `/monitoramento`
+  - `/logs`
+  - `/backups`
+
+Observação: com hostname de portal, o middleware aplica escopo automático
+(`/<rota>` → `/comercial/<rota>` ou `/dev/<rota>`) sem necessidade de múltiplos
+projetos ou múltiplos túneis.
+
 ---
 
 ## 🔄 Fluxo de Negócio Operacional

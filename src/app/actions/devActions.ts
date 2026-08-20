@@ -321,9 +321,15 @@ export async function runDevDiagnosticCheckAction() {
 /**
  * Solicita a reinicialização limpa do serviço do ERP
  */
-export async function triggerDevServerRestartAction() {
+export async function triggerDevServerRestartAction(confirmationText: string) {
   try {
     const session = await requireDevPermission();
+    if (confirmationText.trim().toUpperCase() !== "REINICIAR_SERVIDOR") {
+      return {
+        success: false as const,
+        error: "Confirmação inválida. Digite REINICIAR_SERVIDOR para confirmar a ação.",
+      };
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -331,7 +337,10 @@ export async function triggerDevServerRestartAction() {
         action: "DEV_SOLICITACAO_REINICIO_SERVIDOR",
         entity: "Servidor",
         entityId: "server.restart",
-        changesJson: JSON.stringify({ requestedAt: new Date().toISOString() }),
+        changesJson: JSON.stringify({
+          requestedAt: new Date().toISOString(),
+          confirmationText,
+        }),
       },
     });
 
