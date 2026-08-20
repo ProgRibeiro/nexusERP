@@ -109,4 +109,5 @@ systemctl stop "nexus-erp@$ACTIVE.service" || true
 systemctl disable "nexus-erp@$ACTIVE.service" || true
 
 echo "Rollback concluído: $ACTIVE -> $PREVIOUS."
-echo "A aplicação voltou; migrações de banco não são revertidas automaticamente."
+echo "A aplicação voltou; o banco e todos os registros foram preservados sem restauração destrutiva."
+echo "Migrações aditivas permanecem aplicadas para manter compatibilidade e evitar perda de dados novos."

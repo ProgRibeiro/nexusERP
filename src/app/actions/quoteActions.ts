@@ -69,6 +69,7 @@ export async function getQuotes(search?: string) {
         ? {
             OR: [
               { code: { contains: search.trim(), mode: "insensitive" } },
+              { storeName: { contains: search.trim(), mode: "insensitive" } },
               { client: { name: { contains: search.trim(), mode: "insensitive" } } },
               { client: { fancyName: { contains: search.trim(), mode: "insensitive" } } },
               { client: { socialName: { contains: search.trim(), mode: "insensitive" } } },
@@ -87,6 +88,7 @@ export async function getQuotes(search?: string) {
     return quotes.map((q) => ({
       id: q.id,
       code: q.code,
+      storeName: q.storeName,
       clientId: q.clientId,
       clientName: q.client.name,
       status: q.status,
@@ -161,6 +163,8 @@ export async function getQuoteDetails(id: string) {
 export async function createQuote(
   data: {
     clientId: string;
+    code?: string;
+    storeName?: string;
     addressId?: string;
     contactId?: string;
     validityDays?: number;
@@ -188,7 +192,9 @@ export async function createQuote(
     const relations = await resolveClientRelations(data.clientId, data.addressId, data.contactId);
 
     const count = await prisma.quote.count();
-    const code = `Q-2026-${String(count + 1).padStart(4, "0")}`;
+    const code = data.code?.trim() || `Q-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+    const duplicateCode = await prisma.quote.findUnique({ where: { code }, select: { id: true } });
+    if (duplicateCode) throw new Error(`Já existe uma proposta com o código ${code}.`);
 
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + (data.validityDays || 15));
@@ -272,8 +278,9 @@ export async function createQuote(
     const estimatedMargin = total - costEstimate;
 
     const quote = await prisma.quote.create({
-      data: {
-        code,
+        data: {
+          code,
+          storeName: data.storeName?.trim() || null,
         clientId: data.clientId,
         addressId: relations.addressId || null,
         contactId: relations.contactId || null,
@@ -844,6 +851,8 @@ export async function updateQuote(
   quoteId: string,
   data: {
     clientId: string;
+    code?: string;
+    storeName?: string;
     addressId?: string;
     contactId?: string;
     validityDays?: number;
@@ -866,7 +875,16 @@ export async function updateQuote(
   try {
     const session = await requirePermission("quotes.write");
     userId = session.userId; // nunca confiar no valor vindo do client
+    quoteCreateSchema.parse(data);
     const relations = await resolveClientRelations(data.clientId, data.addressId, data.contactId);
+    const requestedCode = data.code?.trim();
+    if (requestedCode) {
+      const duplicateCode = await prisma.quote.findFirst({
+        where: { code: requestedCode, NOT: { id: quoteId } },
+        select: { id: true },
+      });
+      if (duplicateCode) throw new Error(`Já existe uma proposta com o código ${requestedCode}.`);
+    }
 
     const validUntil = new Date();
     validUntil.setDate(validUntil.getDate() + (data.validityDays || 15));
@@ -921,6 +939,8 @@ export async function updateQuote(
       const updated = await tx.quote.update({
         where: { id: quoteId },
         data: {
+          ...(requestedCode ? { code: requestedCode } : {}),
+          storeName: data.storeName?.trim() || null,
           client: { connect: { id: data.clientId } },
           address: relations.addressId ? { connect: { id: relations.addressId } } : { disconnect: true },
           contact: relations.contactId ? { connect: { id: relations.contactId } } : { disconnect: true },

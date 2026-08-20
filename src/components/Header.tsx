@@ -25,6 +25,7 @@ import {
   Moon,
   Keyboard,
   Building2,
+  LogOut,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { CommandPalette } from "./ui/CommandPalette";
@@ -59,7 +60,7 @@ const SEARCH_RESULT_BADGE: Record<SearchResult["type"], string> = {
 export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, users, switchUser } = useAuth();
+  const { user, users, switchUser, logout } = useAuth();
   const {
     darkMode,
     toggleDarkMode,
@@ -74,6 +75,20 @@ export default function Header() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      setIsProfileOpen(false);
+      router.replace("/auth/login");
+      router.refresh();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
 
   // Search & Contextual New states
@@ -694,6 +709,17 @@ export default function Header() {
                     </span>
                   </button>
                 ))}
+              </div>
+              <div className="border-t border-zinc-100 p-2 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-black text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-wait disabled:opacity-60 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                >
+                  <LogOut size={14} />
+                  {isLoggingOut ? "Saindo..." : "Sair do aplicativo"}
+                </button>
               </div>
             </div>
           )}

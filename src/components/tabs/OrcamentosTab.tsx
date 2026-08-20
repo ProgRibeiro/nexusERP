@@ -322,6 +322,8 @@ export default function OrcamentosTab({
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [newQuoteForm, setNewQuoteForm] = useState({
     clientId: "",
+    proposalCode: "",
+    storeName: "",
     addressId: "",
     contactId: "",
     validityDays: 15,
@@ -933,6 +935,8 @@ export default function OrcamentosTab({
 
     setNewQuoteForm({
       clientId: quote.clientId,
+      proposalCode: quote.code || "",
+      storeName: quote.storeName || "",
       addressId: quote.addressId || "",
       contactId: quote.contactId || "",
       validityDays: vDays,
@@ -1014,6 +1018,8 @@ export default function OrcamentosTab({
         editingQuoteId,
         {
           clientId: newQuoteForm.clientId,
+          code: newQuoteForm.proposalCode || undefined,
+          storeName: newQuoteForm.storeName || undefined,
           addressId: newQuoteForm.addressId || undefined,
           contactId: newQuoteForm.contactId || undefined,
           notes: newQuoteForm.notes || undefined,
@@ -1052,6 +1058,8 @@ export default function OrcamentosTab({
         ]);
         setNewQuoteForm({
           clientId: clients[0]?.id || "",
+          proposalCode: "",
+          storeName: "",
           addressId: "",
           contactId: "",
           validityDays: 15,
@@ -1108,6 +1116,8 @@ export default function OrcamentosTab({
       const res = await createQuote(
         {
           clientId: newQuoteForm.clientId,
+          code: newQuoteForm.proposalCode || undefined,
+          storeName: newQuoteForm.storeName || undefined,
           addressId: newQuoteForm.addressId || undefined,
           contactId: newQuoteForm.contactId || undefined,
           notes: newQuoteForm.notes || undefined,
@@ -1146,6 +1156,8 @@ export default function OrcamentosTab({
         ]);
         setNewQuoteForm({
           clientId: clients[0]?.id || "",
+          proposalCode: "",
+          storeName: "",
           addressId: "",
           contactId: "",
           validityDays: 15,
@@ -2014,6 +2026,28 @@ export default function OrcamentosTab({
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Input
+                  label="Código da proposta"
+                  placeholder="Automático: Q-2026-0001"
+                  value={newQuoteForm.proposalCode}
+                  onChange={(e) =>
+                    setNewQuoteForm((prev) => ({
+                      ...prev,
+                      proposalCode: e.target.value.toUpperCase(),
+                    }))
+                  }
+                />
+                <Input
+                  label="Loja / unidade"
+                  placeholder="Ex.: Loja Barra Shopping"
+                  value={newQuoteForm.storeName}
+                  onChange={(e) =>
+                    setNewQuoteForm((prev) => ({
+                      ...prev,
+                      storeName: e.target.value,
+                    }))
+                  }
+                />
                 <Input
                   label="Validade (dias) *"
                   type="number"
@@ -2944,6 +2978,11 @@ export default function OrcamentosTab({
                               <p className="mt-2 truncate text-sm font-black text-zinc-950 dark:text-white">
                                 {q.clientName}
                               </p>
+                              {q.storeName && (
+                                <p className="mt-1 truncate text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                                  Loja: {q.storeName}
+                                </p>
+                              )}
                               <p className="mt-1 text-[10px] font-semibold text-zinc-400">
                                 Criada em {formatDate(q.createdAt)}
                               </p>
@@ -3049,6 +3088,11 @@ export default function OrcamentosTab({
                         <p className="mt-1 truncate text-sm font-black text-zinc-950 dark:text-white">
                           {quoteDetails.client?.name || quoteDetails.clientName}
                         </p>
+                        {quoteDetails.storeName && (
+                          <p className="mt-1 text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                            Loja: {quoteDetails.storeName}
+                          </p>
+                        )}
                         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-semibold text-zinc-500">
                           <span>{formatCurrency(quoteDetails.total || 0)}</span>
                           <span>·</span>

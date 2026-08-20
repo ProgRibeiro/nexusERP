@@ -307,6 +307,7 @@ model CrmActivity {
 model Quote {
   id                  String               @id @default(uuid())
   code                String               @unique // Q-2026-0001
+  storeName           String?              // Loja, unidade ou ponto de atendimento da proposta
   clientId            String
   client              Client               @relation(fields: [clientId], references: [id])
   addressId           String?

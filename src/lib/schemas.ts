@@ -57,6 +57,8 @@ export const quoteItemSchema = z.object({
 
 export const quoteCreateSchema = z.object({
   clientId: z.string().trim().min(1, "Cliente é obrigatório."),
+  code: z.string().trim().max(50, "Código da proposta muito longo.").optional(),
+  storeName: z.string().trim().max(120, "Nome da loja muito longo.").optional(),
   addressId: z.string().trim().optional(),
   contactId: z.string().trim().optional(),
   validityDays: z.number().int().positive().optional(),

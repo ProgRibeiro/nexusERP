@@ -16,6 +16,8 @@ ENV_FILE="${NEXUS_ENV_FILE:-/etc/nexus-erp.env}"
 LOCK_FILE="$ROOT/.update.lock"
 STATUS_FILE="$SHARED/update-status.json"
 STATIC_ROOT="${NEXUS_STATIC_ROOT:-/var/cache/nexus-erp/static}"
+SAFETY_ROOT="$SHARED/update-safety"
+REQUIRE_OFFSITE_BACKUP="${REQUIRE_OFFSITE_BACKUP:-true}"
 
 if [[ ! -r "$ENV_FILE" ]]; then
   echo "Ambiente ausente ou ilegível: $ENV_FILE" >&2
@@ -26,7 +28,7 @@ for command_name in git node npm npx curl nginx systemctl flock rsync runuser; d
   command -v "$command_name" >/dev/null 2>&1 || { echo "Dependência ausente: $command_name" >&2; exit 1; }
 done
 
-mkdir -p "$RELEASES" "$SLOTS" "$SHARED/uploads" "$SHARED/backups" "$SHARED/npm-cache"
+mkdir -p "$RELEASES" "$SLOTS" "$SHARED/uploads" "$SHARED/backups" "$SHARED/npm-cache" "$SAFETY_ROOT"
 install -d -o nexus -g www-data -m 0750 "$STATIC_ROOT"
 chown -R nexus:nexus "$ROOT"
 exec 9>"$LOCK_FILE"
@@ -68,7 +70,17 @@ on_error() {
   local exit_code=$?
   local line="${1:-desconhecida}"
   trap - ERR
-  write_update_status "failed" "Atualização interrompida na linha $line; o tráfego permaneceu na versão estável." || true
+  if [[ "${SWITCHED:-false}" == "true" && -n "${UPSTREAM_BACKUP:-}" && -f "${UPSTREAM_BACKUP:-}" ]]; then
+    cp "$UPSTREAM_BACKUP" "$UPSTREAM_FILE" || true
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx || true
+    printf '%s\n' "$ACTIVE" > "$ROOT/active-slot" || true
+    systemctl stop "nexus-erp@$CANDIDATE.service" 2>/dev/null || true
+    systemctl enable "nexus-erp@$ACTIVE.service" 2>/dev/null || true
+    systemctl restart "nexus-erp@$ACTIVE.service" 2>/dev/null || true
+    write_update_status "rolled-back" "Falha inesperada na linha $line; tráfego restaurado automaticamente para a versão anterior." || true
+  else
+    write_update_status "failed" "Atualização interrompida na linha $line; o tráfego permaneceu na versão estável." || true
+  fi
   exit "$exit_code"
 }
 trap 'on_error "$LINENO"' ERR
@@ -86,6 +98,7 @@ git_nexus() {
 }
 
 ACTIVE="$(cat "$ROOT/active-slot" 2>/dev/null || echo blue)"
+SWITCHED=false
 if [[ "$ACTIVE" != "blue" && "$ACTIVE" != "green" ]]; then
   echo "Slot ativo inválido em $ROOT/active-slot: $ACTIVE" >&2
   exit 1
@@ -133,9 +146,33 @@ fi
 if [[ -n "$OLD_COMMIT" ]]; then
   write_update_status "backup" "Criando e verificando o backup anterior à atualização."
   echo "Criando backup verificado antes da atualização..."
-  bash "$SOURCE/deploy/backup-database-snapshot.sh" || true
   cd "$SLOTS/$ACTIVE"
   runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install tsx scripts/backup-db.ts --type=pre-update
+
+  BACKUP_GATE_RESULT="$(BACKUP_DIR="$SHARED/backups" node <<'NODE'
+const fs = require("fs");
+const path = require("path");
+const directory = process.env.BACKUP_DIR;
+const metadata = JSON.parse(fs.readFileSync(path.join(directory, "latest.json"), "utf8"));
+const dump = path.join(directory, metadata.fileName || "");
+const checksum = `${dump}.sha256`;
+const ok = metadata.type === "pre-update" && fs.existsSync(dump) && fs.statSync(dump).size >= 1024 && fs.existsSync(checksum);
+process.stdout.write(JSON.stringify({ ok, remoteUploaded: metadata.remoteUploaded === true, fileName: metadata.fileName || null }));
+NODE
+)"
+  if ! grep -q '"ok":true' <<<"$BACKUP_GATE_RESULT"; then
+    write_update_status "blocked" "Backup local anterior à atualização não passou na verificação."
+    echo "Atualização bloqueada: backup local íntegro não confirmado: $BACKUP_GATE_RESULT" >&2
+    exit 1
+  fi
+  if [[ "$REQUIRE_OFFSITE_BACKUP" == "true" ]] && ! grep -q '"remoteUploaded":true' <<<"$BACKUP_GATE_RESULT"; then
+    write_update_status "blocked" "Terceira camada externa não confirmada; a versão estável foi mantida."
+    echo "Atualização bloqueada: configure BACKUP_BUCKET e credenciais; cópia externa não confirmada." >&2
+    exit 1
+  fi
+
+  CRITICAL_MANIFEST="$SAFETY_ROOT/${NEW_COMMIT:0:12}-before.json"
+  node "$SOURCE/scripts/critical-data-manifest.mjs" capture "$CRITICAL_MANIFEST"
   if [[ -d "$SLOTS/$ACTIVE/.next/static" ]]; then
     rsync -a "$SLOTS/$ACTIVE/.next/static/" "$STATIC_ROOT/"
   fi
@@ -173,6 +210,12 @@ find "$STATIC_ROOT" -type f -exec chmod 0640 {} +
 write_update_status "migrating" "Aplicando somente migrações compatíveis e aditivas no PostgreSQL."
 runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate deploy
 runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate status
+
+# Camada lógica: uma atualização nunca pode reduzir registros ou totais dos
+# domínios protegidos. Se houver divergência, a versão antiga continua ativa.
+if [[ -n "${CRITICAL_MANIFEST:-}" ]]; then
+  node "$RELEASE/scripts/critical-data-manifest.mjs" verify "$CRITICAL_MANIFEST"
+fi
 
 ln -sfn "$RELEASE" "$SLOTS/$CANDIDATE.next"
 mv -Tf "$SLOTS/$CANDIDATE.next" "$SLOTS/$CANDIDATE"
@@ -220,6 +263,7 @@ fi
 
 systemctl reload nginx
 printf '%s\n' "$CANDIDATE" > "$ROOT/active-slot"
+SWITCHED=true
 
 PUBLIC_HEALTHY=false
 for _ in {1..10}; do
@@ -234,6 +278,7 @@ if [[ "$PUBLIC_HEALTHY" != "true" ]]; then
   [[ -f "$UPSTREAM_BACKUP" ]] && cp "$UPSTREAM_BACKUP" "$UPSTREAM_FILE"
   nginx -t && systemctl reload nginx
   printf '%s\n' "$ACTIVE" > "$ROOT/active-slot"
+  SWITCHED=false
   systemctl stop "nexus-erp@$CANDIDATE.service" || true
   systemctl disable "nexus-erp@$CANDIDATE.service" || true
   write_update_status "rolled-back" "Teste público falhou; Nginx retornou automaticamente para a versão anterior."
@@ -248,8 +293,15 @@ systemctl disable "nexus-erp@$ACTIVE.service" 2>/dev/null || true
 
 ACTIVE="$CANDIDATE"
 ACTIVE_PORT="$CANDIDATE_PORT"
+SWITCHED=false
 write_update_status "complete" "Atualização concluída sem interrupção e com os dados persistentes preservados."
 echo "Atualização concluída sem interrupção: $OLD_COMMIT -> $NEW_COMMIT ($CANDIDATE)."
+
+# Sela a nova versão com outro backup. O pré-update permanece disponível para
+# recuperação, e este snapshot registra o estado já aprovado em produção.
+cd "$SLOTS/$ACTIVE"
+runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install tsx scripts/backup-db.ts --type=manual || \
+  echo "AVISO: snapshot pós-atualização falhou; backup pré-update foi preservado." >&2
 
 mapfile -t OLD_RELEASES < <(find "$RELEASES" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | tail -n +6 | cut -d' ' -f2-)
 for old_release in "${OLD_RELEASES[@]}"; do

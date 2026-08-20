@@ -23,6 +23,7 @@ export async function parseImportFileAction(formData: FormData) {
   try {
     await requirePermission("admin.all");
     const file = formData.get("file");
+    const importType = String(formData.get("type") || "clientes") as ImportType;
     if (!(file instanceof File)) return { success: false as const, error: "Arquivo não recebido." };
     if (file.size > 10 * 1024 * 1024) return { success: false as const, error: "O arquivo deve ter no máximo 10 MB." };
     const extension = file.name.split(".").pop()?.toLowerCase();
@@ -40,20 +41,48 @@ export async function parseImportFileAction(formData: FormData) {
     // ExcelJS ainda publica uma definição antiga de Buffer; em runtime o
     // Buffer nativo do Node é exatamente o formato aceito pelo leitor.
     await workbook.xlsx.load(buffer as never);
-    const worksheet = workbook.worksheets[0];
+    const sheetTerms: Record<ImportType, string[]> = {
+      clientes: ["cliente", "contato"],
+      servicos: ["servico"],
+      materiais: ["material", "estoque", "produto", "peca"],
+    };
+    const normalizeLabel = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const worksheet = workbook.worksheets.find((sheet) =>
+      sheetTerms[importType].some((term) => normalizeLabel(sheet.name).includes(term))
+    ) || workbook.worksheets[0];
     if (!worksheet) return { success: false as const, error: "A planilha não possui abas com dados." };
     if (worksheet.actualRowCount > 5001) return { success: false as const, error: "A planilha excede o limite de 5.000 registros." };
     if (worksheet.actualColumnCount > 100) return { success: false as const, error: "A planilha excede o limite de 100 colunas." };
 
+    const headerTerms: Record<ImportType, string[]> = {
+      clientes: ["cliente", "nome", "empresa", "cnpj", "cpf", "email", "telefone"],
+      servicos: ["servico", "descricao", "nome", "preco", "valor", "categoria"],
+      materiais: ["material", "produto", "peca", "nome", "codigo", "estoque"],
+    };
+    let headerRow = 1;
+    let bestScore = -1;
+    for (let rowNumber = 1; rowNumber <= Math.min(20, worksheet.actualRowCount); rowNumber += 1) {
+      const row = worksheet.getRow(rowNumber);
+      const labels = Array.from({ length: worksheet.actualColumnCount }, (_, index) =>
+        normalizeLabel(row.getCell(index + 1).text)
+      );
+      const score = headerTerms[importType].filter((term) => labels.some((label) => label.includes(term))).length;
+      if (score > bestScore) {
+        bestScore = score;
+        headerRow = rowNumber;
+      }
+    }
+
     const lines: string[] = [];
-    worksheet.eachRow({ includeEmpty: false }, (row) => {
+    for (let rowNumber = headerRow; rowNumber <= worksheet.actualRowCount; rowNumber += 1) {
+      const row = worksheet.getRow(rowNumber);
       const values: string[] = [];
       for (let column = 1; column <= worksheet.actualColumnCount; column += 1) {
         values.push(row.getCell(column).text.replace(/[\t\r\n]+/g, " ").trim());
       }
-      lines.push(values.join("\t"));
-    });
-    return { success: true as const, text: lines.join("\n"), fileName: file.name };
+      if (values.some(Boolean)) lines.push(values.join("\t"));
+    }
+    return { success: true as const, text: lines.join("\n"), fileName: file.name, sheetName: worksheet.name };
   } catch (error) {
     logger.error("Erro ao ler arquivo de importação", error);
     return { success: false as const, error: "Não foi possível ler a planilha. Verifique se o arquivo não está corrompido ou protegido por senha." };
@@ -72,10 +101,10 @@ const nonNegativeNumber = z.preprocess(
 
 const clientImportSchema = z.object({
   name: z.preprocess((v) => String(v ?? "").trim(), z.string().min(2, "Nome obrigatório.")),
-  cpfCnpj: z.preprocess(
-    (v) => String(v ?? "").replace(/\D/g, ""),
-    z.string().refine((v) => v.length === 11 || v.length === 14, "CPF/CNPJ deve ter 11 ou 14 dígitos.")
-  ),
+  cpfCnpj: z.preprocess((v) => String(v ?? "").replace(/\D/g, ""), z.string().refine(
+    (v) => !v || v.length === 11 || v.length === 14,
+    "CPF/CNPJ deve ter 11 ou 14 dígitos."
+  )),
   socialName: optionalText,
   fancyName: optionalText,
   email: optionalText.refine((v) => !v || z.email().safeParse(v).success, "E-mail inválido."),
@@ -114,9 +143,17 @@ function entityFor(type: ImportType) {
 }
 
 function rowKey(type: ImportType, row: ImportRecord) {
-  if (type === "clientes") return String(row.cpfCnpj);
+  if (type === "clientes") return clientDocument(row);
   if (type === "materiais" && row.code) return `code:${String(row.code).toLocaleLowerCase("pt-BR")}`;
   return `name:${String(row.name).toLocaleLowerCase("pt-BR")}`;
+}
+
+function clientDocument(row: ImportRecord) {
+  const document = String(row.cpfCnpj || "").replace(/\D/g, "");
+  if (document.length === 11 || document.length === 14) return document;
+  const identity = String(row.name || row.socialName || row.phone || "cliente")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `IMPORTADO-${identity || "sem-documento"}`;
 }
 
 function errorMessage(error: unknown) {
@@ -165,7 +202,7 @@ export async function previewImportAction(type: ImportType, rows: ImportRecord[]
 
     let existing = 0;
     if (type === "clientes") {
-      existing = await prisma.client.count({ where: { cpfCnpj: { in: validRows.map((r) => String(r.cpfCnpj)) } } });
+      existing = await prisma.client.count({ where: { cpfCnpj: { in: validRows.map(clientDocument) } } });
     } else if (type === "servicos") {
       const names = validRows.map((r) => String(r.name));
       existing = await prisma.service.count({ where: { OR: names.map((name) => ({ name: { equals: name, mode: "insensitive" as const } })) } });
@@ -234,7 +271,7 @@ async function importRows(type: ImportType, rows: ImportRecord[]) {
         let transactionStatus: RowStatus;
 
         if (type === "clientes") {
-          const cpfCnpj = String(normalized.cpfCnpj);
+          const cpfCnpj = clientDocument(normalized);
           const existing = await tx.client.findUnique({ where: { cpfCnpj }, select: { id: true } });
           const email = String(normalized.email || `sem-email+${cpfCnpj}@importado.local`);
           const phone = String(normalized.phone || "Não informado");
@@ -290,6 +327,7 @@ async function importRows(type: ImportType, rows: ImportRecord[]) {
   });
 
   if (type === "clientes") revalidatePath("/clientes");
+  if (type === "servicos") revalidatePath("/servicos");
   if (type === "materiais") revalidatePath("/estoque");
   revalidatePath("/teia");
   return { success: true as const, count: summary.created + summary.updated, batchId: batch.id, summary, issues: issues.slice(0, 50) };

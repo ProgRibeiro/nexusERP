@@ -533,12 +533,13 @@ export default function ConfiguracoesTab() {
       setImportPreviewKey("");
       const formData = new FormData();
       formData.set("file", file);
+      formData.set("type", importType);
       const result = await parseImportFileAction(formData);
       if (result.success) {
         setImportText(result.text);
         setImportPreview(null);
         setImportPreviewKey("");
-        setImportLog(`${result.fileName} carregado. Clique em pré-validar para conferir as linhas.`);
+        setImportLog(`${result.fileName} — aba ${result.sheetName} carregada. Clique em pré-validar para conferir as linhas.`);
         toast(`Arquivo ${file.name} carregado com segurança.`, "success");
       } else {
         setImportLog(`Erro: ${result.error}`);
