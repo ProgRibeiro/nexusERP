@@ -5,9 +5,15 @@ import { getMaintenanceStatusAction } from "@/app/actions/maintenanceActions";
 import type { MaintenanceStatus } from "@/lib/maintenance";
 import { AlertTriangle, Clock, Wrench, X } from "lucide-react";
 
+import { useAuth } from "@/contexts/AuthContext";
+import { toggleMaintenanceModeAction } from "@/app/actions/maintenanceActions";
+
 export function MaintenanceBanner() {
+  const { user, hasPermission } = useAuth();
   const [status, setStatus] = useState<MaintenanceStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
+
+  const isAdmin = user?.roleName === "Administrador" || hasPermission("admin.all");
 
   useEffect(() => {
     let mounted = true;
@@ -21,8 +27,43 @@ export function MaintenanceBanner() {
 
   if (dismissed || !status) return null;
 
-  // Se o modo de manutenção estiver ativado, a tela cheia de manutenção é exibida.
+  // Se o modo de manutenção estiver ativado:
   if (status.isMaintenanceActive) {
+    // Para Administradores: Exibe apenas barra de aviso amarela no topo sem bloquear navegação no ERP
+    if (isAdmin) {
+      return (
+        <div className="relative bg-amber-600 px-4 py-2 text-white shadow-md z-[999]">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 text-xs font-medium">
+            <div className="flex items-center gap-2">
+              <Wrench className="h-4 w-4 shrink-0 text-amber-200 animate-pulse" />
+              <span>
+                <strong>Modo de Manutenção Ativo:</strong> O sistema está bloqueado para usuários comuns. Como Administrador, você possui acesso irrestrito para configurações e inspeções.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  await toggleMaintenanceModeAction(false);
+                  setStatus((prev) => (prev ? { ...prev, isMaintenanceActive: false } : null));
+                }}
+                className="rounded bg-white/20 px-2.5 py-1 text-xs font-bold hover:bg-white/30 transition"
+              >
+                Desativar Manutenção
+              </button>
+              <button
+                onClick={() => setDismissed(true)}
+                className="rounded p-1 hover:bg-white/20 transition-colors"
+                title="Fechar aviso"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Para usuários comuns: Exibe a tela de bloqueio cheia
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950/95 p-6 text-white backdrop-blur-md">
         <div className="max-w-md text-center">
@@ -35,7 +76,7 @@ export function MaintenanceBanner() {
           </p>
           <div className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-slate-900/80 p-3 text-xs text-amber-300 border border-amber-500/20">
             <Clock className="h-4 w-4" />
-            <span>Atualização autônoma de 3h em andamento. Volte em instantes.</span>
+            <span>Atualização em andamento. Volte em instantes.</span>
           </div>
         </div>
       </div>
