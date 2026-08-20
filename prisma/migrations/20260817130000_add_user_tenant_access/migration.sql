@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS "UserTenantAccess" (
-  "userId" UUID NOT NULL,
+  "userId" TEXT NOT NULL,
   "tenantId" UUID NOT NULL,
   "isDefault" BOOLEAN NOT NULL DEFAULT FALSE,
   "active" BOOLEAN NOT NULL DEFAULT TRUE,
