@@ -105,7 +105,7 @@ NODE
   esac
 fi
 
-for timer in hourly daily weekly audit; do
+for timer in hourly daily weekly audit restore-test alert; do
   systemctl is-enabled --quiet "nexus-erp-backup-$timer.timer" 2>/dev/null && \
     ok "timer de backup $timer habilitado" || fail "timer de backup $timer não habilitado"
 done

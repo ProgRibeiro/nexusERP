@@ -1,0 +1,11 @@
+[Unit]
+Description=Nexus ERP - testar restauração do backup semanalmente
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=nexus-erp-restore-test.service
+
+[Install]
+WantedBy=timers.target

@@ -135,6 +135,9 @@ for unit in "$SOURCE"/deploy/nexus-erp-backup-*.service "$SOURCE"/deploy/nexus-e
 done
 chmod 0755 \
   "$SOURCE/deploy/run-backup.sh" \
+  "$SOURCE/deploy/run-backup-audit.sh" \
+  "$SOURCE/deploy/run-backup-alert.sh" \
+  "$SOURCE/deploy/run-restore-test.sh" \
   "$SOURCE/deploy/update-linux.sh" \
   "$SOURCE/deploy/update-status.sh" \
   "$SOURCE/deploy/rollback-linux.sh" \
@@ -196,7 +199,13 @@ set +a
 runuser -u nexus --preserve-environment -- env ADMIN_EMAIL="$ADMIN_EMAIL" ADMIN_NAME="$ADMIN_NAME" ADMIN_PASSWORD="$ADMIN_PASSWORD" /usr/bin/npm --prefix "$ROOT/slots/$ACTIVE_SLOT" run admin:bootstrap
 
 echo "[8/8] Ativando backups e verificando a instalação..."
-systemctl enable --now nexus-erp-backup-hourly.timer nexus-erp-backup-daily.timer nexus-erp-backup-weekly.timer nexus-erp-backup-audit.timer
+systemctl enable --now \
+  nexus-erp-backup-hourly.timer \
+  nexus-erp-backup-daily.timer \
+  nexus-erp-backup-weekly.timer \
+  nexus-erp-backup-audit.timer \
+  nexus-erp-restore-test.timer \
+  nexus-erp-backup-alert.timer
 if [[ "$AUTO_UPDATE" == "true" ]]; then
   systemctl enable --now nexus-erp-update.timer
   echo "Atualização automática habilitada: o Git será verificado a cada 5 minutos."

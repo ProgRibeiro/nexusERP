@@ -1,0 +1,11 @@
+[Unit]
+Description=Nexus ERP - dispara alertas de backup quando o serviço de auditoria sinaliza problema
+
+[Timer]
+OnCalendar=*-*-* *:15:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=nexus-erp-backup-alert.service
+
+[Install]
+WantedBy=timers.target

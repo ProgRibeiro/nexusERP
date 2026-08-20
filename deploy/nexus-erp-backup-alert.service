@@ -1,0 +1,12 @@
+[Unit]
+Description=Nexus ERP - envio de alerta por backup em warning/critical
+
+[Service]
+Type=oneshot
+User=nexus
+Group=nexus
+EnvironmentFile=/etc/nexus-erp.env
+ExecStart=/opt/nexus-erp/source/deploy/run-backup-alert.sh %i
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

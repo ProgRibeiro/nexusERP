@@ -102,6 +102,8 @@ erros de arredondamento de ponto flutuante.
 ```bash
 npm run backup                 # backup manual verificado
 npm run backup:audit           # auditoria de integridade dos backups recentes
+npm run backup:alert           # envia alerta para webhook/email configurado
+npm run backup:test-restore    # restaura o último backup em um banco temporário para validar DR
 npm run backup:install-local   # instala backup automático de hora em hora no macOS
 ```
 
@@ -111,6 +113,16 @@ verificados com `npm run backup:restore -- backups/ARQUIVO.dump`.
 O endpoint `/api/health` também expõe a saúde da proteção de dados
 (`backup.status`: `ok`, `warning` ou `critical`) com base no SLA definido em
 `BACKUP_MAX_AGE_HOURS`.
+
+Para alertas de produção, configure qualquer combinação de
+`ALERT_DISCORD_WEBHOOK_URL`, `ALERT_SLACK_WEBHOOK_URL`,
+`ALERT_TELEGRAM_BOT_TOKEN` + `ALERT_TELEGRAM_CHAT_ID` ou `ALERT_EMAIL_TO`.
+Se o backup ficar em `warning` ou `critical`, o sistema envia a notificação
+automaticamente após a auditoria.
+
+Para testes reais de recuperação, configure `RESTORE_TEST_DATABASE_URL` e agende o
+serviço `nexus-erp-restore-test.timer`; ele restaura o backup mais recente em um
+banco temporário e apaga esse banco ao terminar.
 
 ## Envio de propostas pelo Gmail
 
