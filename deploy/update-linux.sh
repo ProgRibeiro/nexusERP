@@ -167,7 +167,7 @@ const files = [
   metadata.fileName.replace(/\.dump$/, ".json"),
   "latest.json",
   metadata.uploadsFileName,
-  metadata.uploadsFileName ? `${metadata.uploadsFileName}.sha256` : null,
+  metadata.uploadsFileName && metadata.uploadsSha256 ? `${metadata.uploadsFileName}.sha256` : null,
 ].filter(Boolean);
 for (const file of files) {
   if (path.basename(file) !== file) throw new Error("Nome de backup externo inválido.");
@@ -216,7 +216,7 @@ NODE
   fi
 
   CRITICAL_MANIFEST="$SAFETY_ROOT/${NEW_COMMIT:0:12}-before.json"
-  node "$SOURCE/scripts/critical-data-manifest.mjs" capture "$CRITICAL_MANIFEST"
+  node "$SLOTS/$ACTIVE/scripts/critical-data-manifest.mjs" capture "$CRITICAL_MANIFEST"
   if [[ -d "$SLOTS/$ACTIVE/.next/static" ]]; then
     rsync -a "$SLOTS/$ACTIVE/.next/static/" "$STATIC_ROOT/"
   fi
