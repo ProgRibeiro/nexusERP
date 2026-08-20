@@ -79,7 +79,10 @@ export async function requireAuth(): Promise<SessionPayload> {
 export async function requirePermission(code: string): Promise<SessionPayload> {
   const session = await requireAuth();
   const isAdmin =
-    session.roleName === "Administrador" || session.permissions.includes("admin.all");
+    session.roleName === "Desenvolvedor" ||
+    session.roleName === "Administrador" ||
+    session.permissions.includes("admin.all") ||
+    session.permissions.includes("dev.all");
 
   if (!isAdmin && !session.permissions.includes(code)) {
     logger.warn("permission_denied", { userId: session.userId, email: session.email, code });
@@ -92,13 +95,16 @@ export async function requirePermission(code: string): Promise<SessionPayload> {
 }
 
 /**
- * Autoriza fluxos compartilhados por mais de um módulo. Administradores e
+ * Autoriza fluxos compartilhados por mais de um módulo. Administradores, Desenvolvedores e
  * usuários com qualquer uma das permissões informadas podem prosseguir.
  */
 export async function requireAnyPermission(codes: string[]): Promise<SessionPayload> {
   const session = await requireAuth();
   const isAdmin =
-    session.roleName === "Administrador" || session.permissions.includes("admin.all");
+    session.roleName === "Desenvolvedor" ||
+    session.roleName === "Administrador" ||
+    session.permissions.includes("admin.all") ||
+    session.permissions.includes("dev.all");
   if (!isAdmin && !codes.some((code) => session.permissions.includes(code))) {
     logger.warn("permission_denied", { userId: session.userId, email: session.email, codes });
     throw new AuthError(

@@ -646,19 +646,23 @@ export default function ConfiguracoesTab() {
           >
             <ShieldCheck size={13} className="inline mr-1" /> Segurança & 2FA
           </button>
-          <button
-            onClick={() => setActiveSubTab("updates")}
-            className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
-              activeSubTab === "updates" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
-            }`}
-          >
-            <RefreshCw size={13} className="inline mr-1" /> Auto-Update 3h & Manutenção
-          </button>
+          {(currentUser?.roleName === "Desenvolvedor" || hasPermission("dev.all")) && (
+            <button
+              onClick={() => setActiveSubTab("updates")}
+              className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
+                activeSubTab === "updates" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
+              }`}
+            >
+              <RefreshCw size={13} className="inline mr-1 text-purple-400" /> Ferramentas do Desenvolvedor
+            </button>
+          )}
         </div>
 
         <div className="p-6">
-          {/* Subaba Auto-Update & Manutenção */}
-          {activeSubTab === "updates" && <AutoUpdateMaintenancePanel />}
+          {/* Subaba Auto-Update & Manutenção (Apenas Desenvolvedor) */}
+          {activeSubTab === "updates" && (currentUser?.roleName === "Desenvolvedor" || hasPermission("dev.all")) && (
+            <AutoUpdateMaintenancePanel />
+          )}
 
           {/* 1. General System Parameters */}
           {activeSubTab === "system" && (

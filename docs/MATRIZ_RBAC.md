@@ -15,22 +15,24 @@ Esta matriz define a política de **Role-Based Access Control (RBAC)** do Nexus 
 
 ## 2. Matriz de Níveis de Acesso por Perfil
 
-| Módulo / Funcionalidade | Administrador | Gestor | Comercial | Operacional | Técnico | Faturamento | Financeiro | Cliente (Portal) |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Dashboard e Métricas** | R / A | R | R | R | R | R | R | — |
-| **CRM e Funil de Vendas** | R / W / A | R / W | R / W | — | — | — | — | — |
-| **Cadastro de Clientes** | R / W / A | R / W | R / W | R | R | R | R | — |
-| **Orçamentos & Margem** | R / W / A | R / W / A | R / W | R | — | R | R | R (Somente Próprios) |
-| **Ordem de Serviço & Agenda** | R / W / A | R / W / A | R | R / W | R / E | R | R | R (Somente Próprias) |
-| **Execução Móvel & Fotos** | R / W / A | R / A | — | R / W | R / E | R | — | R (Relatório Concluído) |
-| **Contratos Recorrentes PMOC** | R / W / A | R / W / A | R / W | R / W | R | R | R | R (Somente Próprios) |
-| **Faturamento Fiscal (NFS-e)** | R / W / A | R / A | — | R | — | R / W | R | — |
-| **Financeiro (Pagar/Receber)** | R / W / A | R / A | — | — | — | R | R / W | — |
-| **DRE & Conciliação Bancária** | R / W / A | R / A | — | — | — | — | R / W | — |
-| **Almoxarifado & Estoque** | R / W / A | R / W | R | R / W | R / E | — | R | — |
-| **Gestão de Prestadores** | R / W / A | R / W / A | — | R / W | — | R | R / W | — |
-| **Fila de Erros Reportados** | R / W / A | R / W | — | — | — | — | — | — |
-| **Configurações & Flags** | R / W / A | — | — | — | — | — | — | — |
+| Módulo / Funcionalidade | Desenvolvedor (SuperAdmin) | Administrador (Cliente ERP) | Gestor | Comercial | Operacional | Técnico | Faturamento | Financeiro | Cliente (Portal) |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Ferramentas do Desenvolvedor & Logs** | R / W / A | — | — | — | — | — | — | — | — |
+| **Purge / Reset e Snapshots** | R / W / A | — | — | — | — | — | — | — | — |
+| **Dashboard e Métricas** | R / A | R / A | R | R | R | R | R | R | — |
+| **CRM e Funil de Vendas** | R / W / A | R / W / A | R / W | R / W | — | — | — | — | — |
+| **Cadastro de Clientes** | R / W / A | R / W / A | R / W | R / W | R | R | R | R | — |
+| **Orçamentos & Margem** | R / W / A | R / W / A | R / W / A | R / W | R | — | R | R | R (Somente Próprios) |
+| **Ordem de Serviço & Agenda** | R / W / A | R / W / A | R / W / A | R | R / W | R / E | R | R | R (Somente Próprias) |
+| **Execução Móvel & Fotos** | R / W / A | R / W / A | R / A | — | R / W | R / E | R | — | R (Relatório Concluído) |
+| **Contratos Recorrentes PMOC** | R / W / A | R / W / A | R / W / A | R / W | R / W | R | R | R | R (Somente Próprios) |
+| **Faturamento Fiscal (NFS-e)** | R / W / A | R / W / A | R / A | — | R | — | R / W | R | — |
+| **Financeiro (Pagar/Receber)** | R / W / A | R / W / A | R / A | — | — | — | R | R / W | — |
+| **DRE & Conciliação Bancária** | R / W / A | R / W / A | R / A | — | — | — | — | R / W | — |
+| **Almoxarifado & Estoque** | R / W / A | R / W / A | R / W | R | R / W | R / E | — | R | — |
+| **Gestão de Prestadores** | R / W / A | R / W / A | R / W / A | — | R / W | — | R | R / W | — |
+| **Fila de Erros Reportados** | R / W / A | R / W / A | R / W | — | — | — | — | — | — |
+| **Parâmetros da Empresa** | R / W / A | R / W / A | — | — | — | — | — | — | — |
 
 ---
 

@@ -302,7 +302,9 @@ export async function createUserAction(data: {
 
     // Permissões padrão baseadas no perfil
     let permissions = ["os.read", "clients.read"];
-    if (data.roleName === "Administrador") {
+    if (data.roleName === "Desenvolvedor" || data.roleName === "SuperAdmin") {
+      permissions = ["dev.all", "admin.all", "crm.manage", "quotes.manage", "os.manage", "finance.manage", "stock.manage", "system.reset"];
+    } else if (data.roleName === "Administrador") {
       permissions = ["admin.all", "crm.manage", "quotes.manage", "os.manage", "finance.manage", "stock.manage"];
     } else if (data.roleName === "Gestor Operacional" || data.roleName === "Gestor") {
       permissions = ["crm.manage", "quotes.manage", "os.manage", "stock.manage"];

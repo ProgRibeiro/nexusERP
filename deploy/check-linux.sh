@@ -78,6 +78,33 @@ else
   fail "health check da aplicação falhou"
 fi
 
+if [[ -n "$HEALTH" ]]; then
+  BACKUP_HEALTH="$(HEALTH_JSON="$HEALTH" node <<'NODE'
+const raw = process.env.HEALTH_JSON || "";
+try {
+  const payload = JSON.parse(raw);
+  process.stdout.write(String(payload.backup?.status || "unknown"));
+} catch {
+  process.stdout.write("invalid");
+}
+NODE
+)"
+  case "$BACKUP_HEALTH" in
+    ok)
+      ok "saúde de backup dentro do SLA"
+      ;;
+    warning)
+      ok "backup com alerta não crítico (verifique cópia externa)"
+      ;;
+    critical)
+      fail "backup em estado crítico (ausente, antigo ou inválido)"
+      ;;
+    *)
+      fail "não foi possível interpretar a saúde de backup no /api/health"
+      ;;
+  esac
+fi
+
 for timer in hourly daily weekly; do
   systemctl is-enabled --quiet "nexus-erp-backup-$timer.timer" 2>/dev/null && \
     ok "timer de backup $timer habilitado" || fail "timer de backup $timer não habilitado"

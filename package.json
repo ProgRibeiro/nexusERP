@@ -47,7 +47,8 @@
         "security:audit": "node scripts/security-audit.mjs",
         "test:integration": "tsx --env-file=.env src/tests/testAll.ts",
         "test:rls": "node scripts/test-tenant-rls.mjs",
-        "quality:gate": "npm run security:audit && npm run test:rls && npm run build"
+        "quality:gate": "npm run security:audit && npm run test:rls && npm run build",
+        "backup:audit": "tsx scripts/backup-audit.ts --max=3"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.1087.0",

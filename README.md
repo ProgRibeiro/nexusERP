@@ -101,11 +101,16 @@ erros de arredondamento de ponto flutuante.
 
 ```bash
 npm run backup                 # backup manual verificado
+npm run backup:audit           # auditoria de integridade dos backups recentes
 npm run backup:install-local   # instala backup automático de hora em hora no macOS
 ```
 
 Os arquivos ficam em `backups/`, possuem checksum SHA-256 e podem ser
 verificados com `npm run backup:restore -- backups/ARQUIVO.dump`.
+
+O endpoint `/api/health` também expõe a saúde da proteção de dados
+(`backup.status`: `ok`, `warning` ou `critical`) com base no SLA definido em
+`BACKUP_MAX_AGE_HOURS`.
 
 ## Envio de propostas pelo Gmail
 

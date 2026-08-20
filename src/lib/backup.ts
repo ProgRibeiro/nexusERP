@@ -21,6 +21,22 @@ export interface BackupMetadata {
   remoteUploaded: boolean;
 }
 
+export interface BackupVerificationResult {
+  fileName: string;
+  valid: boolean;
+  reason: string | null;
+  checkedAt: string;
+}
+
+export interface BackupReadinessStatus {
+  status: "ok" | "warning" | "critical";
+  checkedAt: string;
+  latestBackup: BackupMetadata | null;
+  latestBackupAgeHours: number | null;
+  maxAllowedAgeHours: number;
+  issues: string[];
+}
+
 const RETENTION_MS: Record<BackupType, number> = {
   hourly: 48 * 60 * 60 * 1000,
   daily: 30 * 24 * 60 * 60 * 1000,
@@ -30,11 +46,58 @@ const RETENTION_MS: Record<BackupType, number> = {
   "pre-restore": 30 * 24 * 60 * 60 * 1000,
 };
 
+function parsePositiveNumber(value: string | undefined, fallback: number) {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function backupDirectory() {
   if (process.env.BACKUP_DIR) {
     return path.resolve(/* turbopackIgnore: true */ process.env.BACKUP_DIR);
   }
   return path.join(process.cwd(), "backups");
+}
+
+function backupLockMaxAgeMinutes() {
+  return parsePositiveNumber(process.env.BACKUP_LOCK_MAX_MINUTES, 240);
+}
+
+function backupMaxAgeHours() {
+  return parsePositiveNumber(process.env.BACKUP_MAX_AGE_HOURS, 26);
+}
+
+function removeFileIfExists(filePath: string) {
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+}
+
+function acquireBackupLock(lockPath: string): number {
+  try {
+    const fd = fs.openSync(lockPath, "wx", 0o600);
+    const payload = JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() });
+    fs.writeFileSync(fd, `${payload}\n`, { encoding: "utf8" });
+    return fd;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+      throw error;
+    }
+    if (!fs.existsSync(lockPath)) {
+      return acquireBackupLock(lockPath);
+    }
+    const maxAgeMs = backupLockMaxAgeMinutes() * 60 * 1000;
+    const lockAgeMs = Date.now() - fs.statSync(lockPath).mtimeMs;
+    if (lockAgeMs > maxAgeMs) {
+      logger.warn("stale_backup_lock_removed", {
+        lockPath,
+        lockAgeMinutes: Math.round(lockAgeMs / 60_000),
+        maxAgeMinutes: backupLockMaxAgeMinutes(),
+      });
+      removeFileIfExists(lockPath);
+      return acquireBackupLock(lockPath);
+    }
+    const roundedMinutes = Math.max(1, Math.round(lockAgeMs / 60_000));
+    throw new Error(`Já existe um backup em andamento há ${roundedMinutes} minuto(s).`);
+  }
 }
 
 function resolveBinary(command: string): string {
@@ -153,16 +216,7 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
   const directory = backupDirectory();
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const lockPath = path.join(directory, ".backup.lock");
-  let lock: number | null = null;
-
-  try {
-    lock = fs.openSync(lockPath, "wx", 0o600);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-      throw new Error("Já existe um backup em andamento.");
-    }
-    throw error;
-  }
+  const lock = acquireBackupLock(lockPath);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const baseName = `nexus-${type}-${timestamp}`;
@@ -246,8 +300,8 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
     }
     throw error;
   } finally {
-    if (lock !== null) fs.closeSync(lock);
-    if (fs.existsSync(lockPath)) fs.unlinkSync(lockPath);
+    fs.closeSync(lock);
+    removeFileIfExists(lockPath);
   }
 }
 
@@ -268,11 +322,101 @@ export function listBackups(limit = 20): BackupMetadata[] {
 }
 
 export function verifyBackup(filePath: string) {
+  return verifyBackupDetailed(filePath).valid;
+}
+
+export function verifyBackupDetailed(filePath: string): BackupVerificationResult {
+  const checkedAt = new Date().toISOString();
   const absolute = path.resolve(filePath);
   const checksumPath = `${absolute}.sha256`;
-  if (!fs.existsSync(absolute) || !fs.existsSync(checksumPath)) return false;
-  const expected = fs.readFileSync(checksumPath, "utf8").trim().split(/\s+/)[0];
-  return expected.length === 64 && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sha256(absolute)));
+  const fileName = path.basename(absolute);
+
+  if (!fs.existsSync(absolute)) {
+    return { fileName, valid: false, reason: "Arquivo de backup não encontrado.", checkedAt };
+  }
+  if (!fs.existsSync(checksumPath)) {
+    return { fileName, valid: false, reason: "Arquivo de checksum (.sha256) não encontrado.", checkedAt };
+  }
+  const expected = fs.readFileSync(checksumPath, "utf8").trim().split(/\s+/)[0]?.toLowerCase() || "";
+  if (!/^[a-f0-9]{64}$/.test(expected)) {
+    return { fileName, valid: false, reason: "Checksum esperado inválido no arquivo .sha256.", checkedAt };
+  }
+
+  const current = sha256(absolute);
+  const valid = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(current));
+  return {
+    fileName,
+    valid,
+    reason: valid ? null : "Checksum divergente: arquivo pode estar corrompido.",
+    checkedAt,
+  };
+}
+
+export function verifyRecentBackups(limit = 3): BackupVerificationResult[] {
+  const checkedLimit = Math.max(1, Math.min(20, Math.floor(limit)));
+  const directory = backupDirectory();
+  return listBackups(checkedLimit).map((backup) => {
+    const result = verifyBackupDetailed(path.join(directory, backup.fileName));
+    if (!result.valid) return result;
+    if (backup.uploadsFileName && !fs.existsSync(path.join(directory, backup.uploadsFileName))) {
+      return {
+        fileName: backup.fileName,
+        valid: false,
+        reason: `Pacote de uploads ausente: ${backup.uploadsFileName}.`,
+        checkedAt: new Date().toISOString(),
+      };
+    }
+    return result;
+  });
+}
+
+export function getBackupReadinessStatus(options?: { maxAgeHours?: number; verifyLatestChecksum?: boolean }): BackupReadinessStatus {
+  const checkedAt = new Date().toISOString();
+  const maxAllowedAgeHours = options?.maxAgeHours && options.maxAgeHours > 0
+    ? options.maxAgeHours
+    : backupMaxAgeHours();
+  const latestBackup = listBackups(1)[0] ?? null;
+  const issues: string[] = [];
+  let latestBackupAgeHours: number | null = null;
+  let hasCriticalIssue = false;
+
+  if (!latestBackup) {
+    issues.push("Nenhum backup disponível.");
+    hasCriticalIssue = true;
+  } else {
+    latestBackupAgeHours = (Date.now() - new Date(latestBackup.createdAt).getTime()) / (60 * 60 * 1000);
+    if (latestBackupAgeHours > maxAllowedAgeHours) {
+      hasCriticalIssue = true;
+      issues.push(
+        `Último backup está antigo (${latestBackupAgeHours.toFixed(1)}h, limite ${maxAllowedAgeHours}h).`
+      );
+    }
+    if (!latestBackup.remoteUploaded) {
+      issues.push("Último backup sem cópia externa (BACKUP_BUCKET não confirmado).");
+    }
+    if (options?.verifyLatestChecksum) {
+      const verification = verifyBackupDetailed(path.join(backupDirectory(), latestBackup.fileName));
+      if (!verification.valid) {
+        hasCriticalIssue = true;
+        issues.push(verification.reason || "Falha de integridade no último backup.");
+      }
+    }
+  }
+
+  const status: BackupReadinessStatus["status"] = hasCriticalIssue
+    ? "critical"
+    : issues.length > 0
+      ? "warning"
+      : "ok";
+
+  return {
+    status,
+    checkedAt,
+    latestBackup,
+    latestBackupAgeHours: latestBackupAgeHours === null ? null : Number(latestBackupAgeHours.toFixed(2)),
+    maxAllowedAgeHours,
+    issues,
+  };
 }
 
 export async function restoreBackup(filePath: string) {
