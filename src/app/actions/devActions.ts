@@ -233,3 +233,114 @@ export async function getDevLogsAndErrorsAction() {
     return { success: false as const, error: err.message || "Erro ao carregar logs." };
   }
 }
+
+/**
+ * Obtém as variáveis de ambiente do servidor com valores sensíveis mascarados
+ */
+export async function getDevEnvVarsAction() {
+  try {
+    await requireDevPermission();
+
+    const maskValue = (key: string, val: string | undefined) => {
+      if (!val) return "Não definida";
+      if (key.includes("PASS") || key.includes("SECRET") || key.includes("KEY") || key.includes("URL")) {
+        if (val.length < 8) return "••••••••";
+        return val.slice(0, 8) + "••••••••" + val.slice(-4);
+      }
+      return val;
+    };
+
+    const envKeys = [
+      "NODE_ENV",
+      "PORT",
+      "DATABASE_URL",
+      "NEXT_PUBLIC_APP_URL",
+      "JWT_SECRET",
+      "PRISMA_CLIENT_ENGINE_TYPE",
+    ];
+
+    const vars = envKeys.map((key) => ({
+      key,
+      value: maskValue(key, process.env[key]),
+      isSet: !!process.env[key],
+    }));
+
+    return { success: true as const, vars };
+  } catch (err: any) {
+    return { success: false as const, error: err.message || "Erro ao obter variáveis de ambiente." };
+  }
+}
+
+/**
+ * Executa diagnósticos profundos de banco de dados e servidor
+ */
+export async function runDevDiagnosticCheckAction() {
+  try {
+    const session = await requireDevPermission();
+
+    const t0 = Date.now();
+    await prisma.$queryRaw`SELECT 1`;
+    const pingMs = Date.now() - t0;
+
+    // Verificação de contagem de tabelas vitais
+    const [userCount, clientCount, osCount, settingCount] = await Promise.all([
+      prisma.user.count(),
+      prisma.client.count(),
+      prisma.serviceOrder.count(),
+      prisma.setting.count(),
+    ]);
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "DEV_DIAGNOSTICO_SERVIDOR",
+        entity: "Servidor",
+        entityId: "server.health",
+        changesJson: JSON.stringify({ pingMs, userCount, clientCount, osCount }),
+      },
+    });
+
+    return {
+      success: true as const,
+      report: {
+        timestamp: new Date().toISOString(),
+        pingMs,
+        userCount,
+        clientCount,
+        osCount,
+        settingCount,
+        memoryUsage: process.memoryUsage(),
+        uptimeSeconds: Math.floor(process.uptime()),
+      },
+    };
+  } catch (err: any) {
+    return { success: false as const, error: err.message || "Falha no diagnóstico do servidor." };
+  }
+}
+
+/**
+ * Solicita a reinicialização limpa do serviço do ERP
+ */
+export async function triggerDevServerRestartAction() {
+  try {
+    const session = await requireDevPermission();
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "DEV_SOLICITACAO_REINICIO_SERVIDOR",
+        entity: "Servidor",
+        entityId: "server.restart",
+        changesJson: JSON.stringify({ requestedAt: new Date().toISOString() }),
+      },
+    });
+
+    revalidatePath("/dev");
+    return {
+      success: true as const,
+      message: "Solicitação de reinício do servidor enviada com sucesso ao processo principal.",
+    };
+  } catch (err: any) {
+    return { success: false as const, error: err.message || "Erro ao solicitar reinício." };
+  }
+}

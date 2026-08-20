@@ -8,6 +8,9 @@ import {
   saveDevLicensingAction,
   triggerDevBackupAction,
   getDevLogsAndErrorsAction,
+  getDevEnvVarsAction,
+  runDevDiagnosticCheckAction,
+  triggerDevServerRestartAction,
 } from "@/app/actions/devActions";
 import {
   Terminal,
@@ -28,16 +31,19 @@ import {
   LogOut,
   Sliders,
   Cpu,
+  Server,
 } from "lucide-react";
 
 export default function DevConsolePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"health" | "tenants" | "backups" | "logs">("health");
+  const [activeTab, setActiveTab] = useState<"health" | "tenants" | "backups" | "logs" | "server">("health");
 
   const [healthData, setHealthData] = useState<any>(null);
   const [tenants, setTenants] = useState<any[]>([]);
   const [logsData, setLogsData] = useState<{ auditLogs: any[]; errorReports: any[] }>({ auditLogs: [], errorReports: [] });
+  const [envVars, setEnvVars] = useState<any[]>([]);
+  const [diagnosticReport, setDiagnosticReport] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -54,10 +60,11 @@ export default function DevConsolePage() {
   const loadAllDevData = async () => {
     setLoading(true);
     try {
-      const [healthRes, licensingRes, logsRes] = await Promise.all([
+      const [healthRes, licensingRes, logsRes, envRes] = await Promise.all([
         getDevSystemHealthAction(),
         getDevLicensingAction(),
         getDevLogsAndErrorsAction(),
+        getDevEnvVarsAction(),
       ]);
 
       if (!healthRes.success) {
@@ -68,6 +75,7 @@ export default function DevConsolePage() {
       setHealthData(healthRes.health);
       if (licensingRes.success) setTenants(licensingRes.tenants);
       if (logsRes.success) setLogsData({ auditLogs: logsRes.auditLogs, errorReports: logsRes.errorReports });
+      if (envRes.success) setEnvVars(envRes.vars);
     } catch {
       router.push("/dev/login");
     } finally {
@@ -78,6 +86,35 @@ export default function DevConsolePage() {
   useEffect(() => {
     void loadAllDevData();
   }, []);
+
+  const handleRunDiagnostics = async () => {
+    setActionLoading(true);
+    try {
+      const res = await runDevDiagnosticCheckAction();
+      if (res.success) {
+        setDiagnosticReport(res.report);
+        setMessage(`Diagnóstico executado com sucesso: Ping DB em ${res.report.pingMs}ms.`);
+      } else {
+        setMessage(`Erro ao executar diagnóstico: ${res.error}`);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRestartServer = async () => {
+    setActionLoading(true);
+    try {
+      const res = await triggerDevServerRestartAction();
+      if (res.success) {
+        setMessage(res.message);
+      } else {
+        setMessage(`Erro ao solicitar reinício: ${res.error}`);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleTriggerBackup = async () => {
     setActionLoading(true);
@@ -210,6 +247,12 @@ export default function DevConsolePage() {
             className={`px-4 py-2.5 font-bold text-xs border-b-2 rounded-t-xl transition-all flex items-center gap-2 ${activeTab === "logs" ? "border-amber-400 text-amber-400 bg-amber-400/10" : "border-transparent text-slate-400 hover:text-slate-200"}`}
           >
             <FileText size={15} /> Auditoria & Erros
+          </button>
+          <button
+            onClick={() => setActiveTab("server")}
+            className={`px-4 py-2.5 font-bold text-xs border-b-2 rounded-t-xl transition-all flex items-center gap-2 ${activeTab === "server" ? "border-amber-400 text-amber-400 bg-amber-400/10" : "border-transparent text-slate-400 hover:text-slate-200"}`}
+          >
+            <Server size={15} /> Controle do Servidor
           </button>
         </div>
 
@@ -372,6 +415,71 @@ export default function DevConsolePage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 5: Controle do Servidor */}
+        {activeTab === "server" && (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Server size={18} className="text-amber-400" /> Ações do Servidor & Processos
+                  </h3>
+                  <p className="text-xs text-slate-400">Gerenciamento de reinicializações e diagnósticos profundos.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleRunDiagnostics}
+                    disabled={actionLoading}
+                    className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <Activity size={14} /> Rodar Diagnóstico
+                  </button>
+                  <button
+                    onClick={handleRestartServer}
+                    disabled={actionLoading}
+                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw size={14} /> Solicitar Reinício
+                  </button>
+                </div>
+              </div>
+
+              {diagnosticReport && (
+                <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-950/20 text-xs space-y-2 font-mono">
+                  <span className="text-purple-300 font-bold block">Relatório do Último Diagnóstico ({diagnosticReport.timestamp}):</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-300">
+                    <p>Ping DB: <strong className="text-emerald-400">{diagnosticReport.pingMs}ms</strong></p>
+                    <p>Uptime: <strong className="text-amber-300">{diagnosticReport.uptimeSeconds}s</strong></p>
+                    <p>Usuários: <strong>{diagnosticReport.userCount}</strong></p>
+                    <p>OS Totais: <strong>{diagnosticReport.osCount}</strong></p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Variáveis de Ambiente (.env) */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-4">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Sliders size={18} className="text-blue-400" /> Variáveis de Ambiente (.env do Servidor)
+              </h3>
+              <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden font-mono text-xs">
+                <div className="p-3 border-b border-slate-800 bg-slate-900 text-slate-400 text-[10px] font-bold uppercase tracking-wider flex justify-between">
+                  <span>Chave da Variável</span>
+                  <span>Valor Mascarado</span>
+                </div>
+                <div className="divide-y divide-slate-800/60">
+                  {envVars.map((env) => (
+                    <div key={env.key} className="p-3 flex items-center justify-between">
+                      <span className="text-amber-400 font-bold">{env.key}</span>
+                      <span className="text-slate-300 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">{env.value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
