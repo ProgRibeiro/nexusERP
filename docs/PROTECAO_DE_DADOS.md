@@ -40,6 +40,20 @@ BACKUP_ACCESS_KEY_ID=...
 BACKUP_SECRET_ACCESS_KEY=...
 ```
 
+Como alternativa gratuita ao S3/R2, o servidor aceita um remote criptografado
+do rclone (Google Drive, OneDrive ou outro provedor):
+
+```text
+REQUIRE_OFFSITE_BACKUP=true
+BACKUP_RCLONE_REMOTE=empresa-backup-criptografado:nexus-erp
+RCLONE_CONFIG=/etc/nexus-erp-rclone.conf
+```
+
+O arquivo do rclone deve pertencer a `root:nexus`, ter modo `0640` e nunca ser
+incluído no Git. O deploy executa `rclone copy` e `rclone check` antes da troca
+blue/green. Backups criados pela aplicação também confirmam arquivo e tamanho
+remotos antes de registrar `remoteUploaded=true`.
+
 O robô pode continuar verificando o Git a cada minuto. Se a proteção não
 estiver pronta, ele mantém a versão estável e registra a atualização como
 `blocked`, sem interromper o ERP.

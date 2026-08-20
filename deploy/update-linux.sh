@@ -149,6 +149,19 @@ if [[ -n "$OLD_COMMIT" ]]; then
   cd "$SLOTS/$ACTIVE"
   runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install tsx scripts/backup-db.ts --type=pre-update
 
+  RCLONE_GATE=false
+  if [[ -n "${BACKUP_RCLONE_REMOTE:-}" ]]; then
+    command -v rclone >/dev/null 2>&1 || {
+      write_update_status "blocked" "rclone configurado, mas o executável não está instalado."
+      echo "Atualização bloqueada: rclone não está instalado." >&2
+      exit 1
+    }
+    echo "Confirmando a terceira camada criptografada via rclone..."
+    runuser -u nexus --preserve-environment -- rclone copy "$SHARED/backups" "$BACKUP_RCLONE_REMOTE"
+    runuser -u nexus --preserve-environment -- rclone check "$SHARED/backups" "$BACKUP_RCLONE_REMOTE" --one-way --size-only
+    RCLONE_GATE=true
+  fi
+
   BACKUP_GATE_RESULT="$(BACKUP_DIR="$SHARED/backups" node <<'NODE'
 const fs = require("fs");
 const path = require("path");
@@ -171,7 +184,7 @@ NODE
     echo "Atualização bloqueada: backup local íntegro não confirmado: $BACKUP_GATE_RESULT" >&2
     exit 1
   fi
-  if [[ "$REQUIRE_OFFSITE_BACKUP" == "true" ]] && ! grep -q '"remoteUploaded":true' <<<"$BACKUP_GATE_RESULT"; then
+  if [[ "$REQUIRE_OFFSITE_BACKUP" == "true" && "$RCLONE_GATE" != "true" ]] && ! grep -q '"remoteUploaded":true' <<<"$BACKUP_GATE_RESULT"; then
     write_update_status "blocked" "Terceira camada externa não confirmada; a versão estável foi mantida."
     echo "Atualização bloqueada: configure BACKUP_BUCKET e credenciais; cópia externa não confirmada." >&2
     exit 1

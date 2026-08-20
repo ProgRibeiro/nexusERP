@@ -176,23 +176,43 @@ function remoteClient() {
   };
 }
 
+function rcloneRemote() {
+  const remote = process.env.BACKUP_RCLONE_REMOTE?.trim().replace(/\/+$/, "");
+  if (!remote) return null;
+  if (!/^[a-zA-Z0-9._-]+:.+/.test(remote)) {
+    throw new Error("BACKUP_RCLONE_REMOTE inválido. Use remote:caminho.");
+  }
+  return remote;
+}
+
 async function uploadFile(filePath: string, contentType: string) {
   const remote = remoteClient();
-  if (!remote) return false;
-  const key = `${remote.prefix}/${path.basename(filePath)}`;
   const expectedSize = fs.statSync(filePath).size;
-  await remote.client.send(new PutObjectCommand({
-    Bucket: remote.bucket,
-    Key: key,
-    Body: fs.createReadStream(filePath),
-    ContentType: contentType,
-  }));
-  const uploaded = await remote.client.send(new HeadObjectCommand({
-    Bucket: remote.bucket,
-    Key: key,
-  }));
-  if (uploaded.ContentLength !== expectedSize) {
-    throw new Error(`Cópia externa incompleta para ${path.basename(filePath)}.`);
+  if (remote) {
+    const key = `${remote.prefix}/${path.basename(filePath)}`;
+    await remote.client.send(new PutObjectCommand({
+      Bucket: remote.bucket,
+      Key: key,
+      Body: fs.createReadStream(filePath),
+      ContentType: contentType,
+    }));
+    const uploaded = await remote.client.send(new HeadObjectCommand({
+      Bucket: remote.bucket,
+      Key: key,
+    }));
+    if (uploaded.ContentLength !== expectedSize) {
+      throw new Error(`Cópia externa incompleta para ${path.basename(filePath)}.`);
+    }
+    return true;
+  }
+
+  const rclone = rcloneRemote();
+  if (!rclone) return false;
+  const remoteFile = `${rclone}/${path.basename(filePath)}`;
+  await run("rclone", ["copyto", filePath, remoteFile]);
+  const remoteSize = JSON.parse(await run("rclone", ["size", remoteFile, "--json"])) as { bytes?: number; count?: number };
+  if (remoteSize.count !== 1 || remoteSize.bytes !== expectedSize) {
+    throw new Error(`Cópia externa rclone incompleta para ${path.basename(filePath)}.`);
   }
   return true;
 }
