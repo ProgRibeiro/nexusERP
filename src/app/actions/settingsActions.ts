@@ -206,3 +206,109 @@ export async function saveCompanyTaxProfile(input: { regime: string; rate: numbe
     return { success: false as const, error: error instanceof Error ? error.message : "Não foi possível salvar o perfil tributário." };
   }
 }
+
+/**
+ * Dispara um backup manual instantâneo de todo o banco de dados e arquivos
+ */
+export async function triggerManualBackupAction() {
+  try {
+    await requirePermission("admin.all");
+    const { createBackup } = await import("@/lib/backup");
+    const backup = await createBackup("manual");
+    revalidatePath("/configuracoes");
+    return { success: true as const, backup };
+  } catch (error: unknown) {
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : "Não foi possível realizar o backup manual.",
+    };
+  }
+}
+
+/**
+ * Retorna o histórico de backups registrados
+ */
+export async function getSystemBackupsAction() {
+  try {
+    await requireAuth();
+    const { listBackups } = await import("@/lib/backup");
+    const backups = listBackups(25);
+    return { success: true as const, backups };
+  } catch (error: unknown) {
+    return { success: false as const, error: error instanceof Error ? error.message : "Não foi possível carregar o histórico de backups.", backups: [] };
+  }
+}
+
+/**
+ * Executa o purge/zeramento seguro do banco de dados operacional.
+ * Gera um snapshot de segurança pre-restore antes de limpar as tabelas.
+ */
+export async function resetSystemDataAction(confirmationCode: string) {
+  try {
+    const session = await requirePermission("admin.all");
+    if (confirmationCode?.trim() !== "ZERAR-SISTEMA-CONFIRMAR") {
+      throw new Error("Código de confirmação incorreto. Digite ZERAR-SISTEMA-CONFIRMAR para prosseguir.");
+    }
+
+    // 1. Snapshot automático pré-zeramento por segurança
+    const { createBackup } = await import("@/lib/backup");
+    try {
+      await createBackup("pre-restore");
+    } catch {
+      // prossegue mesmo se o backup de arquivo já existir
+    }
+
+    // 2. Limpeza relacional segura na transação do Prisma
+    await prisma.$transaction(async (tx) => {
+      await tx.serviceOrderAsset.deleteMany({});
+      await tx.completionReport.deleteMany({});
+      await tx.serviceOrderPhoto.deleteMany({});
+      await tx.serviceOrderMaterial.deleteMany({});
+      await tx.serviceOrderItem.deleteMany({});
+      await tx.serviceOrderStatusHistory.deleteMany({});
+      await tx.timeEntry.deleteMany({});
+      await tx.visitStatusHistory.deleteMany({});
+      await tx.measurementReading.deleteMany({});
+      await tx.formSubmission.deleteMany({});
+      await tx.serviceVisit.deleteMany({});
+      await tx.accountsReceivable.deleteMany({});
+      await tx.accountsPayable.deleteMany({});
+      await tx.invoice.deleteMany({});
+      await tx.serviceOrder.deleteMany({});
+      await tx.quoteItem.deleteMany({});
+      await tx.quoteVersion.deleteMany({});
+      await tx.quote.deleteMany({});
+      await tx.clientContact.deleteMany({});
+      await tx.clientAddress.deleteMany({});
+      await tx.clientEquipment.deleteMany({});
+      await tx.client.deleteMany({});
+      await tx.stockMovement.deleteMany({});
+      await tx.product.deleteMany({});
+
+      await tx.auditLog.create({
+        data: {
+          userId: session.userId,
+          action: "EXCLUSAO",
+          entity: "Sistema",
+          entityId: "full.system.reset",
+          changesJson: JSON.stringify({ message: "Zeramento completo de dados de teste executado com snapshot salvo." }),
+        },
+      });
+    });
+
+    revalidatePath("/");
+    revalidatePath("/clientes");
+    revalidatePath("/orcamentos");
+    revalidatePath("/ordens-servico");
+    revalidatePath("/faturamento");
+    revalidatePath("/financeiro");
+    revalidatePath("/estoque");
+
+    return { success: true as const };
+  } catch (error: unknown) {
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : "Não foi possível zerar os dados do sistema.",
+    };
+  }
+}

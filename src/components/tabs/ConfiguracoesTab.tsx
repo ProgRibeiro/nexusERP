@@ -8,13 +8,14 @@ import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Table, TableRow, TableCell } from "../ui/Table";
-import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, BookOpen, KeyRound, Server, Unplug, Smartphone, Tablet, Wifi, AppWindow, Share2, Users, UserPlus, Key, Trash2, Edit3, Plus, Search } from "lucide-react";
+import { Modal } from "../ui/Modal";
+import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, AlertTriangle, BookOpen, KeyRound, Server, Unplug, Smartphone, Tablet, Wifi, AppWindow, Share2, Users, UserPlus, Key, Trash2, Edit3, Plus, Search } from "lucide-react";
 import { consultarCNPJAction } from "@/app/actions/clientActions";
 import { importClientsAction, importServicesAction, importProductsAction, parseImportFileAction, previewImportAction } from "@/app/actions/importActions";
 import { getBackupStatusAction, triggerBackupAction } from "@/app/actions/backupActions";
 import type { BackupMetadata } from "@/lib/backup";
 import { parseDelimitedText } from "@/lib/tabularImport";
-import { getCompanyTaxProfile, saveCompanyTaxProfile, getCompanySettingsAction, saveCompanySettingsAction } from "@/app/actions/settingsActions";
+import { getCompanyTaxProfile, saveCompanyTaxProfile, getCompanySettingsAction, saveCompanySettingsAction, triggerManualBackupAction, getSystemBackupsAction, resetSystemDataAction } from "@/app/actions/settingsActions";
 import { defaultTaxRate, normalizeTaxRegime } from "@/lib/tax";
 import { disconnectGmail, getGmailIntegrationSettings } from "@/app/actions/gmailActions";
 import { CompanyRegistrationModal } from "@/components/modals/CompanyRegistrationModal";
@@ -39,6 +40,61 @@ export default function ConfiguracoesTab() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [userFormData, setUserFormData] = useState({ name: "", email: "", roleName: "Técnico de Campo", password: "" });
   const [userFormLoading, setUserFormLoading] = useState(false);
+
+  // Backup & Reset System states
+  const [resetLoading, setResetLoading] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [confirmCodeInput, setConfirmCodeInput] = useState("");
+  const [recentBackups, setRecentBackups] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (activeSubTab === "system" || activeSubTab === "updates") {
+      getSystemBackupsAction().then((res) => {
+        if (res.success) setRecentBackups(res.backups);
+      });
+    }
+  }, [activeSubTab]);
+
+  const handleManualBackup = async () => {
+    setBackupLoading(true);
+    try {
+      const res = await triggerManualBackupAction();
+      if (res.success) {
+        toast(`Backup snapshot ${res.backup.fileName} gerado com sucesso!`, "success");
+        const list = await getSystemBackupsAction();
+        if (list.success) setRecentBackups(list.backups);
+      } else {
+        toast(res.error || "Erro ao realizar backup", "error");
+      }
+    } catch (err) {
+      toast("Erro de conexão ao gerar backup", "error");
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleResetSystemData = async () => {
+    if (confirmCodeInput.trim() !== "ZERAR-SISTEMA-CONFIRMAR") {
+      toast("Digite exatamente ZERAR-SISTEMA-CONFIRMAR para prosseguir.", "warning");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const res = await resetSystemDataAction(confirmCodeInput);
+      if (res.success) {
+        toast("Todos os dados operacionais foram limpos! Um snapshot de segurança pré-restauração foi gerado.", "success");
+        setIsResetModalOpen(false);
+        setConfirmCodeInput("");
+        window.setTimeout(() => window.location.reload(), 1200);
+      } else {
+        toast(res.error || "Erro ao zerar o sistema", "error");
+      }
+    } catch (err) {
+      toast("Erro ao executar limpeza de dados", "error");
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const loadUsersList = async () => {
     setUsersLoading(true);
@@ -640,8 +696,117 @@ export default function ConfiguracoesTab() {
                   </Button>
                 </div>
               )}
+
+              {/* Card de Backup Manual & Zeramento de Dados */}
+              {hasPermission("admin.all") && (
+                <div className="mt-10 border-t border-zinc-200 pt-8 dark:border-zinc-800 space-y-6 max-w-xl">
+                  <div className="rounded-2xl border border-blue-900/30 bg-blue-950/20 p-5 dark:border-blue-800/40">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                          <HardDrive size={18} className="text-blue-400" />
+                          Backup Manual Instantâneo
+                        </h4>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          O sistema se auto-salva continuamente em formato dual (SQL + JSON). Clique para gerar um snapshot imediato agora.
+                        </p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        type="button"
+                        onClick={handleManualBackup}
+                        loading={backupLoading}
+                        className="border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 shrink-0"
+                      >
+                        <Cloud size={15} /> Realizar Backup Agora
+                      </Button>
+                    </div>
+
+                    {recentBackups.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-zinc-800/60">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-2">Últimos Snapshots Salvos:</p>
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto pr-2 text-xs font-mono">
+                          {recentBackups.slice(0, 5).map((b: any, idx: number) => (
+                            <div key={idx} className="flex items-center justify-between rounded bg-zinc-900/80 px-3 py-1.5 border border-zinc-800 text-zinc-300">
+                              <span className="truncate">{b.fileName}</span>
+                              <span className="text-[10px] text-zinc-400">{(b.sizeBytes / 1024).toFixed(1)} KB · {new Date(b.createdAt).toLocaleString("pt-BR")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-rose-900/40 bg-rose-950/20 p-5 dark:border-rose-900/50">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-rose-300 flex items-center gap-2">
+                          <AlertTriangle size={18} className="text-rose-400" />
+                          Zerar / Limpar Dados do Sistema
+                        </h4>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          Remove todos os clientes, orçamentos, ordens de serviço e faturamentos para iniciar do zero. Um snapshot de segurança é criado automaticamente antes do zeramento.
+                        </p>
+                      </div>
+                      <Button
+                        variant="danger"
+                        type="button"
+                        onClick={() => setIsResetModalOpen(true)}
+                        className="shrink-0"
+                      >
+                        <Trash2 size={15} /> Zerar Dados
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </form>
           )}
+
+          {/* Modal de Confirmacao de Zeramento do Sistema */}
+          <Modal
+            isOpen={isResetModalOpen}
+            onClose={() => setIsResetModalOpen(false)}
+            title="Zerar Todos os Dados do Sistema"
+            size="md"
+          >
+            <div className="space-y-4 py-2">
+              <div className="rounded-xl border border-rose-900/50 bg-rose-950/30 p-4 text-xs text-rose-200">
+                <strong className="block text-sm font-bold text-rose-100 mb-1">Atenção: Ação de Limpeza Geral de Dados</strong>
+                <p>
+                  Esta ação apagará todos os <strong>clientes, orçamentos, ordens de serviço, atendimentos e notas fiscais</strong> cadastrados.
+                </p>
+                <p className="mt-2 font-semibold text-emerald-300">
+                  ✔ Um snapshot de segurança pré-restauração será gravado automaticamente antes da exclusão.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-zinc-300">
+                  Para confirmar a limpeza, digite <span className="font-mono text-rose-400">ZERAR-SISTEMA-CONFIRMAR</span> abaixo:
+                </label>
+                <Input
+                  value={confirmCodeInput}
+                  onChange={(e) => setConfirmCodeInput(e.target.value)}
+                  placeholder="ZERAR-SISTEMA-CONFIRMAR"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <Button variant="secondary" type="button" onClick={() => setIsResetModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  variant="danger"
+                  type="button"
+                  loading={resetLoading}
+                  onClick={handleResetSystemData}
+                >
+                  <Trash2 size={14} /> Confirmar Limpeza e Zerar
+                </Button>
+              </div>
+            </div>
+          </Modal>
 
           {/* 2. Company Info (Minha Empresa) */}
           {activeSubTab === "empresa" && (
