@@ -17,17 +17,13 @@ import {
   Activity,
   Building2,
   HardDrive,
-  AlertTriangle,
   RefreshCw,
-  ShieldCheck,
   Plus,
   CheckCircle2,
-  XCircle,
   Database,
   Users,
   FileText,
   DollarSign,
-  Download,
   LogOut,
   Sliders,
   Cpu,
@@ -260,6 +256,12 @@ export default function DevConsolePage() {
         <div className="mt-3 flex flex-wrap gap-2">
           <a href="/dev/tenants" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
             Abrir módulo Tenants
+          </a>
+          <a href="/dev/assinaturas" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
+            Abrir módulo Assinaturas
+          </a>
+          <a href="/dev/feature-flags" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
+            Abrir módulo Feature Flags
           </a>
           <a href="/dev/monitoramento" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-slate-800">
             Abrir módulo Monitoramento

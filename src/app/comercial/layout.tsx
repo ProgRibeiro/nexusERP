@@ -3,8 +3,11 @@ import { requirePortalAccess } from "@/lib/auth";
 
 const COMMERCIAL_NAV = [
   { href: "/comercial", label: "Dashboard" },
+  { href: "/comercial/propostas", label: "Propostas" },
   { href: "/comercial/leads", label: "Leads" },
   { href: "/comercial/pipeline", label: "Pipeline" },
+  { href: "/comercial/metas", label: "Metas" },
+  { href: "/comercial/comissoes", label: "Comissões" },
   { href: "/comercial/agenda", label: "Agenda" },
   { href: "/comercial/relatorios", label: "Relatórios" },
 ];
