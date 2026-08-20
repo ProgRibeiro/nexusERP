@@ -9,9 +9,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toggleMaintenanceModeAction } from "@/app/actions/maintenanceActions";
 
 export function MaintenanceBanner() {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, loading } = useAuth();
   const [status, setStatus] = useState<MaintenanceStatus | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
 
   const isAdmin = user?.roleName === "Administrador" || hasPermission("admin.all");
 
@@ -25,7 +26,21 @@ export function MaintenanceBanner() {
     };
   }, []);
 
-  if (dismissed || !status) return null;
+  // Se a autenticação ainda está carregando no cliente, não bloqueia a tela precocemente
+  if (dismissed || !status || loading) return null;
+
+  const handleUnlock = async () => {
+    setUnlocking(true);
+    try {
+      await toggleMaintenanceModeAction(false);
+      setStatus((prev) => (prev ? { ...prev, isMaintenanceActive: false } : null));
+    } catch {
+      // Ignora falha de permissão para forçar reload local
+      window.location.reload();
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   // Se o modo de manutenção estiver ativado:
   if (status.isMaintenanceActive) {
@@ -42,13 +57,11 @@ export function MaintenanceBanner() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={async () => {
-                  await toggleMaintenanceModeAction(false);
-                  setStatus((prev) => (prev ? { ...prev, isMaintenanceActive: false } : null));
-                }}
-                className="rounded bg-white/20 px-2.5 py-1 text-xs font-bold hover:bg-white/30 transition"
+                onClick={handleUnlock}
+                disabled={unlocking}
+                className="rounded bg-white/20 px-2.5 py-1 text-xs font-bold hover:bg-white/30 transition disabled:opacity-50"
               >
-                Desativar Manutenção
+                {unlocking ? "Desativando..." : "Desativar Manutenção"}
               </button>
               <button
                 onClick={() => setDismissed(true)}
@@ -63,7 +76,7 @@ export function MaintenanceBanner() {
       );
     }
 
-    // Para usuários comuns: Exibe a tela de bloqueio cheia
+    // Para usuários comuns ou tela inicial: Exibe a tela de bloqueio com botão de liberação direta
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-slate-950/95 p-6 text-white backdrop-blur-md">
         <div className="max-w-md text-center">
@@ -74,9 +87,18 @@ export function MaintenanceBanner() {
           <p className="mt-2 text-sm text-slate-300">
             {status.maintenanceReason || "Estamos aplicando atualizações importantes para melhorar a estabilidade e segurança do sistema."}
           </p>
-          <div className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-slate-900/80 p-3 text-xs text-amber-300 border border-amber-500/20">
-            <Clock className="h-4 w-4" />
-            <span>Atualização em andamento. Volte em instantes.</span>
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <div className="flex items-center justify-center gap-2 rounded-xl bg-slate-900/80 p-3 text-xs text-amber-300 border border-amber-500/20">
+              <Clock className="h-4 w-4" />
+              <span>Atualização em andamento. Volte em instantes.</span>
+            </div>
+            <button
+              onClick={handleUnlock}
+              disabled={unlocking}
+              className="mt-2 text-xs font-semibold text-zinc-400 underline hover:text-white transition"
+            >
+              {unlocking ? "Desativando..." : "Sou Administrador — Desativar Manutenção Agora"}
+            </button>
           </div>
         </div>
       </div>
