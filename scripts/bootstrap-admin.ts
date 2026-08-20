@@ -1,6 +1,7 @@
 import "dotenv/config";
 import crypto from "crypto";
 import { prisma } from "../src/lib/db";
+import { bindUserToTenant } from "../src/lib/tenantAccess";
 
 const permissionData = [
   ["dashboard.view", "Visualizar Dashboard"],
@@ -60,16 +61,18 @@ async function main() {
       where: { id: existing.id },
       data: { roleId: role.id, permissions: JSON.stringify(["admin.all"]) },
     });
+    await bindUserToTenant(existing.id);
     console.log(JSON.stringify({ success: true, created: false, email, passwordChanged: false }));
     return;
   }
 
   const { salt, hash } = securePassword(password);
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { email },
     update: { name, password: hash, salt, roleId: role.id, permissions: JSON.stringify(["admin.all"]) },
     create: { name, email, password: hash, salt, roleId: role.id, permissions: JSON.stringify(["admin.all"]) },
   });
+  await bindUserToTenant(admin.id);
   console.log(JSON.stringify({ success: true, created: !existing, email, passwordChanged: Boolean(existing) }));
 }
 

@@ -9,7 +9,7 @@ import { logger } from "./logger";
 import { prisma } from "./db";
 import { classifyPortalArea, normalizeHostname } from "./portalRouting";
 import { hasCommercialAccess, hasDeveloperAccess, isAdminSession, resolvePlatformRole } from "./rbac";
-import { ensureUserTenantAccess, resolvePrimaryTenantForUser } from "./tenantAccess";
+import { bindUserToTenant, ensureUserTenantAccess, resolvePrimaryTenantForUser } from "./tenantAccess";
 
 async function resolveUserTenantId(userId: string, fallbackTenantId?: string) {
   if (!userId) {
@@ -81,7 +81,15 @@ export async function requireAuth(): Promise<SessionPayload> {
   const platformRole = resolvePlatformRole({ roleName: user.role?.name || "Sem Perfil", permissions });
   const tenantId = await resolveUserTenantId(user.id, session.tenantId);
   if (platformRole === "CUSTOMER_ADMIN" || platformRole === "CUSTOMER_USER") {
-    const hasTenantAccess = await ensureUserTenantAccess(user.id, tenantId);
+    let hasTenantAccess = await ensureUserTenantAccess(user.id, tenantId);
+    // Compatibilidade segura para administradores criados antes da tabela de
+    // vínculos ou pelo bootstrap legado. Usuários comuns nunca são vinculados
+    // automaticamente.
+    if (!hasTenantAccess && platformRole === "CUSTOMER_ADMIN" && permissions.includes("admin.all")) {
+      await bindUserToTenant(user.id, tenantId);
+      hasTenantAccess = await ensureUserTenantAccess(user.id, tenantId);
+      logger.info("legacy_admin_tenant_access_repaired", { userId: user.id, tenantId });
+    }
     if (!hasTenantAccess) {
       throw new AuthError("SEM_PERMISSAO", "Usuário sem vínculo ativo com o tenant.");
     }
