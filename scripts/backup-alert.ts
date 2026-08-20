@@ -22,6 +22,25 @@ function buildSummary() {
   return { status, title, summary };
 }
 
+async function sendGenericWebhook(url: string, title: string, summary: string, status: string) {
+  const payload = {
+    title,
+    summary,
+    status,
+    sentAt: new Date().toISOString(),
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Webhook genérico falhou: ${response.status} ${response.statusText}`);
+  }
+}
+
 async function sendDiscordWebhook(url: string, title: string, summary: string, status: string) {
   const payload = {
     embeds: [{
@@ -106,6 +125,16 @@ async function main() {
   const { status, title, summary } = buildSummary();
   const alertTargets: string[] = [];
 
+  const webhookUrl = getValueOrDefault("ALERT_WEBHOOK_URL");
+  if (webhookUrl) {
+    alertTargets.push(`webhook:${webhookUrl}`);
+  }
+
+  const whatsappWebhookUrl = getValueOrDefault("ALERT_WHATSAPP_WEBHOOK_URL");
+  if (whatsappWebhookUrl) {
+    alertTargets.push(`whatsapp:${whatsappWebhookUrl}`);
+  }
+
   const discordUrl = getValueOrDefault("ALERT_DISCORD_WEBHOOK_URL");
   if (discordUrl) {
     alertTargets.push(`discord:${discordUrl}`);
@@ -135,6 +164,14 @@ async function main() {
   const results: string[] = [];
   for (const target of alertTargets) {
     const [kind, ...rest] = target.split(":");
+    if (kind === "webhook") {
+      await sendGenericWebhook(rest.join(":"), title, summary, status);
+      results.push("webhook");
+    }
+    if (kind === "whatsapp") {
+      await sendGenericWebhook(rest.join(":"), title, summary, status);
+      results.push("whatsapp");
+    }
     if (kind === "discord") {
       await sendDiscordWebhook(rest.join(":"), title, summary, status);
       results.push("discord");

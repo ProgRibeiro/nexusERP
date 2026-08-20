@@ -115,10 +115,14 @@ O endpoint `/api/health` também expõe a saúde da proteção de dados
 `BACKUP_MAX_AGE_HOURS`.
 
 Para alertas de produção, configure qualquer combinação de
-`ALERT_DISCORD_WEBHOOK_URL`, `ALERT_SLACK_WEBHOOK_URL`,
-`ALERT_TELEGRAM_BOT_TOKEN` + `ALERT_TELEGRAM_CHAT_ID` ou `ALERT_EMAIL_TO`.
-Se o backup ficar em `warning` ou `critical`, o sistema envia a notificação
-automaticamente após a auditoria.
+`ALERT_WEBHOOK_URL`, `ALERT_WHATSAPP_WEBHOOK_URL`, `ALERT_DISCORD_WEBHOOK_URL`,
+`ALERT_SLACK_WEBHOOK_URL`, `ALERT_TELEGRAM_BOT_TOKEN` +
+`ALERT_TELEGRAM_CHAT_ID` ou `ALERT_EMAIL_TO`. Se o backup ficar em `warning`
+ou `critical`, o sistema envia a notificação automaticamente após a auditoria.
+
+O WhatsApp pode ser enviado via webhook da plataforma da sua empresa ou via um
+adaptador de webhook para o WhatsApp Business; o ERP já tem suporte genérico a
+HTTP webhook para esse cenário.
 
 Para testes reais de recuperação, configure `RESTORE_TEST_DATABASE_URL` e agende o
 serviço `nexus-erp-restore-test.timer`; ele restaura o backup mais recente em um
