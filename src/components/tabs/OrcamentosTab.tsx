@@ -1843,6 +1843,9 @@ export default function OrcamentosTab({
               </Button>
             </div>
           </div>
+          <nav className="sticky top-0 z-20 grid grid-cols-2 gap-2 rounded-2xl border border-zinc-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95 sm:grid-cols-4" aria-label="Etapas da proposta">
+            {[{ href: "#etapa-cliente", step: "1", label: "Cliente" }, { href: "#etapa-condicoes", step: "2", label: "Condições" }, { href: "#etapa-itens", step: "3", label: "Itens e preços" }, { href: "#etapa-revisao", step: "4", label: "Revisar e salvar" }].map((item) => <a key={item.step} href={item.href} className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-black text-zinc-600 transition hover:bg-blue-50 hover:text-blue-700 dark:text-zinc-300 dark:hover:bg-blue-500/10 dark:hover:text-blue-300"><span className="flex size-7 items-center justify-center rounded-full bg-blue-600 text-white">{item.step}</span>{item.label}</a>)}
+          </nav>
 
           {/* Form Layout */}
           <form
@@ -1877,7 +1880,7 @@ export default function OrcamentosTab({
               )}
             </Card>
             {/* Etapa 1: cliente e local de execução */}
-            <Card className="space-y-5 shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-6 animate-in fade-in duration-200">
+            <Card id="etapa-cliente" className="scroll-mt-24 space-y-5 shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-6 animate-in fade-in duration-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-150 dark:border-zinc-800 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white text-xs font-bold">
@@ -2079,7 +2082,7 @@ export default function OrcamentosTab({
             </Card>
 
             {/* Etapa 2: condições comerciais */}
-            <Card className="space-y-5 shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-6">
+            <Card id="etapa-condicoes" className="scroll-mt-24 space-y-5 shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-6">
               <div className="flex items-center gap-3 border-b border-zinc-150 dark:border-zinc-800 pb-4">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white text-xs font-bold">
                   2
@@ -2097,10 +2100,11 @@ export default function OrcamentosTab({
                 {[{ label: "Código", value: newQuoteForm.proposalCode || "Gerado automaticamente" }, { label: "Validade", value: `${newQuoteForm.validityDays} dias` }, { label: "Garantia", value: `${newQuoteForm.warrantyDays} dias` }, { label: "Pagamento", value: newQuoteForm.paymentTerms }].map((item) => <div key={item.label} className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/70"><p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">{item.label}</p><p className="mt-1 text-sm font-bold text-zinc-800 dark:text-zinc-100">{item.value}</p></div>)}
               </div>
               <p className="mt-3 text-xs text-zinc-500">Condições preenchidas automaticamente pelo cadastro do cliente. Prazo de execução padrão: <strong>{newQuoteForm.executionTerm}</strong>.</p>
+              <div className="flex justify-end"><a href="#etapa-itens" className="inline-flex h-11 items-center rounded-xl bg-blue-600 px-5 text-sm font-black text-white shadow-lg shadow-blue-600/20">Continuar para itens e preços ↓</a></div>
             </Card>
 
             {/* Bottom Section: Items management & Pricing (Full Width) */}
-            <Card className="overflow-hidden shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-0">
+            <Card id="etapa-itens" className="scroll-mt-24 overflow-hidden shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-0">
               <div className="border-b border-[#e7d9a8] bg-[#eff6ff] px-5 py-5 text-[#211b12] dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-start gap-3">
@@ -2636,8 +2640,9 @@ export default function OrcamentosTab({
               </div>
 
               {/* Subtotals card */}
-              <div className="mx-4 mb-4 grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/30 sm:mx-6 sm:mb-6 md:grid-cols-2">
+              <div id="etapa-revisao" className="scroll-mt-24 mx-4 mb-4 grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-zinc-800 dark:bg-zinc-950/30 sm:mx-6 sm:mb-6 md:grid-cols-2">
                 <div className="space-y-4">
+                  <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600">Etapa 4</p><h3 className="mt-1 text-base font-black">Revisão, tributos e valor final</h3></div>
                   <Input
                     label="Desconto na Proposta (R$)"
                     type="number"
@@ -2721,6 +2726,10 @@ export default function OrcamentosTab({
                     </div>
                   )}
                 </div>
+              </div>
+              <div className="mx-4 mb-6 flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/20 sm:mx-6 sm:flex-row sm:items-center">
+                <div><p className="text-sm font-black text-emerald-900 dark:text-emerald-200">Proposta pronta para ser criada</p><p className="text-xs text-emerald-700 dark:text-emerald-400">Revise o cliente, os itens e o total antes de concluir.</p></div>
+                <Button variant="primary" onClick={view === "edit" ? handleUpdateQuote : handleCreateQuote} loading={actionLoading}><Save size={16}/>{view === "edit" ? "Atualizar proposta" : "Criar proposta completa"}</Button>
               </div>
             </Card>
           </form>
