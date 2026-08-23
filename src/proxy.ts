@@ -151,7 +151,12 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAuthPublicPath(pathname)) {
-    const authUrl = internalRewriteUrl(request, toInternalAuthPath(pathname));
+    const internalPath = pathname === "/login" && hostArea === "developer"
+      ? "/dev/login"
+      : pathname === "/login" && hostArea === "commercial"
+        ? "/auth/comercial"
+        : toInternalAuthPath(pathname);
+    const authUrl = internalRewriteUrl(request, internalPath);
     return NextResponse.rewrite(authUrl);
   }
 
@@ -180,6 +185,10 @@ export async function proxy(request: NextRequest) {
     response.headers.set("X-RateLimit-Limit", "120");
     response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
     return response;
+  }
+
+  if (hostArea === "developer" && pathname === "/dev/login") {
+    return NextResponse.next();
   }
 
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;

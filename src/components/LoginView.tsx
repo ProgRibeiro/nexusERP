@@ -12,9 +12,11 @@ import { PrestadorBrand } from "@/components/brand/PrestadorBrand";
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserSession, landingArea: LandingArea) => void;
+  variant?: "app" | "commercial";
 }
 
-export default function LoginView({ onLoginSuccess }: LoginViewProps) {
+export default function LoginView({ onLoginSuccess, variant = "app" }: LoginViewProps) {
+  const isCommercial = variant === "commercial";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -59,14 +61,22 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
 
             <div className="mt-24 max-w-[31rem]">
               <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100 backdrop-blur-md">
-                <Sparkles size={13} /> Central de gestão integrada
+                <Sparkles size={13} /> {isCommercial ? "Portal de vendas e relacionamento" : "Central de gestão integrada"}
               </span>
-              <h1 className="mt-7 text-[2.7rem] font-black leading-[1.03] tracking-[-0.055em] xl:text-[3.15rem]">Toda a operação.<br /><span className="bg-gradient-to-r from-blue-300 to-cyan-200 bg-clip-text text-transparent">Uma única visão.</span></h1>
-              <p className="mt-6 max-w-md text-sm leading-6 text-blue-100/75">Comercial, ordens de serviço, preventivas, patrimônio, fiscal e financeiro conectados do orçamento ao recebimento.</p>
+              <h1 className="mt-7 text-[2.7rem] font-black leading-[1.03] tracking-[-0.055em] xl:text-[3.15rem]">
+                {isCommercial ? "Venda com método." : "Toda a operação."}<br />
+                <span className="bg-gradient-to-r from-blue-300 to-cyan-200 bg-clip-text text-transparent">{isCommercial ? "Cresça com visão." : "Uma única visão."}</span>
+              </h1>
+              <p className="mt-6 max-w-md text-sm leading-6 text-blue-100/75">
+                {isCommercial ? "Leads, propostas, pipeline, metas, comissões e agenda comercial reunidos para sua equipe vender melhor." : "Comercial, ordens de serviço, preventivas, patrimônio, fiscal e financeiro conectados do orçamento ao recebimento."}
+              </p>
             </div>
 
             <div className="mt-11 grid max-w-md gap-3 rounded-2xl border border-white/10 bg-slate-950/25 p-4 backdrop-blur-md">
-              {["Fluxos operacionais com histórico completo", "Acesso responsivo no computador, tablet e celular", "Ambiente seguro e disponível na nuvem"].map((item) => (
+              {(isCommercial
+                ? ["Pipeline e oportunidades em tempo real", "Follow-ups e propostas no mesmo fluxo", "Metas e comissões com visão da equipe"]
+                : ["Fluxos operacionais com histórico completo", "Acesso responsivo no computador, tablet e celular", "Ambiente seguro e disponível na nuvem"]
+              ).map((item) => (
                 <div key={item} className="flex items-center gap-3 text-xs font-semibold text-blue-50/85">
                   <CheckCircle2 size={16} className="shrink-0 text-cyan-300" /> {item}
                 </div>
@@ -86,9 +96,9 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
             <div className="mb-8 lg:hidden"><PrestadorBrand /></div>
 
             <div>
-              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-blue-600">Acesso corporativo seguro</p>
-              <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-slate-950">Bem-vindo de volta</h2>
-              <p className="mt-2 text-sm text-slate-500">Entre com sua conta para continuar a operação.</p>
+              <p className="text-[9px] font-black uppercase tracking-[0.24em] text-blue-600">{isCommercial ? "Acesso exclusivo da equipe comercial" : "Acesso corporativo seguro"}</p>
+              <h2 className="mt-3 text-3xl font-black tracking-[-0.04em] text-slate-950">{isCommercial ? "Portal Comercial" : "Bem-vindo de volta"}</h2>
+              <p className="mt-2 text-sm text-slate-500">{isCommercial ? "Entre para acompanhar vendas, clientes e resultados." : "Entre com sua conta para continuar a operação."}</p>
             </div>
 
             {errorMsg && (
@@ -108,7 +118,7 @@ export default function LoginView({ onLoginSuccess }: LoginViewProps) {
                 </button>
               </div>
 
-              <Button variant="primary" type="submit" className="!h-12 w-full !rounded-xl !font-black !shadow-[0_14px_28px_rgba(37,99,235,.25)]" loading={loading}>Entrar no O Prestador</Button>
+              <Button variant="primary" type="submit" className="!h-12 w-full !rounded-xl !font-black !shadow-[0_14px_28px_rgba(37,99,235,.25)]" loading={loading}>{isCommercial ? "Entrar no Portal Comercial" : "Entrar no O Prestador"}</Button>
             </form>
 
             <div className="mt-7 space-y-3 border-t border-slate-200 pt-5">
