@@ -91,6 +91,20 @@ function checkRateLimit(ip: string, maxRequests = 120, windowMs = 10000): { allo
   return { allowed: true, remaining: maxRequests - record.count };
 }
 
+function internalRewriteUrl(request: NextRequest, pathname: string) {
+  const target = request.nextUrl.clone();
+  target.pathname = pathname;
+
+  // Atrás do Nginx, o Next preserva o protocolo público (HTTPS), mas mantém
+  // localhost e a porta HTTP do slot como destino da reescrita. Sem este
+  // ajuste ele tenta TLS diretamente contra o processo `next start`.
+  if (["localhost", "127.0.0.1"].includes(target.hostname) && target.protocol === "https:") {
+    target.protocol = "http:";
+  }
+
+  return target;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const userAgent = request.headers.get("user-agent");
@@ -125,8 +139,7 @@ export async function proxy(request: NextRequest) {
   // uploads. O arquivo continua no mesmo diretório; apenas a leitura passa
   // pelo endpoint que enxerga imagens criadas depois do `next build`.
   if (pathname.startsWith("/uploads/")) {
-    const uploadUrl = request.nextUrl.clone();
-    uploadUrl.pathname = `/api${pathname}`;
+    const uploadUrl = internalRewriteUrl(request, `/api${pathname}`);
     return NextResponse.rewrite(uploadUrl);
   }
 
@@ -138,20 +151,17 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAuthPublicPath(pathname)) {
-    const authUrl = request.nextUrl.clone();
-    authUrl.pathname = toInternalAuthPath(pathname);
+    const authUrl = internalRewriteUrl(request, toInternalAuthPath(pathname));
     return NextResponse.rewrite(authUrl);
   }
 
   if (isLocalHost && pathname !== "/" && isMarketingPublicPath(pathname)) {
-    const marketingUrl = request.nextUrl.clone();
-    marketingUrl.pathname = toInternalMarketingPath(pathname);
+    const marketingUrl = internalRewriteUrl(request, toInternalMarketingPath(pathname));
     return NextResponse.rewrite(marketingUrl);
   }
 
   if (hostArea === "marketing" && isMarketingPublicPath(pathname)) {
-    const marketingUrl = request.nextUrl.clone();
-    marketingUrl.pathname = toInternalMarketingPath(pathname);
+    const marketingUrl = internalRewriteUrl(request, toInternalMarketingPath(pathname));
     return NextResponse.rewrite(marketingUrl);
   }
 
@@ -187,26 +197,22 @@ export async function proxy(request: NextRequest) {
   }
 
   if (hostArea === "developer" && pathname === "/") {
-    const devUrl = request.nextUrl.clone();
-    devUrl.pathname = "/dev";
+    const devUrl = internalRewriteUrl(request, "/dev");
     return NextResponse.rewrite(devUrl);
   }
 
   if (hostArea === "commercial" && pathname === "/") {
-    const commercialUrl = request.nextUrl.clone();
-    commercialUrl.pathname = "/comercial";
+    const commercialUrl = internalRewriteUrl(request, "/comercial");
     return NextResponse.rewrite(commercialUrl);
   }
 
   if (hostArea === "developer" && !pathname.startsWith("/dev")) {
-    const devScopedUrl = request.nextUrl.clone();
-    devScopedUrl.pathname = `/dev${pathname}`;
+    const devScopedUrl = internalRewriteUrl(request, `/dev${pathname}`);
     return NextResponse.rewrite(devScopedUrl);
   }
 
   if (hostArea === "commercial" && !pathname.startsWith("/comercial")) {
-    const commercialScopedUrl = request.nextUrl.clone();
-    commercialScopedUrl.pathname = `/comercial${pathname}`;
+    const commercialScopedUrl = internalRewriteUrl(request, `/comercial${pathname}`);
     return NextResponse.rewrite(commercialScopedUrl);
   }
 
