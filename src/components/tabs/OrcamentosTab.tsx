@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useToast } from "@/components/ui/Toast";
+import { PAYMENT_TERM_OPTIONS } from "@/lib/paymentTerms";
 import {
   getQuotes,
   getQuoteDetails,
@@ -477,6 +478,10 @@ export default function OrcamentosTab({
           setClientSearch(details.name);
           setNewQuoteForm((prev) => ({
             ...prev,
+            paymentTerms:
+              PAYMENT_TERM_OPTIONS.find((option) => option.value === details!.defaultPaymentTerms)?.label ||
+              details!.defaultPaymentTerms ||
+              prev.paymentTerms,
             addressId: details!.addresses.some(
               (item) => item.id === prev.addressId,
             )
@@ -2088,88 +2093,10 @@ export default function OrcamentosTab({
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Input
-                  label="Código da proposta"
-                  placeholder="Automático: Q-2026-0001"
-                  value={newQuoteForm.proposalCode}
-                  onChange={(e) =>
-                    setNewQuoteForm((prev) => ({
-                      ...prev,
-                      proposalCode: e.target.value.toUpperCase(),
-                    }))
-                  }
-                />
-                <Input
-                  label="Loja / unidade"
-                  placeholder="Ex.: Loja Barra Shopping"
-                  value={newQuoteForm.storeName}
-                  onChange={(e) =>
-                    setNewQuoteForm((prev) => ({
-                      ...prev,
-                      storeName: e.target.value,
-                    }))
-                  }
-                />
-                <Input
-                  label="Validade (dias) *"
-                  type="number"
-                  min={1}
-                  required
-                  value={newQuoteForm.validityDays}
-                  onChange={(e) =>
-                    setNewQuoteForm((prev) => ({
-                      ...prev,
-                      validityDays: Number(e.target.value) || 0,
-                    }))
-                  }
-                />
-                <Input
-                  label="Garantia técnica (dias) *"
-                  type="number"
-                  min={1}
-                  required
-                  value={newQuoteForm.warrantyDays}
-                  onChange={(e) =>
-                    setNewQuoteForm((prev) => ({
-                      ...prev,
-                      warrantyDays: Number(e.target.value) || 0,
-                    }))
-                  }
-                />
-                <Input
-                  label="Prazo de execução *"
-                  required
-                  value={newQuoteForm.executionTerm}
-                  onChange={(e) =>
-                    setNewQuoteForm((prev) => ({
-                      ...prev,
-                      executionTerm: e.target.value,
-                    }))
-                  }
-                />
-                <Input
-                  label="Forma de pagamento *"
-                  required
-                  value={newQuoteForm.paymentTerms}
-                  onChange={(e) =>
-                    setNewQuoteForm((prev) => ({
-                      ...prev,
-                      paymentTerms: e.target.value,
-                    }))
-                  }
-                />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[{ label: "Código", value: newQuoteForm.proposalCode || "Gerado automaticamente" }, { label: "Validade", value: `${newQuoteForm.validityDays} dias` }, { label: "Garantia", value: `${newQuoteForm.warrantyDays} dias` }, { label: "Pagamento", value: newQuoteForm.paymentTerms }].map((item) => <div key={item.label} className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800/70"><p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">{item.label}</p><p className="mt-1 text-sm font-bold text-zinc-800 dark:text-zinc-100">{item.value}</p></div>)}
               </div>
-              <Input
-                label="Observações da proposta (impressas no rodapé)"
-                value={newQuoteForm.notes}
-                onChange={(e) =>
-                  setNewQuoteForm((prev) => ({
-                    ...prev,
-                    notes: e.target.value,
-                  }))
-                }
-              />
+              <p className="mt-3 text-xs text-zinc-500">Condições preenchidas automaticamente pelo cadastro do cliente. Prazo de execução padrão: <strong>{newQuoteForm.executionTerm}</strong>.</p>
             </Card>
 
             {/* Bottom Section: Items management & Pricing (Full Width) */}
