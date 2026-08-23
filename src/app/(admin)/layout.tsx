@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { WorkspaceProvider, useWorkspace, Tab } from "@/contexts/WorkspaceContext";
 import Sidebar from "@/components/Sidebar";
@@ -87,8 +88,10 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
   }
 }
 
-function WorkspaceContainer() {
+function WorkspaceContainer({ children }: { children: React.ReactNode }) {
   const { activeTab, darkMode, floatingTabs, activeFloatingTabId, activateFloatingTab, closeFloatingTab } = useWorkspace();
+  const pathname = usePathname();
+  const standalonePage = pathname.startsWith("/orcamentos/") || pathname.startsWith("/orcamentos-obras");
   const activeFloatingTab = floatingTabs.find((tab) => tab.id === activeFloatingTabId);
 
   return (
@@ -107,9 +110,9 @@ function WorkspaceContainer() {
 
         {/* Viewport principal: a navegação fica exclusivamente na barra lateral. */}
         <main className="app-workspace relative flex-1 overflow-y-auto overflow-x-hidden p-3 pb-28 sm:p-4 sm:pb-28 lg:p-5 xl:p-7 xl:pb-28 2xl:p-8 2xl:pb-28 print:block print:overflow-visible print:p-0 print:bg-white">
-          <div className={`w-full mx-auto min-h-full print:max-w-none print:min-h-0 ${["preventivas", "orcamentos"].includes(activeTab.type) ? "max-w-[1800px]" : "max-w-7xl"}`}>
+          <div className={`w-full mx-auto min-h-full print:max-w-none print:min-h-0 ${standalonePage || ["preventivas", "orcamentos"].includes(activeTab.type) ? "max-w-[1800px]" : "max-w-7xl"}`}>
             <div key={activeTab.id} className="h-full animate-in fade-in duration-150 print:h-auto">
-              <TabContentRenderer tab={activeTab} />
+              {standalonePage ? children : <TabContentRenderer tab={activeTab} />}
             </div>
           </div>
         </main>
@@ -145,7 +148,6 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  void children;
   const { loading, user } = useAuth();
 
   // Premium loading state
@@ -173,7 +175,7 @@ export default function AdminLayout({
   return (
     <WorkspaceProvider>
       <ToastProvider>
-        <WorkspaceContainer />
+        <WorkspaceContainer>{children}</WorkspaceContainer>
         <ErrorReporter />
       </ToastProvider>
     </WorkspaceProvider>
