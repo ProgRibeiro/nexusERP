@@ -88,7 +88,8 @@ printf '%s\n' "$PREVIOUS" > "$ROOT/active-slot"
 
 PUBLIC_HEALTHY=false
 for _ in {1..10}; do
-  if curl -fsS --max-time 3 http://127.0.0.1/api/health | grep -q '"status":"ok"'; then
+  if { curl -kfsS --max-time 3 https://127.0.0.1/api/health 2>/dev/null \
+    || curl -fsS --max-time 3 http://127.0.0.1/api/health 2>/dev/null; } | grep -q '"status":"ok"'; then
     PUBLIC_HEALTHY=true
     break
   fi

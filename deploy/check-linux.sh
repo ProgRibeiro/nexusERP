@@ -94,7 +94,9 @@ fi
 
 nginx -t >/dev/null 2>&1 && ok "configuração do Nginx válida" || fail "configuração do Nginx inválida"
 
-HEALTH="$(curl -fsS --max-time 5 http://127.0.0.1/api/health 2>/dev/null || true)"
+HEALTH="$(curl -kfsS --max-time 5 https://127.0.0.1/api/health 2>/dev/null \
+  || curl -fsS --max-time 5 http://127.0.0.1/api/health 2>/dev/null \
+  || true)"
 if grep -q '"status":"ok"' <<<"$HEALTH" && grep -q '"database":"ok"' <<<"$HEALTH"; then
   ok "aplicação e PostgreSQL respondendo"
 else

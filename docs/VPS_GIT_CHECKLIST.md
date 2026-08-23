@@ -84,7 +84,7 @@ systemctl list-timers 'nexus-erp-*'
 nginx -t
 ufw status verbose
 fail2ban-client status sshd
-curl -fsS http://127.0.0.1/api/health | jq
+curl -kfsS https://127.0.0.1/api/health | jq
 ```
 
 Migração do banco real é uma etapa separada e exige autorização explícita.

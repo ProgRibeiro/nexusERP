@@ -130,7 +130,7 @@ futura remover estruturas antigas.
 ```bash
 sudo bash /opt/nexus-erp/source/deploy/check-linux.sh
 sudo bash /opt/nexus-erp/source/deploy/update-status.sh
-curl -fsS http://127.0.0.1/api/health
+curl -kfsS https://127.0.0.1/api/health
 ```
 
 Também deve ser realizado periodicamente um teste real de restauração. Um

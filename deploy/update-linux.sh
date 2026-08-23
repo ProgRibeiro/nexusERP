@@ -323,7 +323,9 @@ SWITCHED=true
 
 PUBLIC_HEALTHY=false
 for _ in {1..10}; do
-  PUBLIC_HEALTH="$(curl -fsS --max-time 3 "http://127.0.0.1/api/health" 2>/dev/null || true)"
+  PUBLIC_HEALTH="$(curl -kfsS --max-time 3 "https://127.0.0.1/api/health" 2>/dev/null \
+    || curl -fsS --max-time 3 "http://127.0.0.1/api/health" 2>/dev/null \
+    || true)"
   if grep -q '"status":"ok"' <<<"$PUBLIC_HEALTH" && grep -q "\"release\":\"$RELEASE_ID\"" <<<"$PUBLIC_HEALTH"; then
     PUBLIC_HEALTHY=true
     break
