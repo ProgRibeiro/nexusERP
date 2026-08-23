@@ -2832,10 +2832,16 @@ export default function OrcamentosTab({
                     <Sparkles size={16} /> Proposta preventiva
                   </button>
                   <button
+                    onClick={() => { window.location.href = "/orcamentos-obras/novo"; }}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+                  >
+                    <Plus size={17} /> Orçamento de obra
+                  </button>
+                  <button
                     onClick={() => { window.location.href = "/orcamentos/novo"; }}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#155eef] px-5 text-sm font-black text-white shadow-lg shadow-[#155eef]/20 transition hover:bg-[#1d4ed8]"
                   >
-                    <Plus size={17} /> Novo orçamento
+                    <Plus size={17} /> Orçamento normal
                   </button>
                 </div>
               )}
