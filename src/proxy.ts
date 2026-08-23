@@ -172,6 +172,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(target);
   }
 
+  // Reescritas públicas como /login -> /auth/login passam novamente pelo
+  // proxy. Libere o destino interno antes de exigir sessão nos subdomínios,
+  // evitando um ciclo /login <-> /auth/login.
+  if (PASSTHROUGH_PREFIXES.some((p) => pathname.startsWith(p))) {
+    const response = NextResponse.next();
+    response.headers.set("X-RateLimit-Limit", "120");
+    response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
+    return response;
+  }
+
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await decryptSession(token) : null;
 
@@ -214,13 +224,6 @@ export async function proxy(request: NextRequest) {
   if (hostArea === "commercial" && !pathname.startsWith("/comercial")) {
     const commercialScopedUrl = internalRewriteUrl(request, `/comercial${pathname}`);
     return NextResponse.rewrite(commercialScopedUrl);
-  }
-
-  if (PASSTHROUGH_PREFIXES.some((p) => pathname.startsWith(p))) {
-    const response = NextResponse.next();
-    response.headers.set("X-RateLimit-Limit", "120");
-    response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
-    return response;
   }
 
   if (!session) {
