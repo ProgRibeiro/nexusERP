@@ -98,7 +98,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       tabId = `${type}?action=${params.action}`;
     }
 
-    const shouldFloat = Boolean(params?.id || params?.new === "true" || params?.action);
+    // Orçamentos possuem um fluxo extenso e devem ocupar a página principal.
+    // Outros cadastros rápidos continuam podendo usar a janela flutuante.
+    const shouldFloat = type !== "orcamentos" && Boolean(params?.id || params?.new === "true" || params?.action);
     if (shouldFloat) {
       if (params?.new === "true") tabId = `${type}-new-${params.requestId || "form"}`;
       const floatingTab = { id: tabId, type, title, params: params ? { ...params } : undefined };
@@ -109,6 +111,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (type === "orcamentos") setActiveFloatingTabId(null);
     setActiveTab({ id: tabId, type, title, params: params ? { ...params } : undefined });
 
     // Sync browser URL if applicable
