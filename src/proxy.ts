@@ -151,11 +151,15 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAuthPublicPath(pathname)) {
+    if (!isLocalHost && (hostArea === "marketing" || hostArea === "commercial")) {
+      const appUrl = new URL(process.env.NEXT_PUBLIC_NEXUS_APP_URL || "https://app.oprestador.tech");
+      appUrl.pathname = pathname;
+      appUrl.search = request.nextUrl.search;
+      return NextResponse.redirect(appUrl);
+    }
     const internalPath = pathname === "/login" && hostArea === "developer"
       ? "/dev/login"
-      : pathname === "/login" && hostArea === "commercial"
-        ? "/auth/comercial"
-        : toInternalAuthPath(pathname);
+      : toInternalAuthPath(pathname);
     const authUrl = internalRewriteUrl(request, internalPath);
     return NextResponse.rewrite(authUrl);
   }
@@ -191,13 +195,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await decryptSession(token) : null;
-
-  if (hostArea === "commercial" && pathname === "/" && !session) {
+  if (hostArea === "commercial" && pathname === "/") {
     const salesUrl = internalRewriteUrl(request, "/auth/vendas");
     return NextResponse.rewrite(salesUrl);
   }
+
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const session = token ? await decryptSession(token) : null;
 
   if ((hostArea === "developer" || hostArea === "commercial") && !session) {
     const loginUrl = request.nextUrl.clone();

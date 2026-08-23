@@ -9,7 +9,7 @@ function destinationFor(area: LandingArea, platformRole?: UserSession["platformR
   const urls = portalBaseUrls();
   const targetByArea: Record<LandingArea, string> = {
     app: urls.app,
-    commercial: urls.commercial,
+    commercial: `${urls.commercial}/comercial`,
     developer: urls.developer,
   };
 

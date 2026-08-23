@@ -15,8 +15,8 @@ export default function SalesPortalLandingPage() {
       <header className="border-b border-white/10 bg-[#071426]/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5">
           <PrestadorBrand light />
-          <Link href="/login" className="inline-flex items-center gap-2 rounded-xl border border-blue-400/30 bg-blue-500/10 px-4 py-2.5 text-xs font-black text-blue-100 transition hover:bg-blue-500/20">
-            Acessar Portal Comercial <ArrowRight size={15} />
+          <Link href="https://oprestador.tech/demonstracao" className="inline-flex items-center gap-2 rounded-xl bg-[#155eef] px-4 py-2.5 text-xs font-black text-white transition hover:bg-blue-500">
+            Quero uma demonstração <ArrowRight size={15} />
           </Link>
         </div>
       </header>
@@ -27,20 +27,20 @@ export default function SalesPortalLandingPage() {
         <div className="relative mx-auto grid max-w-7xl gap-14 px-5 py-24 lg:grid-cols-[1.08fr_.92fr] lg:py-32">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-[10px] font-black uppercase tracking-[.2em] text-cyan-100">
-              <CalendarCheck size={14} /> Comercial conectado à operação
+              <CalendarCheck size={14} /> ERP completo para prestadores de serviços
             </span>
             <h1 className="mt-7 max-w-3xl text-5xl font-black leading-[.98] tracking-[-.055em] sm:text-6xl">
-              Venda com processo. <span className="bg-gradient-to-r from-blue-300 to-cyan-200 bg-clip-text text-transparent">Cresça com previsibilidade.</span>
+              Mais serviços vendidos. <span className="bg-gradient-to-r from-blue-300 to-cyan-200 bg-clip-text text-transparent">Mais controle para crescer.</span>
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300">
-              O Portal Comercial do O Prestador reúne leads, pipeline, agenda, propostas, metas e comissões para sua equipe transformar oportunidades em receita.
+              Conheça o O Prestador: o sistema que conecta captação de clientes, propostas, ordens de serviço, equipe de campo e financeiro em uma única operação.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-[#155eef] px-6 py-3.5 text-sm font-black shadow-[0_16px_40px_rgba(21,94,239,.35)] transition hover:bg-blue-500">
-                Entrar no Portal Comercial <ArrowRight size={16} />
+              <Link href="https://oprestador.tech/demonstracao" className="inline-flex items-center gap-2 rounded-xl bg-[#155eef] px-6 py-3.5 text-sm font-black shadow-[0_16px_40px_rgba(21,94,239,.35)] transition hover:bg-blue-500">
+                Ver o ERP em ação <ArrowRight size={16} />
               </Link>
-              <Link href="https://oprestador.tech/demonstracao" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-black transition hover:bg-white/10">
-                Agendar demonstração
+              <Link href="https://oprestador.tech/planos" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-black transition hover:bg-white/10">
+                Conhecer os planos
               </Link>
             </div>
           </div>
@@ -59,10 +59,19 @@ export default function SalesPortalLandingPage() {
 
       <section className="border-y border-white/10 bg-white/[.025]">
         <div className="mx-auto grid max-w-7xl gap-5 px-5 py-14 md:grid-cols-3">
-          {["Visão clara das oportunidades", "Follow-ups no momento certo", "Comercial integrado ao ERP"].map((item) => (
+          {["Implantação acompanhada", "Operação acessível em qualquer dispositivo", "Comercial, campo e financeiro conectados"].map((item) => (
             <div key={item} className="flex items-center gap-3 text-sm font-bold text-slate-200"><CheckCircle2 className="text-emerald-400" size={19} /> {item}</div>
           ))}
         </div>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-5 py-24 text-center">
+        <p className="text-[10px] font-black uppercase tracking-[.22em] text-blue-300">Pare de perder tempo entre planilhas</p>
+        <h2 className="mx-auto mt-4 max-w-3xl text-3xl font-black tracking-[-.04em] sm:text-4xl">Transforme cada oportunidade em uma operação organizada do orçamento ao recebimento.</h2>
+        <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-slate-400">Veja como o O Prestador pode apoiar sua empresa com processos claros, histórico completo e indicadores para decisões melhores.</p>
+        <Link href="https://oprestador.tech/contato" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-[#f59e0b] px-6 py-3.5 text-sm font-black text-[#071426] transition hover:bg-amber-400">
+          Falar com um especialista <ArrowRight size={16} />
+        </Link>
       </section>
     </main>
   );

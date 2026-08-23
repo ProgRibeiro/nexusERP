@@ -1,4 +1,4 @@
-const VERSION = "nx-erp-shell-v5";
+const VERSION = "nx-erp-shell-v6";
 const SAFE_STATIC_FILES = [
   "/manifest.webmanifest",
   "/offline.html",
@@ -47,7 +47,7 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: "no-store" })
         // Páginas autenticadas nunca são persistidas em cache. Isso evita que
         // dados de um usuário anterior apareçam após logout ou troca de perfil.
         .catch(() => caches.match("/offline.html")),
