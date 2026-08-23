@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getTechnicianOS,
@@ -44,7 +44,11 @@ import {
   Sun,
   Moon,
   Trash2,
-  ChevronLeft
+  ChevronLeft,
+  Search,
+  RefreshCw,
+  WifiOff,
+  CalendarDays
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
@@ -106,7 +110,7 @@ interface OfflineDraft {
 }
 
 export default function ExecucaoTecnicaPage() {
-  const { user, users, switchUser } = useAuth();
+  const { user } = useAuth();
 
   const [techOrders, setTechOrders] = useState<any[]>([]);
   const [selectedOS, setSelectedOS] = useState<any | null>(null);
@@ -116,6 +120,8 @@ export default function ExecucaoTecnicaPage() {
   const [syncing, setSyncing] = useState(false);
   const [pendingSync, setPendingSync] = useState(0);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("TODAS");
 
   // Form states
   const [diagnosis, setDiagnosis] = useState("");
@@ -133,6 +139,15 @@ export default function ExecucaoTecnicaPage() {
   // Canvas ref for digital signature
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+
+  const filteredOrders = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return techOrders.filter((order) => {
+      const matchesStatus = statusFilter === "TODAS" || order.status === statusFilter;
+      const haystack = [order.code, order.client?.name, order.clientName, order.addressLabel, order.problemReported, order.assetName].filter(Boolean).join(" ").toLowerCase();
+      return matchesStatus && (!term || haystack.includes(term));
+    });
+  }, [searchTerm, statusFilter, techOrders]);
 
   async function loadTechOrders() {
     if (!user) return;
@@ -536,9 +551,9 @@ export default function ExecucaoTecnicaPage() {
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans flex flex-col items-center p-4">
+      <div className="min-h-screen bg-zinc-50 text-zinc-900 font-sans flex flex-col items-center p-3 dark:bg-zinc-950 dark:text-zinc-100 sm:p-5">
       {/* Header Bar */}
-      <div className="w-full max-w-md flex items-center justify-between py-3 border-b border-zinc-200 mb-4">
+      <div className="sticky top-0 z-30 mb-4 flex w-full max-w-5xl items-center justify-between border-b border-zinc-200 bg-zinc-50/95 py-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95">
         {selectedOS ? (
           <button
             onClick={() => setSelectedOS(null)}
@@ -556,7 +571,7 @@ export default function ExecucaoTecnicaPage() {
         )}
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${online ? "bg-emerald-500" : "bg-amber-500"}`} />
-          <span className="text-xs font-semibold tracking-tight">Campo NX · {online ? "online" : "offline"}</span>
+          <span className="hidden text-xs font-semibold tracking-tight sm:inline">Campo O Prestador · {online ? "online" : "offline"}</span>
           {pendingSync > 0 && (
             <button type="button" onClick={() => void syncPendingCommands()} disabled={!online || syncing} className="rounded-lg bg-amber-100 px-2 py-1 text-[9px] font-black text-amber-800 disabled:opacity-60">
               {syncing ? "Sincronizando" : `${pendingSync} pendente(s)`}
@@ -565,9 +580,9 @@ export default function ExecucaoTecnicaPage() {
         </div>
       </div>
 
-      <div className="w-full max-w-md space-y-4">
+      <div className={`w-full space-y-4 ${selectedOS ? "max-w-3xl" : "max-w-5xl"}`}>
 
-        {/* User simulated profile switch */}
+        {/* Identidade do técnico autenticado */}
         {!selectedOS && (
           <Card className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -575,23 +590,11 @@ export default function ExecucaoTecnicaPage() {
                 {user?.name.slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <h4 className="font-semibold text-xs text-zinc-800">{user?.name}</h4>
+                <h4 className="text-sm font-black text-zinc-800 dark:text-zinc-100">{user?.name}</h4>
                 <p className="text-[10px] text-zinc-500 font-semibold">{user?.roleName}</p>
               </div>
             </div>
-
-            <Select
-              options={users
-                .filter((u) => u.roleName === "Técnico" || u.roleName === "Gestor" || u.roleName === "Administrador")
-                .map((u) => ({ value: u.email, label: u.name.split(" ")[0] }))
-              }
-              value={user?.email || ""}
-              onChange={async (e) => {
-                await switchUser(e.target.value);
-                setSelectedOS(null);
-              }}
-              className="h-8 text-[11px] py-0 font-bold"
-            />
+            <button type="button" onClick={() => void loadTechOrders()} disabled={loading} className="inline-flex h-10 items-center gap-2 rounded-xl border border-zinc-200 px-3 text-xs font-black text-zinc-600 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"><RefreshCw size={14} className={loading ? "animate-spin" : ""}/> Atualizar</button>
           </Card>
         )}
 
@@ -602,15 +605,22 @@ export default function ExecucaoTecnicaPage() {
           </div>
         ) : !selectedOS ? (
           // List View
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-zinc-450 uppercase tracking-wider">Minhas visitas</h3>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Card className="p-4"><p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Minhas visitas</p><p className="mt-1 text-2xl font-black">{techOrders.length}</p></Card>
+              <Card className="p-4"><p className="text-[10px] font-black uppercase tracking-wider text-blue-600">Em andamento</p><p className="mt-1 text-2xl font-black">{techOrders.filter((order) => ["EM_DESLOCAMENTO", "NO_LOCAL", "EM_EXECUCAO"].includes(order.status)).length}</p></Card>
+              <Card className="p-4"><p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Conectividade</p><p className="mt-2 flex items-center gap-2 text-sm font-black">{online ? <Activity size={16}/> : <WifiOff size={16}/>} {online ? "Online e sincronizado" : "Offline protegido"}</p></Card>
+            </div>
+            <Card className="p-3"><div className="flex flex-col gap-3 md:flex-row"><label className="relative flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"/><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Buscar OS, cliente, local ou equipamento..." className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-3 text-sm outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800"/></label><div className="flex gap-2 overflow-x-auto">{[{value:"TODAS",label:"Todas"},{value:"AGENDADA",label:"Agendadas"},{value:"EM_EXECUCAO",label:"Executando"}].map((option) => <button key={option.value} type="button" onClick={() => setStatusFilter(option.value)} className={`h-11 whitespace-nowrap rounded-xl px-4 text-xs font-black ${statusFilter === option.value ? "bg-blue-600 text-white" : "border border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"}`}>{option.label}</button>)}</div></div></Card>
 
             {techOrders.length === 0 ? (
               <Card className="py-12 text-center text-zinc-400 text-xs">
                 Nenhuma visita atribuída para você.
               </Card>
+            ) : filteredOrders.length === 0 ? (
+              <Card className="py-10 text-center text-xs text-zinc-500">Nenhuma visita encontrada com esses filtros.</Card>
             ) : (
-              techOrders.map((os) => (
+              <div className="grid gap-3 md:grid-cols-2">{filteredOrders.map((os) => (
                 <Card
                   key={os.id}
                   onClick={() => setSelectedOS(os)}
@@ -628,13 +638,13 @@ export default function ExecucaoTecnicaPage() {
                       {os.addressLabel || "Instalação Principal"}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-semibold text-zinc-500">
-                      <span className="rounded-md bg-zinc-100 px-2 py-1">{os.scheduledTime || "Sem horário"}</span>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-1 dark:bg-zinc-800"><CalendarDays size={10}/>{os.scheduledTime || "Sem horário"}</span>
                       <span className="rounded-md bg-zinc-100 px-2 py-1">{os.estimatedDurationMinutes} min</span>
                       {os.assetName && <span className="rounded-md bg-blue-50 px-2 py-1 text-blue-700">{os.assetName}</span>}
                     </div>
                   </div>
                 </Card>
-              ))
+              ))}</div>
             )}
           </div>
         ) : (
@@ -646,9 +656,14 @@ export default function ExecucaoTecnicaPage() {
                 <StatusBadge status={selectedOS.status} />
               </div>
 
+              <div className="grid grid-cols-3 gap-2" aria-label="Progresso da visita">
+                {[{ label: "Deslocamento", active: ["EM_DESLOCAMENTO", "NO_LOCAL", "EM_EXECUCAO"].includes(selectedOS.status) }, { label: "No local", active: ["NO_LOCAL", "EM_EXECUCAO"].includes(selectedOS.status) }, { label: "Execução", active: selectedOS.status === "EM_EXECUCAO" }].map((step, index) => <div key={step.label} className={`rounded-xl border px-2 py-2 text-center text-[9px] font-black uppercase tracking-wide ${step.active ? "border-blue-600 bg-blue-600 text-white" : "border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800"}`}><span className="mr-1">{index + 1}</span>{step.label}</div>)}
+              </div>
+
               <div>
                 <h4 className="font-semibold text-sm text-zinc-900">{selectedOS.client?.name || selectedOS.clientName}</h4>
                 <p className="text-xs text-zinc-650 mt-1 leading-relaxed">{selectedOS.problemReported || "Escopo não informado."}</p>
+                <div className="mt-3 flex flex-wrap gap-2"><a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedOS.addressText || selectedOS.addressLabel || "")}`} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl border border-zinc-200 px-3 text-[10px] font-black text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"><Navigation size={13}/> Abrir rota</a><span className="inline-flex h-9 items-center gap-2 rounded-xl bg-zinc-100 px-3 text-[10px] font-bold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"><MapPin size={13}/>{selectedOS.addressText || selectedOS.addressLabel}</span></div>
               </div>
 
               {/* Status Action Buttons (Page 17 visual) */}
