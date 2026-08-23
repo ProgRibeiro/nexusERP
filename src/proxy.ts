@@ -194,6 +194,11 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await decryptSession(token) : null;
 
+  if (hostArea === "commercial" && pathname === "/" && !session) {
+    const salesUrl = internalRewriteUrl(request, "/auth/vendas");
+    return NextResponse.rewrite(salesUrl);
+  }
+
   if ((hostArea === "developer" || hostArea === "commercial") && !session) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
