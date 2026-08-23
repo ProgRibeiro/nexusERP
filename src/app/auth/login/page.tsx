@@ -18,13 +18,7 @@ function destinationFor(area: LandingArea, platformRole?: UserSession["platformR
   }
 
   const host = window.location.hostname.toLowerCase();
-  const currentAreaHost = new Set([
-    new URL(urls.app).hostname,
-    new URL(urls.commercial).hostname,
-    new URL(urls.developer).hostname,
-  ]);
-
-  if (currentAreaHost.has(host)) {
+  if (host === "localhost" || host === "127.0.0.1") {
     return window.location.origin;
   }
 
@@ -32,12 +26,23 @@ function destinationFor(area: LandingArea, platformRole?: UserSession["platformR
     return targetByArea.developer;
   }
 
-  return targetByArea[area];
+  const desired = targetByArea[area];
+  if (host === new URL(desired).hostname) return window.location.origin;
+  return desired;
 }
 
 export default function CentralLoginPage() {
   const handleLoginSuccess = useCallback((user: UserSession, area: LandingArea) => {
     const target = destinationFor(area, user.platformRole);
+    if (typeof window !== "undefined") {
+      const redirectTo = new URLSearchParams(window.location.search).get("redirectTo");
+      const targetOrigin = new URL(target, window.location.origin).origin;
+      const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+      if ((isLocal || targetOrigin === window.location.origin) && redirectTo?.startsWith("/") && !redirectTo.startsWith("//")) {
+        window.location.assign(redirectTo);
+        return;
+      }
+    }
     if (typeof window !== "undefined") {
       window.location.assign(target);
     }

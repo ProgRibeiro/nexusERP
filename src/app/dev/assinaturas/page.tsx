@@ -49,7 +49,7 @@ export default async function DevSubscriptionsPage() {
                 <input name="status" defaultValue={sub.status} className="rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm" />
                 <input name="seats" type="number" defaultValue={sub.seats} className="rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm" />
               </div>
-              <button className="rounded-lg bg-[#d4af37] px-4 py-2 text-xs font-black text-black">Salvar assinatura</button>
+              <button className="rounded-lg bg-[#155eef] px-4 py-2 text-xs font-black text-black">Salvar assinatura</button>
             </form>
           ))}
         </div>

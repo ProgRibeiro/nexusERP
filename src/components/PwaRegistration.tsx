@@ -102,10 +102,10 @@ export default function PwaRegistration() {
       )}
       {updateReady && !offline && (
         <div
-          className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-3 right-3 z-[100] mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-[#d4af37]/45 bg-white px-4 py-3 text-zinc-900 shadow-2xl print:hidden dark:border-[#d4af37]/40 dark:bg-zinc-900 dark:text-white xl:bottom-5"
+          className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-3 right-3 z-[100] mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-[#155eef]/45 bg-white px-4 py-3 text-zinc-900 shadow-2xl print:hidden dark:border-[#155eef]/40 dark:bg-zinc-900 dark:text-white xl:bottom-5"
           role="status"
         >
-          <RefreshCw size={18} className="shrink-0 text-[#b88d1b]" />
+          <RefreshCw size={18} className="shrink-0 text-[#1d4ed8]" />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-black">Atualização instalada</p>
             <p className="text-[10px] text-zinc-500">
@@ -115,7 +115,7 @@ export default function PwaRegistration() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="rounded-lg bg-[#c89b22] px-3 py-2 text-[10px] font-black text-[#111216]"
+            className="rounded-lg bg-[#c89b22] px-3 py-2 text-[10px] font-black text-white"
           >
             Atualizar
           </button>

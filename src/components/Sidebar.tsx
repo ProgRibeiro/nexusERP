@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import {
@@ -24,7 +23,6 @@ import {
   ShieldCheck,
   LogOut,
   Briefcase,
-  Network,
   ClipboardCheck,
   HardHat,
   Megaphone,
@@ -38,6 +36,7 @@ import {
 } from "@/app/actions/navigationActions";
 import { getModuleFlags } from "@/app/actions/moduleActions";
 import { getCompanySettingsAction } from "@/app/actions/settingsActions";
+import { PrestadorBrand } from "@/components/brand/PrestadorBrand";
 
 interface MenuItem {
   title: string;
@@ -67,7 +66,7 @@ export default function Sidebar() {
   });
 
   const [companyInfo, setCompanyInfo] = useState({
-    tradeName: "NX ERP",
+    tradeName: "O Prestador",
     logoUrl: "",
   });
 
@@ -76,7 +75,7 @@ export default function Sidebar() {
       const data = await getCompanySettingsAction();
       if (data) {
         setCompanyInfo({
-          tradeName: data.tradeName || data.corporateName || "NX ERP",
+          tradeName: data.tradeName || data.corporateName || "O Prestador",
           logoUrl: data.logoUrl || "",
         });
       }
@@ -284,8 +283,8 @@ export default function Sidebar() {
       )}
 
       <aside
-        className={`fixed xl:sticky left-0 top-0 h-[100dvh] overflow-visible bg-[radial-gradient(circle_at_8%_-10%,rgba(212,175,55,.26),transparent_18rem),radial-gradient(circle_at_92%_10%,rgba(255,255,255,.05),transparent_22rem),linear-gradient(180deg,#111216_0%,#14161b_54%,#0c0d10_100%)] text-chrome-200 border-r border-[#d4af37]/20 flex flex-col justify-between transition-all duration-300 select-none z-45 shrink-0 shadow-[16px_0_45px_rgba(0,0,0,.26)] ${
-          isCollapsed ? "w-[286px] xl:w-[76px]" : "w-[286px] xl:w-[272px]"
+        className={`fixed xl:sticky left-0 top-0 h-[100dvh] overflow-visible bg-[#07182b] text-chrome-200 border-r border-slate-800 flex flex-col justify-between transition-all duration-300 select-none z-45 shrink-0 shadow-[8px_0_24px_rgba(15,23,42,.08)] ${
+          isCollapsed ? "w-[286px] xl:w-[76px]" : "w-[286px] xl:w-[248px]"
         } ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
         }`}
@@ -293,51 +292,48 @@ export default function Sidebar() {
         {/* Collapse button */}
         <button
           onClick={toggleCollapsed}
-          className="absolute -right-3.5 top-7 z-10 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-[#d4af37]/35 bg-[#15161a] text-[#d4af37] shadow-md transition hover:border-[#d4af37] hover:bg-[#d4af37] hover:text-[#101113] xl:flex"
+          className="absolute -right-3.5 top-7 z-10 hidden h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 shadow-sm transition hover:border-blue-500 hover:text-blue-600 xl:flex"
         >
           {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
         <div className="flex flex-col h-full overflow-hidden">
-          {/* Header/Logo da Empresa */}
-          <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-white/8 px-4">
-            <div className="flex items-center gap-3 overflow-hidden">
+          {/* Marca da plataforma fixa; a empresa contratante aparece abaixo. */}
+          <div className="shrink-0 border-b border-white/[.08] px-4 py-[18px]">
+            <div className="flex min-h-[46px] items-center justify-between gap-2">
+              <PrestadorBrand compact={isCollapsed} light />
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white xl:hidden"
+                aria-label="Fechar menu"
+              >
+                <X size={17} />
+              </button>
+            </div>
+          </div>
+
+          <div className={`shrink-0 ${isCollapsed ? "px-3 py-3" : "px-3 pt-3"}`}>
+            <div className={`flex items-center gap-3 overflow-hidden rounded-xl border border-white/[.08] bg-white/[.045] ${isCollapsed ? "justify-center p-2" : "p-3"}`}>
               {companyInfo.logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={companyInfo.logoUrl}
                   alt={companyInfo.tradeName}
-                  className="h-[38px] w-[38px] shrink-0 rounded-xl object-cover shadow-lg shadow-black/45 ring-1 ring-[#d4af37]/35 bg-zinc-900"
+                  className="h-[38px] w-[38px] shrink-0 rounded-lg bg-white object-contain p-1 shadow-lg ring-1 ring-white/10"
                 />
               ) : (
-                <Image
-                  src="/icons/icon-192.png"
-                  width={38}
-                  height={38}
-                  alt={companyInfo.tradeName}
-                  className="h-[38px] w-[38px] shrink-0 rounded-xl shadow-lg shadow-black/45 ring-1 ring-[#d4af37]/35"
-                  priority
-                />
+                <span className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-lg bg-white/10 text-white"><Building2 size={18}/></span>
               )}
               {!isCollapsed && (
                 <div className="min-w-0">
-                  <span className="block truncate text-sm font-black tracking-tight text-white">
+                  <span className="block text-[8px] font-bold uppercase tracking-[.16em] text-blue-300">Empresa contratante</span>
+                  <span className="mt-1 block truncate text-xs font-bold tracking-tight text-white">
                     {companyInfo.tradeName}
-                  </span>
-                  <span className="block truncate text-[9px] font-bold uppercase tracking-[0.18em] text-[#e5c35e]/80">
-                    Gestão integrada
                   </span>
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(false)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white xl:hidden"
-              aria-label="Fechar menu"
-            >
-              <X size={17} />
-            </button>
           </div>
 
           {/* Simulator Profile Panel */}
@@ -345,7 +341,7 @@ export default function Sidebar() {
             <div className="mx-3 my-3 flex shrink-0 flex-col gap-2 rounded-2xl border border-white/8 bg-white/[0.045] p-3.5 transition-all">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 truncate">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#d4af37]/35 bg-[#d4af37]/15 text-xs font-black uppercase text-[#f0cd62]">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#155eef]/35 bg-[#155eef]/15 text-xs font-black uppercase text-[#60a5fa]">
                     {user.name.slice(0, 2)}
                   </div>
                   <div className="truncate">
@@ -388,7 +384,7 @@ export default function Sidebar() {
                 }}
                 className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
                   isLinkActive("/")
-                    ? "bg-[#d4af37] text-[#111216] shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#f0d37f]/25"
+                    ? "bg-[#155eef] text-white shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#93c5fd]/25"
                     : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                 }`}
                 title="Início"
@@ -397,8 +393,8 @@ export default function Sidebar() {
                   size={16}
                   className={`shrink-0 transition-transform group-hover:scale-105 ${
                     isLinkActive("/")
-                      ? "text-[#111216]"
-                      : "text-slate-400 group-hover:text-[#f0cd62]"
+                      ? "text-white"
+                      : "text-slate-400 group-hover:text-[#60a5fa]"
                   }`}
                 />
                 {!isCollapsed && <span>Início</span>}
@@ -413,8 +409,8 @@ export default function Sidebar() {
                 const [path, query] = item.href.slice(1).split("?");
                 const params = query ? Object.fromEntries(new URLSearchParams(query)) : undefined;
                 openTab(path, item.title, params); setSidebarOpen(false);
-              }} className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${isActive ? "bg-[#d4af37] text-[#111216] shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#f0d37f]/25" : "text-slate-300 hover:bg-white/[0.06] hover:text-white"}`} title={item.title}>
-                <Icon size={16} className={`shrink-0 ${isActive ? "text-[#111216]" : "text-slate-400 group-hover:text-[#f0cd62]"}`}/>
+              }} className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${isActive ? "bg-[#155eef] text-white shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#93c5fd]/25" : "text-slate-300 hover:bg-white/[0.06] hover:text-white"}`} title={item.title}>
+                <Icon size={16} className={`shrink-0 ${isActive ? "text-white" : "text-slate-400 group-hover:text-[#60a5fa]"}`}/>
                 {!isCollapsed && <span className="truncate">{item.title}</span>}
                 {item.indicator && indicators[item.indicator] > 0 && <span className={`${isCollapsed ? "absolute right-1 top-1" : "ml-auto"} min-w-5 rounded-full bg-orange-500 px-1.5 py-0.5 text-center text-[9px] font-black text-white`}>{indicators[item.indicator] > 99 ? "99+" : indicators[item.indicator]}</span>}
               </button>;
@@ -460,7 +456,7 @@ export default function Sidebar() {
                         }}
                         className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${
                           isActive
-                            ? "bg-[#d4af37] text-[#111216] shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#f0d37f]/25"
+                            ? "bg-[#155eef] text-white shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#93c5fd]/25"
                             : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                         }`}
                         title={item.title}
@@ -469,8 +465,8 @@ export default function Sidebar() {
                           size={16}
                           className={`shrink-0 transition-transform group-hover:scale-105 ${
                             isActive
-                              ? "text-[#111216]"
-                              : "text-slate-400 group-hover:text-[#f0cd62]"
+                              ? "text-white"
+                              : "text-slate-400 group-hover:text-[#60a5fa]"
                           }`}
                         />
                         {!isCollapsed && (
@@ -504,8 +500,8 @@ export default function Sidebar() {
             </div>
 
             <div className="pt-1 text-[9px] font-semibold text-zinc-400 space-y-0.5">
-              <p>© 2026 Nexus ERP · Direitos Reservados</p>
-              <p className="flex items-center justify-center gap-1 text-[#d4af37]/90 font-bold">
+              <p>© 2026 O Prestador · Direitos Reservados</p>
+              <p className="flex items-center justify-center gap-1 text-[#155eef]/90 font-bold">
                 <Code2 size={10} /> Desenvolvido por Lucas Ribeiro / ProgRibeiro
               </p>
             </div>

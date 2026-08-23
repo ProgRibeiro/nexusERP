@@ -25,10 +25,12 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function isAlwaysPublicPath(pathname: string) {
+  if (["/login", "/cadastro", "/recuperar-senha", "/treinamentos"].includes(pathname)) return true;
   if (pathname.startsWith("/portal/loja/")) return true;
   if (pathname.startsWith("/portal/prestador")) return true;
   if (pathname.startsWith("/site")) return true;
   if (pathname.startsWith("/auth")) return true;
+  if (["/recursos", "/solucoes", "/planos", "/historia", "/demonstracao", "/contato"].includes(pathname)) return true;
   return false;
 }
 
@@ -118,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center gap-4 text-zinc-100">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-sm font-semibold text-zinc-500 tracking-wide animate-pulse">
-          Carregando NX ERP...
+          Carregando O Prestador...
         </p>
       </div>
     );

@@ -123,7 +123,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           {label && (
             <label
               htmlFor={generatedId}
-              className="block text-[11px] font-bold tracking-[0.01em] text-[#6d685b] dark:text-[#b6ac95]"
+              className="block text-[11px] font-bold tracking-[0.01em] text-zinc-700 dark:text-zinc-300"
             >
               {label}
             </label>
@@ -139,7 +139,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             disabled={disabled}
             required={required}
             name={name}
-            className={`min-h-10 w-full cursor-pointer rounded-xl border border-[#ded6c2] bg-white/95 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#d4af37] focus:ring-4 focus:ring-[#d4af37]/18 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 ${error ? "border-danger" : ""} ${className}`}
+            className={`min-h-10 w-full cursor-pointer rounded-xl border border-[#dbe4f0] bg-white/95 px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#155eef] focus:ring-4 focus:ring-[#155eef]/18 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 ${error ? "border-danger" : ""} ${className}`}
             {...nativeProps}
           >
             {options.map((option) => (
@@ -160,7 +160,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
         {label && (
           <label
             htmlFor={generatedId}
-            className="block text-[11px] font-bold tracking-[0.01em] text-[#6d685b] dark:text-[#b6ac95]"
+            className="block text-[11px] font-bold tracking-[0.01em] text-zinc-700 dark:text-zinc-300"
           >
             {label}
           </label>
@@ -187,7 +187,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
           <Search
             size={15}
-            className={`pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 ${open ? "text-[#b88d1b]" : "text-slate-400"}`}
+            className={`pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 ${open ? "text-[#1d4ed8]" : "text-slate-400"}`}
           />
           <input
             id={generatedId}
@@ -252,16 +252,16 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                 setQuery(selectedLabel);
               }
             }}
-            className={`min-h-10 w-full rounded-xl border border-[#ded6c2] bg-white/95 py-2 pl-9 pr-9 text-sm text-slate-900 shadow-[inset_0_1px_1px_rgba(15,23,42,.025)] outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-[#ceb978] focus:border-[#d4af37] focus:ring-4 focus:ring-[#d4af37]/18 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:border-zinc-600 dark:focus:border-[#d4af37] ${error ? "border-danger focus:border-danger focus:ring-danger/20" : ""} ${className}`}
+            className={`min-h-10 w-full rounded-xl border border-[#dbe4f0] bg-white/95 py-2 pl-9 pr-9 text-sm text-slate-900 shadow-[inset_0_1px_1px_rgba(15,23,42,.025)] outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-[#93b4e8] focus:border-[#155eef] focus:ring-4 focus:ring-[#155eef]/18 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:border-zinc-600 dark:focus:border-[#155eef] ${error ? "border-danger focus:border-danger focus:ring-danger/20" : ""} ${className}`}
           />
           <ChevronDown
             size={15}
-            className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${open ? "rotate-180 text-[#b88d1b]" : ""}`}
+            className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${open ? "rotate-180 text-[#1d4ed8]" : ""}`}
           />
 
           {open && !disabled && (
-            <div className="absolute left-0 right-0 z-[100] mt-2 overflow-hidden rounded-2xl border border-[#ded6c2] bg-white shadow-[0_20px_55px_rgba(15,23,42,.18)] dark:border-zinc-700 dark:bg-zinc-900">
-              <div className="flex items-center justify-between border-b border-[#ede6d6] bg-[#fbf7ee] px-3 py-2 text-[10px] font-bold text-[#8a7a52] dark:border-zinc-800 dark:bg-zinc-950/60">
+            <div className="absolute left-0 right-0 z-[100] mt-2 overflow-hidden rounded-2xl border border-[#dbe4f0] bg-white shadow-[0_20px_55px_rgba(15,23,42,.18)] dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-[10px] font-bold text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-400">
                 <span>{filteredOptions.length} resultado(s)</span>
                 <span>Digite para filtrar</span>
               </div>
@@ -284,7 +284,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                         onMouseDown={(event) => event.preventDefault()}
                         onMouseEnter={() => setActiveIndex(index)}
                         onClick={() => chooseOption(option)}
-                        className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-xs transition-colors ${active ? "bg-[#f7edd1] text-[#5f4812] dark:bg-[#2f2813] dark:text-[#ebd48a]" : "text-slate-700 hover:bg-slate-50 dark:text-zinc-200 dark:hover:bg-zinc-800"}`}
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-xs transition-colors ${active ? "bg-blue-50 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200" : "text-slate-700 hover:bg-slate-50 dark:text-zinc-200 dark:hover:bg-zinc-800"}`}
                       >
                         <span className="min-w-0 flex-1 truncate font-semibold">
                           {option.label}
@@ -292,7 +292,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                         {selected && (
                           <Check
                             size={15}
-                            className="shrink-0 text-[#b88d1b]"
+                            className="shrink-0 text-[#1d4ed8]"
                           />
                         )}
                       </button>

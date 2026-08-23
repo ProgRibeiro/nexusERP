@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import crypto from "crypto";
 import { assertLoginAllowed, clearLoginFailures, registerLoginFailure } from "@/lib/loginThrottle";
 import {
@@ -12,9 +12,17 @@ import {
 } from "@/lib/session";
 import { getSession, requireAuth, requirePermission, AuthError } from "@/lib/auth";
 import { logger } from "@/lib/logger";
+import { enterTenantContext, resolveLoginTenant } from "@/lib/db";
 import { inferLandingArea, type LandingArea } from "@/lib/portalRouting";
 import { resolvePlatformRole, type PlatformRole } from "@/lib/rbac";
-import { bindUserToTenant, resolvePrimaryTenantForUser, resolveTenantFallback, tenantScopedUserFilter } from "@/lib/tenantAccess";
+import { resolveEffectiveIdentity } from "@/lib/identityPermissions";
+import {
+  assertUserBelongsToTenant,
+  bindUserToTenant,
+  resolvePrimaryTenantForUser,
+  resolveTenantFallback,
+  tenantScopedUserFilter,
+} from "@/lib/tenantAccess";
 
 export interface UserSession {
   id: string;
@@ -24,6 +32,23 @@ export interface UserSession {
   platformRole: PlatformRole;
   tenantId?: string;
   permissions: string[];
+}
+
+async function sessionCookieOptions() {
+  const headerStore = await headers();
+  const host = (headerStore.get("x-forwarded-host") || headerStore.get("host") || "").split(":")[0].toLowerCase();
+  const configuredDomain = process.env.SESSION_COOKIE_DOMAIN?.trim();
+  const configuredBase = configuredDomain?.replace(/^\./, "").toLowerCase();
+  const validConfiguredDomain = configuredDomain && configuredBase && (host === configuredBase || host.endsWith(`.${configuredBase}`)) ? configuredDomain : undefined;
+  const domain = validConfiguredDomain || (host === "oprestador.tech" || host.endsWith(".oprestador.tech") ? ".oprestador.tech" : undefined);
+  return {
+    httpOnly: true as const,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+    ...(domain ? { domain } : {}),
+  };
 }
 
 /**
@@ -81,16 +106,51 @@ export async function getSessionUserAction(): Promise<UserSession | null> {
  * Encerra a sessão atual removendo o cookie httpOnly do servidor.
  */
 export async function logoutAction(): Promise<{ success: boolean }> {
+  const session = await getSession();
+  if (session?.tenantId) {
+    enterTenantContext(session.tenantId);
+    const metadata = await requestMetadata();
+    await prisma.auditLog.create({ data: { userId: session.userId, action: "LOGOUT", category: "AUTH", entity: "Sessao", entityId: session.userId, changesJson: "{}", ...metadata } }).catch((error) => logger.error("logout_audit_failed", error));
+  }
   const store = await cookies();
-  store.delete(SESSION_COOKIE_NAME);
+  const options = await sessionCookieOptions();
+  store.set(SESSION_COOKIE_NAME, "", { ...options, maxAge: 0 });
   return { success: true };
 }
 
 import {
   generateSalt,
+  generateSecureToken,
   hashPassword,
+  sha256,
   verifyPassword as passwordMatches,
 } from "@/lib/crypto";
+
+async function requestMetadata() {
+  const headerStore = await headers();
+  return {
+    ipAddress: (headerStore.get("x-forwarded-for") || headerStore.get("x-real-ip") || "").split(",")[0].trim() || null,
+    userAgent: headerStore.get("user-agent")?.slice(0, 500) || null,
+  };
+}
+
+async function recordLoginHistory(input: { userId?: string; tenantId?: string; email: string; success: boolean; reason?: string }) {
+  try {
+    const metadata = await requestMetadata();
+    await prisma.loginHistory.create({
+      data: {
+        userId: input.userId || null,
+        tenantId: resolveTenantFallback(input.tenantId),
+        email: input.email.trim().toLowerCase(),
+        success: input.success,
+        reason: input.reason || null,
+        ...metadata,
+      },
+    });
+  } catch (historyError) {
+    logger.error("login_history_write_failed", historyError);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Hash de senha: PBKDF2-SHA512 com salt individual por usuário (100k iterações).
@@ -116,15 +176,25 @@ export async function loginAction(
 ): Promise<{ success: boolean; user?: UserSession; landingArea?: LandingArea; error?: string }> {
   try {
     await assertLoginAllowed(email);
+    const loginTenantId = await resolveLoginTenant(email);
+    if (loginTenantId) enterTenantContext(loginTenantId);
     const user = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
-      include: { role: true },
+      include: { role: true, userRoles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } } },
     });
 
     if (!user) {
       await registerLoginFailure(email);
+      await recordLoginHistory({ email, success: false, reason: "USUARIO_NAO_ENCONTRADO" });
       logger.warn("login_failed", { email: email.trim().toLowerCase(), reason: "usuario_nao_encontrado" });
       return { success: false, error: "Usuário não encontrado." };
+    }
+
+    if (!user.active || user.blockedAt) {
+      await registerLoginFailure(email);
+      await recordLoginHistory({ userId: user.id, email: user.email, success: false, reason: user.blockedAt ? "USUARIO_BLOQUEADO" : "USUARIO_INATIVO" });
+      logger.warn("login_failed", { userId: user.id, email: user.email, reason: "usuario_inativo_ou_bloqueado" });
+      return { success: false, error: "Acesso bloqueado. Procure o administrador da sua empresa." };
     }
 
     let salt = user.salt;
@@ -138,6 +208,7 @@ export async function loginAction(
 
       if (!matchesLegacy) {
         await registerLoginFailure(email);
+        await recordLoginHistory({ userId: user.id, email: user.email, success: false, reason: "SENHA_INCORRETA" });
         logger.warn("login_failed", { email: user.email, reason: "senha_incorreta" });
         return { success: false, error: "Senha incorreta." };
       }
@@ -151,16 +222,23 @@ export async function loginAction(
     } else {
       if (!passwordMatches(password, salt, user.password)) {
         await registerLoginFailure(email);
+        await recordLoginHistory({ userId: user.id, email: user.email, success: false, reason: "SENHA_INCORRETA" });
         logger.warn("login_failed", { email: user.email, reason: "senha_incorreta" });
         return { success: false, error: "Senha incorreta." };
       }
     }
 
-    const roleName = user.role?.name || "Sem Perfil";
+    const identity = resolveEffectiveIdentity(user);
+    const roleName = identity.roleName;
     await clearLoginFailures(email);
-    const permissions = JSON.parse(user.permissions) as string[];
+    const permissions = identity.permissions;
     const platformRole = resolvePlatformRole({ roleName, permissions });
     const tenantId = await resolvePrimaryTenantForUser(user.id);
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await recordLoginHistory({ userId: user.id, tenantId, email: user.email, success: true, reason: "LOGIN" });
+    const loginMetadata = await requestMetadata();
+    await prisma.auditLog.create({ data: { userId: user.id, action: "LOGIN", category: "AUTH", entity: "Sessao", entityId: user.id, changesJson: "{}", ipAddress: loginMetadata.ipAddress, userAgent: loginMetadata.userAgent } });
 
     const payload: SessionPayload = {
       userId: user.id,
@@ -170,18 +248,13 @@ export async function loginAction(
       platformRole,
       tenantId,
       permissions,
+      sessionVersion: user.sessionVersion,
       exp: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
     };
 
     const token = await encryptSession(payload);
     const store = await cookies();
-    store.set(SESSION_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-    });
+    store.set(SESSION_COOKIE_NAME, token, await sessionCookieOptions());
 
     logger.info("login_success", { userId: user.id, email: user.email, roleName });
     const landingArea = inferLandingArea({ roleName, permissions });
@@ -195,6 +268,64 @@ export async function loginAction(
     logger.error("login_error", { message: error.message });
     return { success: false, error: error.message };
   }
+}
+
+const RESET_GENERIC_MESSAGE = "Se o e-mail estiver ativo, você receberá as instruções para redefinir a senha.";
+
+export async function requestPasswordResetAction(email: string): Promise<{ success: true; message: string; developmentToken?: string }> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const tenantId = normalizedEmail.includes("@") ? await resolveLoginTenant(normalizedEmail) : null;
+  if (!tenantId) return { success: true, message: RESET_GENERIC_MESSAGE };
+
+  enterTenantContext(tenantId);
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (!user?.active || user.blockedAt) return { success: true, message: RESET_GENERIC_MESSAGE };
+
+  const token = generateSecureToken(32);
+  const tokenHash = sha256(token);
+  const metadata = await requestMetadata();
+  await prisma.$transaction(async (tx) => {
+    await tx.passwordResetToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } });
+    await tx.passwordResetToken.create({ data: { userId: user.id, tenantId, tokenHash, expiresAt: new Date(Date.now() + 30 * 60_000), requestedIp: metadata.ipAddress } });
+    await tx.auditLog.create({ data: { userId: user.id, action: "PASSWORD_RESET_REQUEST", category: "AUTH", entity: "Usuario", entityId: user.id, changesJson: "{}", ipAddress: metadata.ipAddress, userAgent: metadata.userAgent } });
+  });
+
+  const baseUrl = process.env.NEXT_PUBLIC_NEXUS_APP_URL || process.env.APP_BASE_URL || "http://localhost:3000";
+  const resetUrl = `${baseUrl.replace(/\/$/, "")}/recuperar-senha?token=${encodeURIComponent(token)}`;
+  const webhook = process.env.PASSWORD_RESET_WEBHOOK_URL?.trim();
+  if (webhook) {
+    try {
+      const response = await fetch(webhook, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "password.reset", email: normalizedEmail, resetUrl, expiresInMinutes: 30 }) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      logger.error("password_reset_delivery_failed", error);
+    }
+  } else if (process.env.NODE_ENV === "production") {
+    logger.error("password_reset_delivery_not_configured", { userId: user.id });
+  }
+
+  return { success: true, message: RESET_GENERIC_MESSAGE, ...(process.env.NODE_ENV !== "production" ? { developmentToken: token } : {}) };
+}
+
+export async function confirmPasswordResetAction(token: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+  if (token.length < 32) return { success: false, error: "Link de recuperação inválido." };
+  if (newPassword.trim().length < 12) return { success: false, error: "A nova senha deve possuir pelo menos 12 caracteres." };
+  const tokenHash = sha256(token);
+  const rows = await prisma.$queryRawUnsafe<Array<{ tenantId: string }>>("SELECT public.resolve_reset_token_tenant($1)::text AS \"tenantId\"", tokenHash);
+  const tenantId = rows[0]?.tenantId;
+  if (!tenantId) return { success: false, error: "O link expirou ou já foi utilizado." };
+  enterTenantContext(tenantId);
+
+  const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+  if (!record || record.usedAt || record.expiresAt <= new Date()) return { success: false, error: "O link expirou ou já foi utilizado." };
+  const salt = generateSalt();
+  const metadata = await requestMetadata();
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: record.userId }, data: { password: hashPassword(newPassword.trim(), salt), salt, passwordChangedAt: new Date(), sessionVersion: { increment: 1 } } });
+    await tx.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+    await tx.auditLog.create({ data: { userId: record.userId, action: "PASSWORD_RESET_COMPLETE", category: "AUTH", entity: "Usuario", entityId: record.userId, changesJson: "{}", ipAddress: metadata.ipAddress, userAgent: metadata.userAgent } });
+  });
+  return { success: true };
 }
 
 /**
@@ -224,6 +355,11 @@ export async function switchUserAction(
       return { success: false, error: "Usuário-alvo não encontrado." };
     }
 
+    const canAccessPlatformWide = ["SUPER_ADMIN", "DEVELOPER", "SUPPORT"].includes(current.platformRole ?? "");
+    if (!canAccessPlatformWide) {
+      await assertUserBelongsToTenant(target.id, current.tenantId, { allowPlatformWide: false });
+    }
+
     const roleName = target.role?.name || "Sem Perfil";
     const permissions = JSON.parse(target.permissions) as string[];
     const platformRole = resolvePlatformRole({ roleName, permissions });
@@ -242,13 +378,7 @@ export async function switchUserAction(
 
     const token = await encryptSession(payload);
     const store = await cookies();
-    store.set(SESSION_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-    });
+    store.set(SESSION_COOKIE_NAME, token, await sessionCookieOptions());
 
     await prisma.auditLog.create({
       data: {
@@ -320,7 +450,10 @@ export async function createUserAction(data: {
       return { success: false, error: `Perfil de acesso '${data.roleName}' não foi encontrado.` };
     }
 
-    const initialPassword = data.password && data.password.trim().length >= 3 ? data.password.trim() : "123";
+    if (!data.password || data.password.trim().length < 12) {
+      return { success: false, error: "A senha inicial deve possuir pelo menos 12 caracteres." };
+    }
+    const initialPassword = data.password.trim();
     const salt = generateSalt();
     const hashedPassword = hashPassword(initialPassword, salt);
 
@@ -350,6 +483,9 @@ export async function createUserAction(data: {
       include: { role: true },
     });
     await bindUserToTenant(newUser.id, current.tenantId);
+    await prisma.userRole.create({
+      data: { userId: newUser.id, roleId: role.id, tenantId: resolveTenantFallback(current.tenantId) },
+    });
 
     await prisma.auditLog.create({
       data: {
@@ -392,6 +528,8 @@ export async function updateUserAction(data: {
   email?: string;
   roleName?: string;
   password?: string;
+  active?: boolean;
+  blocked?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const current = await requirePermission("admin.all");
@@ -403,27 +541,47 @@ export async function updateUserAction(data: {
       return { success: false, error: "Usuário não encontrado." };
     }
 
+    const canManagePlatformWide = ["SUPER_ADMIN", "DEVELOPER", "SUPPORT"].includes(current.platformRole ?? "");
+    if (!canManagePlatformWide) {
+      await assertUserBelongsToTenant(user.id, current.tenantId, { allowPlatformWide: false });
+    }
+
     const updateData: any = {};
     if (data.name && data.name.trim()) updateData.name = data.name.trim();
     if (data.email && data.email.trim()) updateData.email = data.email.trim().toLowerCase();
+    if (typeof data.active === "boolean") updateData.active = data.active;
+    if (typeof data.blocked === "boolean") updateData.blockedAt = data.blocked ? new Date() : null;
 
+    let selectedRoleId: string | null = null;
     if (data.roleName) {
       const role = await prisma.role.findFirst({ where: { name: data.roleName } });
       if (role) {
         updateData.roleId = role.id;
+        selectedRoleId = role.id;
       }
     }
 
-    if (data.password && data.password.trim().length >= 3) {
+    if (data.password && data.password.trim().length < 12) {
+      return { success: false, error: "A nova senha deve possuir pelo menos 12 caracteres." };
+    }
+    if (data.password) {
       const salt = generateSalt();
       updateData.salt = salt;
       updateData.password = hashPassword(data.password.trim(), salt);
+      updateData.passwordChangedAt = new Date();
     }
 
     await prisma.user.update({
       where: { id: data.id },
       data: updateData,
     });
+    if (selectedRoleId) {
+      await prisma.userRole.upsert({
+        where: { userId_roleId_tenantId: { userId: user.id, roleId: selectedRoleId, tenantId: resolveTenantFallback(current.tenantId) } },
+        update: {},
+        create: { userId: user.id, roleId: selectedRoleId, tenantId: resolveTenantFallback(current.tenantId) },
+      });
+    }
 
     await prisma.auditLog.create({
       data: {

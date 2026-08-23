@@ -83,7 +83,7 @@ export default function Header() {
     try {
       await logout();
       setIsProfileOpen(false);
-      router.replace("/auth/login");
+      router.replace("/login");
       router.refresh();
     } finally {
       setIsLoggingOut(false);
@@ -278,7 +278,7 @@ export default function Header() {
       return "Gestão de Contratos de Manutenção";
     if (path.startsWith("/configuracoes"))
       return "Configurações & Logs de Auditoria";
-    return "NX ERP";
+    return "O Prestador";
   };
 
   const getNotifIcon = (type: string) => {
@@ -346,12 +346,12 @@ export default function Header() {
   };
 
   return (
-    <header className="relative z-30 flex h-[68px] shrink-0 select-none items-center justify-between gap-2 border-b border-[#d9d0bc]/90 bg-[#fffdf7]/86 px-3 shadow-[0_8px_30px_rgba(18,18,18,.06)] backdrop-blur-2xl sm:px-4 lg:h-[76px] lg:px-7 dark:border-[#2d2f35] dark:bg-[#111216]/88">
+    <header className="erp-topbar relative z-30 flex h-[72px] shrink-0 select-none items-center justify-between gap-2 overflow-visible border-b border-zinc-200 bg-white px-3 shadow-[0_1px_8px_rgba(15,23,42,.045)] transition-colors duration-200 dark:border-zinc-800 dark:bg-zinc-950 dark:shadow-[0_1px_10px_rgba(0,0,0,.35)] sm:px-4 lg:px-6">
       {/* Title & Mobile Menu Toggle */}
       <div className="flex items-center gap-3 shrink-0">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm hover:border-[#d4af37]/45 hover:bg-[#f6ebc8] hover:text-[#6f5614] dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-[#d4af37]/50 dark:hover:bg-[#2b250f] xl:hidden"
+          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 xl:hidden"
           title="Menu Lateral"
         >
           <svg
@@ -368,21 +368,18 @@ export default function Header() {
             />
           </svg>
         </button>
-        <div className="min-w-0">
-          <p className="hidden text-[8px] font-black uppercase tracking-[0.28em] text-[#b3881f] sm:block dark:text-[#d4af37]">
-            NX Workspace
+        <div className="min-w-0 xl:hidden">
+          <p className="hidden text-[8px] font-black uppercase tracking-[0.28em] text-blue-600 sm:block">
+            Área de trabalho
           </p>
-          <h1 className="max-w-[35vw] truncate text-sm font-black leading-tight tracking-[-0.025em] text-zinc-950 sm:max-w-[42vw] lg:max-w-none lg:text-xl dark:text-white">
+          <h1 className="max-w-[35vw] truncate text-sm font-black leading-tight tracking-[-0.025em] text-zinc-950 dark:text-white sm:max-w-[28vw] lg:max-w-[220px] lg:text-lg">
             {activeTab?.title || getPageTitle(pathname)}
           </h1>
-          <p className="mt-0.5 hidden text-[10px] font-medium text-zinc-500 2xl:block">
-            {getPageTitle(pathname)} · operação integrada em tempo real
-          </p>
         </div>
       </div>
 
       {/* Global Search Bar */}
-      <div className="relative z-30 mx-6 hidden max-w-2xl flex-1 xl:block 2xl:mx-12">
+      <div className="relative z-30 mx-4 hidden max-w-xl flex-1 xl:block 2xl:mx-8">
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400 dark:text-zinc-550">
             <Search size={15} />
@@ -402,7 +399,7 @@ export default function Header() {
             onFocus={() =>
               searchQuery.trim().length >= 2 && setIsSearchOpen(true)
             }
-            className="h-11 w-full rounded-2xl border border-[#ded6c2] bg-[#f9f4e7]/85 py-2 pl-10 pr-8 text-xs text-zinc-800 shadow-[inset_0_1px_1px_rgba(15,23,42,.02)] outline-none transition-all duration-200 placeholder:text-zinc-400 hover:border-[#ceb978] focus:border-[#d4af37] focus:bg-white focus:ring-4 focus:ring-[#d4af37]/18 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-100 dark:focus:border-[#d4af37] dark:focus:bg-zinc-900"
+            className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50/70 py-2 pl-10 pr-8 text-xs text-zinc-900 shadow-sm outline-none transition-all duration-200 placeholder:text-zinc-400 hover:border-zinc-300 hover:bg-white focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:border-zinc-600 dark:hover:bg-zinc-900 dark:focus:border-blue-500 dark:focus:bg-zinc-900"
           />
           {searchQuery && (
             <button
@@ -477,7 +474,7 @@ export default function Header() {
         <PwaInstallButton />
         <button
           onClick={() => setIsPaletteOpen(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:border-[#d4af37]/45 hover:bg-[#f6ebc8] hover:text-[#6f5614] dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-[#d4af37]/45 dark:hover:bg-[#2b250f] xl:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:border-[#155eef]/45 hover:bg-[#eff6ff] hover:text-[#1d4ed8] dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-[#155eef]/45 dark:hover:bg-[#102a50] xl:hidden"
           title="Busca global"
           aria-label="Abrir busca global"
         >
@@ -508,7 +505,7 @@ export default function Header() {
         <div className="relative">
           <button
             onClick={() => setIsNewOpen(!isNewOpen)}
-            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-[#d4af37] px-4 text-xs font-black text-[#141519] shadow-[0_10px_20px_rgba(86,64,7,.28)] transition-all hover:-translate-y-0.5 hover:bg-[#c79d28] hover:shadow-[0_14px_28px_rgba(86,64,7,.35)]"
+            className="flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-[#155eef] px-4 text-xs font-black text-white shadow-[0_6px_16px_rgba(37,99,235,.2)] transition-all hover:bg-[#124fd0]"
           >
             <Plus size={15} />
             <span className="hidden sm:inline">Novo</span>

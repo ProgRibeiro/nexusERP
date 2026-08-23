@@ -10,7 +10,7 @@ type ImportHistory = { id: string; type: string; status: string; total: number; 
 type ImportDetail = { id: string; rowNumber: number; status: string; entityType: string; entityId: string | null; label: string; error: string | null };
 
 const TYPE_META: Record<DataGraphNodeType, { label: string; color: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
-  CLIENTE: { label: "Cliente", color: "#2563eb", icon: UserRound },
+  CLIENTE: { label: "Cliente", color: "#155eef", icon: UserRound },
   CONTATO: { label: "Contato", color: "#8b5cf6", icon: Users },
   EQUIPAMENTO: { label: "Equipamento", color: "#64748b", icon: Boxes },
   ORCAMENTO: { label: "Orçamento", color: "#f59e0b", icon: FileText },

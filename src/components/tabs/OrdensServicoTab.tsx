@@ -1267,7 +1267,7 @@ export default function OrdensServicoTab({
               setForm((current) => ({ ...current, notes: e.target.value }))
             }
           />}
-          {createMode === "OPERACIONAL" && <button type="button" onClick={() => setShowAdvancedFields((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-left text-xs font-bold text-zinc-600 transition hover:border-[#d4af37] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"><span>{showAdvancedFields ? "Ocultar opções avançadas" : "Adicionar contrato, prioridade, modalidade ou observações"}</span><Plus size={15} className={`transition-transform ${showAdvancedFields ? "rotate-45" : ""}`}/></button>}
+          {createMode === "OPERACIONAL" && <button type="button" onClick={() => setShowAdvancedFields((value) => !value)} className="flex w-full items-center justify-between rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-4 py-3 text-left text-xs font-bold text-zinc-600 transition hover:border-[#155eef] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"><span>{showAdvancedFields ? "Ocultar opções avançadas" : "Adicionar contrato, prioridade, modalidade ou observações"}</span><Plus size={15} className={`transition-transform ${showAdvancedFields ? "rotate-45" : ""}`}/></button>}
           <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
             <Button
               type="button"

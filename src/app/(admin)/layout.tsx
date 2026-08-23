@@ -92,7 +92,7 @@ function WorkspaceContainer() {
   const activeFloatingTab = floatingTabs.find((tab) => tab.id === activeFloatingTabId);
 
   return (
-    <div className={`app-shell flex h-[100dvh] w-screen overflow-hidden font-sans antialiased print:block print:h-auto print:w-auto print:overflow-visible ${darkMode ? "dark bg-zinc-950 text-zinc-100" : "bg-zinc-50 text-zinc-800"}`}>
+    <div className={`app-shell flex h-[100dvh] w-screen overflow-hidden bg-[var(--op-canvas)] font-sans text-[var(--op-text)] antialiased transition-colors duration-200 print:block print:h-auto print:w-auto print:overflow-visible ${darkMode ? "dark" : ""}`}>
       {/* Sidebar Navigation */}
       <div className="print:hidden flex h-full">
         <Sidebar />
@@ -120,19 +120,19 @@ function WorkspaceContainer() {
       {floatingTabs.length > 0 && (
         <>
           {activeFloatingTab && <div className="fixed inset-0 z-46 bg-black/45 backdrop-blur-[2px] print:hidden" onClick={() => activateFloatingTab(null)} aria-hidden="true" />}
-          {activeFloatingTab && <section className="fixed inset-2 z-47 flex flex-col overflow-hidden rounded-[24px] border border-[#d4af37]/25 bg-[#0d0e11] shadow-[0_35px_100px_rgba(0,0,0,.65)] sm:inset-5 xl:bottom-5 xl:left-[292px] xl:right-5 xl:top-[88px] print:hidden" role="dialog" aria-label={activeFloatingTab.title}>
-            <header className="flex shrink-0 items-center gap-2 border-b border-white/[.08] bg-[#141519] p-2">
+          {activeFloatingTab && <section className="fixed inset-2 z-47 flex flex-col overflow-hidden rounded-[24px] border border-zinc-200 bg-white shadow-[0_35px_100px_rgba(0,0,0,.35)] sm:inset-5 xl:bottom-5 xl:left-[268px] xl:right-5 xl:top-[88px] dark:border-zinc-800 dark:bg-zinc-950 print:hidden" role="dialog" aria-label={activeFloatingTab.title}>
+            <header className="flex shrink-0 items-center gap-2 border-b border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto scrollbar-none">
-                {floatingTabs.map((tab) => <button key={tab.id} type="button" onClick={() => activateFloatingTab(tab.id)} className={`group flex min-w-[150px] max-w-[240px] items-center gap-2 rounded-xl px-3 py-2 text-left text-[10px] font-bold transition ${tab.id === activeFloatingTabId ? "bg-[#d4af37] text-[#111216]" : "bg-white/[.04] text-zinc-400 hover:bg-white/[.08] hover:text-white"}`}><Layers3 size={13} className="shrink-0"/><span className="flex-1 truncate">{tab.title}</span><span onClick={(event) => { event.stopPropagation(); closeFloatingTab(tab.id); }} className="rounded-md p-1 opacity-60 hover:bg-black/15 hover:opacity-100" role="button" aria-label={`Fechar ${tab.title}`}><X size={11}/></span></button>)}
+                {floatingTabs.map((tab) => <button key={tab.id} type="button" onClick={() => activateFloatingTab(tab.id)} className={`group flex min-w-[150px] max-w-[240px] items-center gap-2 rounded-xl px-3 py-2 text-left text-[10px] font-bold transition ${tab.id === activeFloatingTabId ? "bg-[#155eef] text-white" : "bg-white text-zinc-600 hover:bg-zinc-100 dark:bg-white/[.04] dark:text-zinc-400 dark:hover:bg-white/[.08] dark:hover:text-white"}`}><Layers3 size={13} className="shrink-0"/><span className="flex-1 truncate">{tab.title}</span><span onClick={(event) => { event.stopPropagation(); closeFloatingTab(tab.id); }} className="rounded-md p-1 opacity-60 hover:bg-black/15 hover:opacity-100" role="button" aria-label={`Fechar ${tab.title}`}><X size={11}/></span></button>)}
               </div>
-              <button type="button" onClick={() => activateFloatingTab(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-400 hover:bg-white/10 hover:text-white" title="Minimizar"><Minus size={17}/></button>
-              <button type="button" onClick={() => closeFloatingTab(activeFloatingTab.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-400 hover:bg-red-500/15 hover:text-red-300" title="Fechar"><X size={17}/></button>
+              <button type="button" onClick={() => activateFloatingTab(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white" title="Minimizar"><Minus size={17}/></button>
+              <button type="button" onClick={() => closeFloatingTab(activeFloatingTab.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:text-zinc-400 dark:hover:bg-red-500/15 dark:hover:text-red-300" title="Fechar"><X size={17}/></button>
             </header>
             <div className="app-workspace min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 xl:p-6">
               {floatingTabs.map((tab) => <div key={tab.id} className={tab.id === activeFloatingTabId ? "mx-auto min-h-full w-full max-w-[1600px] animate-in fade-in duration-150" : "hidden"}><TabContentRenderer tab={tab}/></div>)}
             </div>
           </section>}
-          {!activeFloatingTab && <div className="fixed bottom-20 right-4 z-47 flex max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-[#d4af37]/25 bg-[#141519]/95 p-2 shadow-2xl backdrop-blur-md xl:bottom-5 xl:right-5 print:hidden"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#d4af37] text-black"><Layers3 size={16}/></span>{floatingTabs.map((tab) => <button key={tab.id} onClick={() => activateFloatingTab(tab.id)} className="max-w-40 truncate rounded-xl px-3 py-2 text-[10px] font-bold text-zinc-300 hover:bg-white/10">{tab.title}</button>)}<button onClick={() => floatingTabs.forEach((tab) => closeFloatingTab(tab.id))} className="rounded-xl p-2 text-zinc-500 hover:text-red-300" title="Fechar todas"><X size={15}/></button></div>}
+          {!activeFloatingTab && <div className="fixed bottom-20 right-4 z-47 flex max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-[#155eef]/25 bg-[#141519]/95 p-2 shadow-2xl backdrop-blur-md xl:bottom-5 xl:right-5 print:hidden"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#155eef] text-black"><Layers3 size={16}/></span>{floatingTabs.map((tab) => <button key={tab.id} onClick={() => activateFloatingTab(tab.id)} className="max-w-40 truncate rounded-xl px-3 py-2 text-[10px] font-bold text-zinc-300 hover:bg-white/10">{tab.title}</button>)}<button onClick={() => floatingTabs.forEach((tab) => closeFloatingTab(tab.id))} className="rounded-xl p-2 text-zinc-500 hover:text-red-300" title="Fechar todas"><X size={15}/></button></div>}
         </>
       )}
       <MobileNavigation />
@@ -154,7 +154,7 @@ export default function AdminLayout({
       <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center gap-4 text-zinc-100">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-sm font-semibold text-zinc-500 tracking-wide animate-pulse">
-          Carregando NX ERP...
+          Carregando O Prestador...
         </p>
       </div>
     );
@@ -165,7 +165,7 @@ export default function AdminLayout({
     return (
       <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center gap-2 text-zinc-100">
         <p className="text-red-500 font-bold">Erro de Autenticação</p>
-        <p className="text-sm text-zinc-500">Por favor, faça login no portal NX ERP.</p>
+        <p className="text-sm text-zinc-500">Por favor, faça login no portal O Prestador.</p>
       </div>
     );
   }

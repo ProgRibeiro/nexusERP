@@ -278,7 +278,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
 
   page.drawRectangle({ x: MARGIN, y: 28, width: contentWidth, height: 28, color: NAVY });
   page.drawText(pdfText(company.tradeName || "NEXUS ERP"), { x: MARGIN + 12, y: 39, font: bold, size: 6.5, color: rgb(1, 1, 1) });
-  const footer = pdfText(`${quote.code} - Documento gerado pelo NX ERP`);
+  const footer = pdfText(`${quote.code} - Documento gerado pelo O Prestador`);
   page.drawText(footer, { x: A4_WIDTH - MARGIN - 12 - regular.widthOfTextAtSize(footer, 6.2), y: 39, font: regular, size: 6.2, color: rgb(0.72, 0.82, 1) });
 
   return document.save({ useObjectStreams: false });

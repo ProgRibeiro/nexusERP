@@ -46,7 +46,7 @@ export async function GET(
     return new Response(null, { status: 304, headers: { ETag: etag } });
   }
 
-  const stream = createReadStream(stored.filePath);
+  const stream = createReadStream(/* turbopackIgnore: true */ stored.filePath);
   return new Response(Readable.toWeb(stream) as ReadableStream, {
     headers: {
       "Content-Type": CONTENT_TYPES[path.extname(filename).toLowerCase()] || "application/octet-stream",

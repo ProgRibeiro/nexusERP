@@ -40,7 +40,7 @@ export default function DevLoginPage() {
       <div className="w-full max-w-md space-y-6 relative z-10">
         {/* Header Branding */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500/20 via-purple-500/20 to-blue-500/20 border border-amber-500/30 shadow-[0_0_30px_rgba(212,175,55,0.15)] mb-2">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500/20 via-purple-500/20 to-blue-500/20 border border-amber-500/30 shadow-[0_0_30px_rgba(37,99,235,0.15)] mb-2">
             <Terminal size={30} className="text-amber-400" />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
@@ -72,7 +72,7 @@ export default function DevLoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="dev@nexusmanutencao.com"
+                  placeholder="dev@oprestador.tech"
                   className="w-full rounded-xl border border-slate-800 bg-slate-950/80 py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-600 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition-all"
                 />
               </div>
@@ -96,7 +96,7 @@ export default function DevLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-[0_0_20px_rgba(212,175,55,0.25)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer mt-2"
+              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-[0_0_20px_rgba(37,99,235,0.25)] flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer mt-2"
             >
               {loading ? (
                 "Acessando Console..."
@@ -111,7 +111,7 @@ export default function DevLoginPage() {
 
         {/* Footer info */}
         <p className="text-center text-[10px] text-slate-600">
-          Dominio Oficial: <strong className="font-mono text-slate-400">erp.nexusmanutencao.com/dev</strong>
+          Domínio oficial: <strong className="font-mono text-slate-400">dev.oprestador.tech</strong>
         </p>
       </div>
     </div>

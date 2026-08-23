@@ -58,7 +58,7 @@ export function ProviderAuthForm({ mode }: { mode: "login" | "register" }) {
   };
 
   const inputClass =
-    "h-12 w-full rounded-xl border border-white/10 bg-white/[.045] px-4 text-xs font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-[#d4af37] focus:bg-white/[.08] focus:ring-4 focus:ring-[#d4af37]/15";
+    "h-12 w-full rounded-xl border border-white/10 bg-white/[.045] px-4 text-xs font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-[#155eef] focus:bg-white/[.08] focus:ring-4 focus:ring-[#155eef]/15";
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -151,7 +151,7 @@ export function ProviderAuthForm({ mode }: { mode: "login" | "register" }) {
       <button
         type="submit"
         disabled={loading}
-        className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#d4af37] via-[#e6c653] to-[#b88d1b] text-xs font-black text-black shadow-lg shadow-[#d4af37]/25 transition hover:opacity-95 disabled:opacity-50 cursor-pointer"
+        className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-[#155eef] via-[#60a5fa] to-[#1d4ed8] text-xs font-black text-black shadow-lg shadow-[#155eef]/25 transition hover:opacity-95 disabled:opacity-50 cursor-pointer"
       >
         {loading ? (
           <Loader2 className="animate-spin text-black" size={18} />
@@ -167,14 +167,14 @@ export function ProviderAuthForm({ mode }: { mode: "login" | "register" }) {
         {mode === "login" ? (
           <p>
             Ainda não possui cadastro de parceiro?{" "}
-            <Link className="font-bold text-[#d4af37] hover:underline" href="/portal/prestador/cadastro">
+            <Link className="font-bold text-[#155eef] hover:underline" href="/portal/prestador/cadastro">
               Cadastre-se como Prestador
             </Link>
           </p>
         ) : (
           <p>
             Já possui cadastro de prestador ativo?{" "}
-            <Link className="font-bold text-[#d4af37] hover:underline" href="/portal/prestador/login">
+            <Link className="font-bold text-[#155eef] hover:underline" href="/portal/prestador/login">
               Entrar no Portal
             </Link>
           </p>

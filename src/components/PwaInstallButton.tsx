@@ -101,8 +101,8 @@ export default function PwaInstallButton({
       <button
         type="button"
         onClick={install}
-        className="flex items-center gap-2 rounded-lg border border-[#d4af37]/45 bg-[#f5e7bd] px-2.5 py-2 text-xs font-bold text-[#6d5213] transition hover:border-[#b88d1b] hover:bg-[#f1dc9f] dark:border-[#d4af37]/45 dark:bg-[#31280f] dark:text-[#e6c96c] dark:hover:bg-[#433613]"
-        title="Instalar NX ERP como aplicativo"
+        className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-bold text-zinc-700 transition hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10 dark:hover:text-blue-300"
+        title="Instalar O Prestador como aplicativo"
       >
         <Download size={15} />
         <span className={compact ? "hidden 2xl:inline" : "inline"}>
@@ -118,7 +118,7 @@ export default function PwaInstallButton({
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-black">Use o ERP como aplicativo</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-[#ead9a8]/85">
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
                 A mesma base de dados, em tela cheia no Android, iPhone, iPad e
                 computador.
               </p>
@@ -126,7 +126,7 @@ export default function PwaInstallButton({
             <button
               type="button"
               onClick={() => setShowGuide(false)}
-              className="rounded-lg p-1 text-[#ead9a8]/75 hover:bg-white/10 hover:text-white"
+              className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white"
               aria-label="Fechar"
             >
               <X size={16} />
@@ -134,7 +134,7 @@ export default function PwaInstallButton({
           </div>
           <div className="space-y-3 p-4 text-xs text-zinc-600 dark:text-zinc-300">
             {platform === "ios" && (
-              <div className="flex gap-3 rounded-xl border border-[#d4af37]/40 bg-[#f7edd1] p-3 text-[#6b5111] dark:border-[#d4af37]/45 dark:bg-[#2f2813] dark:text-[#e4c469]">
+              <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
                 <Share2 size={17} className="mt-0.5 shrink-0" />
                 <div>
                   <p className="font-black">Neste iPhone ou iPad</p>
@@ -147,7 +147,7 @@ export default function PwaInstallButton({
               </div>
             )}
             {platform === "android" && (
-              <div className="flex gap-3 rounded-xl border border-[#d4af37]/40 bg-[#f7edd1] p-3 text-[#6b5111] dark:border-[#d4af37]/45 dark:bg-[#2f2813] dark:text-[#e4c469]">
+              <div className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
                 <Smartphone size={17} className="mt-0.5 shrink-0" />
                 <div>
                   <p className="font-black">Neste Android</p>

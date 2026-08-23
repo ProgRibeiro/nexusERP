@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Montserrat, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import PwaRegistration from "@/components/PwaRegistration";
 import AdaptivePerformance from "@/components/AdaptivePerformance";
 import StaleChunkRecovery from "@/components/StaleChunkRecovery";
 
-const montserrat = Montserrat({
+const inter = Inter({
   variable: "--font-geist-sans",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700", "800"],
@@ -18,31 +18,35 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "NX ERP · Gestão de Serviços",
-    template: "%s · NX ERP",
-  },
+  metadataBase: new URL("https://oprestador.tech"),
+  title: { default: "O Prestador · ERP completo", template: "%s · O Prestador" },
   description:
     "Sistema de Gestão Integrada para Prestadores de Serviços Técnicos.",
-  applicationName: "NX ERP",
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "https://oprestador.tech",
+    siteName: "O Prestador",
+    title: "O Prestador · ERP completo para sua empresa",
+    description: "Conecte vendas, ordens de serviço, equipe e financeiro em uma única plataforma.",
+    images: [{ url: "/og.png", width: 1731, height: 909, alt: "O Prestador — ERP completo para sua empresa" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "O Prestador · ERP completo para sua empresa",
+    description: "Conecte vendas, ordens de serviço, equipe e financeiro em uma única plataforma.",
+    images: ["/og.png"],
+  },
+  applicationName: "O Prestador",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "NX ERP",
+    title: "O Prestador",
   },
   icons: {
-    icon: [
-      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-    ],
-    apple: [
-      {
-        url: "/icons/apple-touch-icon.png",
-        sizes: "180x180",
-        type: "image/png",
-      },
-    ],
+    icon: [{ url: "/brand/oprestador-icon.png", sizes: "1254x1254", type: "image/png" }],
+    apple: [{ url: "/brand/oprestador-icon.png", sizes: "1254x1254", type: "image/png" }],
   },
   formatDetection: { telephone: false },
   other: {
@@ -72,7 +76,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${montserrat.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
           <MaintenanceBanner />

@@ -41,7 +41,7 @@ export default async function ComercialPropostasPage() {
                 <td className="px-4 py-3 font-mono text-zinc-200">{quote.code}</td>
                 <td className="px-4 py-3 font-semibold text-white">{quote.clientName}</td>
                 <td className="px-4 py-3 text-zinc-300">{quote.status}</td>
-                <td className="px-4 py-3 text-[#d4af37]">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(quote.total)}</td>
+                <td className="px-4 py-3 text-[#155eef]">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(quote.total)}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
                     <form action={changeStatus}>

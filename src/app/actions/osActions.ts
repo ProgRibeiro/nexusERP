@@ -11,6 +11,7 @@ import { nextServiceOrderCode } from "@/lib/sequences";
 import { createInitialVisit, nextVisitNumber, visitStatusFromLegacyOS } from "@/lib/visits";
 import { getServiceChecklistTemplate, inferServiceModality, SERVICE_MODALITIES } from "@/lib/serviceChecklistTemplates";
 import type { Prisma } from "@prisma/client";
+import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
 export interface OSPartsInput {
   productId: string;
@@ -182,10 +183,9 @@ export async function createManualServiceOrder(data: {
 
     revalidatePath("/ordens-servico");
     revalidatePath("/");
-    return { success: true, os };
-  } catch (error: any) {
-    logger.error("Erro ao criar OS manual:", error);
-    return { success: false, error: error.issues?.[0]?.message || error.message };
+    return { success: true as const, error: undefined, os };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.create", error, "Não foi possível criar a ordem de serviço.");
   }
 }
 
@@ -304,10 +304,9 @@ export async function createQuickCompletedServiceOrder(data: {
     revalidatePath("/ordens-servico");
     revalidatePath("/faturamento");
     revalidatePath("/");
-    return { success: true as const, os };
-  } catch (error: any) {
-    logger.error("Erro ao criar atendimento rápido:", error);
-    return { success: false as const, error: error.issues?.[0]?.message || error.message };
+    return { success: true as const, error: undefined, os };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.quick-create", error, "Não foi possível registrar o atendimento rápido.");
   }
 }
 
@@ -383,8 +382,7 @@ export async function getContractOperationsOverview(referenceMonth?: string) {
       };
     });
   } catch (error) {
-    logger.error("Erro ao consolidar operação dos contratos:", error);
-    return [];
+    failDataAccess("service-orders.contract-overview", error);
   }
 }
 
@@ -403,7 +401,7 @@ export async function createMonthlyContractPreventive(contractId: string, refere
     const existing = await prisma.serviceOrder.findFirst({
       where: { contractId, referenceMonth, OR: [{ operationKind: "VISITA_PREVENTIVA" }, { type: "PREVENTIVA" }] },
     });
-    if (existing) return { success: true, serviceOrder: existing, created: false };
+    if (existing) return { success: true as const, error: undefined, serviceOrder: existing, created: false };
 
     const description = contract.items.length
       ? contract.items.map((item) => `• ${item.description} (${item.quantity}x)`).join("\n")
@@ -441,10 +439,9 @@ export async function createMonthlyContractPreventive(contractId: string, refere
     });
     revalidatePath("/ordens-servico");
     revalidatePath("/preventivas");
-    return { success: true, serviceOrder, created: true };
-  } catch (error: any) {
-    logger.error("Erro ao gerar preventiva mensal do contrato:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, serviceOrder, created: true };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.preventive.create", error, "Não foi possível gerar a preventiva mensal.");
   }
 }
 
@@ -571,8 +568,7 @@ export async function getServiceOrders(filters?: {
       };
     });
   } catch (error) {
-    logger.error("Erro ao obter ordens de serviço:", error);
-    return [];
+    failDataAccess("service-orders.list", error);
   }
 }
 
@@ -689,8 +685,7 @@ export async function getServiceOrderDetails(id: string) {
       totalValue,
     };
   } catch (error) {
-    logger.error(`Erro ao obter OS ${id}:`, error);
-    return null;
+    failDataAccess("service-orders.details", error);
   }
 }
 
@@ -832,10 +827,9 @@ export async function scheduleServiceOrder(
     }
 
     revalidatePath("/ordens-servico");
-    return { success: true, os: updatedOS };
-  } catch (error: any) {
-    logger.error("Erro ao agendar OS:", error);
-    return { success: false, error: error.issues?.[0]?.message || error.message };
+    return { success: true as const, error: undefined, os: updatedOS };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.schedule", error, "Não foi possível agendar a ordem de serviço.");
   }
 }
 
@@ -866,7 +860,7 @@ export async function updateOSStatus(
     const oldStatus = normalizeOSStatus(os.status);
     newStatus = normalizeOSStatus(newStatus);
     if (!OS_TRANSITIONS[newStatus]) throw new Error("Status de OS inválido.");
-    if (oldStatus === newStatus) return { success: true, os: { ...os, status: oldStatus } };
+    if (oldStatus === newStatus) return { success: true as const, error: undefined, os: { ...os, status: oldStatus } };
     if (!OS_TRANSITIONS[oldStatus]?.includes(newStatus)) {
       throw new Error(`Transição inválida: ${oldStatus} não pode avançar diretamente para ${newStatus}.`);
     }
@@ -1020,10 +1014,9 @@ export async function updateOSStatus(
     revalidatePath("/ordens-servico");
     revalidatePath("/execucao");
     revalidatePath("/faturamento");
-    return { success: true, os: updatedOS };
-  } catch (error: any) {
-    logger.error("Erro ao alterar status da OS:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, os: updatedOS };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.status.update", error, "Não foi possível alterar o status da ordem de serviço.");
   }
 }
 
@@ -1237,10 +1230,9 @@ export async function updateOSMaterials(
 
     revalidatePath("/ordens-servico");
     revalidatePath("/");
-    return { success: true };
-  } catch (error: any) {
-    logger.error("Erro ao atualizar materiais e estoque da OS:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.materials.update", error, "Não foi possível atualizar os materiais da ordem de serviço.");
   }
 }
 
@@ -1290,10 +1282,9 @@ export async function updateOSDetails(
     });
 
     revalidatePath("/ordens-servico");
-    return { success: true, os: updatedOS };
-  } catch (error: any) {
-    logger.error("Erro ao atualizar detalhes da OS:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, os: updatedOS };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.update", error, "Não foi possível atualizar a ordem de serviço.");
   }
 }
 
@@ -1349,7 +1340,7 @@ export async function applyOSChecklistTemplate(osId: string, serviceCategory: st
     });
     revalidatePath("/ordens-servico");
     revalidatePath("/execucao");
-    return { success: true as const, checklist: generated, serviceCategory: updated.serviceCategory };
+    return { success: true as const, error: undefined, checklist: generated, serviceCategory: updated.serviceCategory };
   } catch (error) {
     logger.error("Erro ao aplicar modelo de checklist:", error);
     return { success: false as const, error: error instanceof Error ? error.message : "Erro ao aplicar checklist." };
@@ -1440,10 +1431,9 @@ export async function saveOSCompletionReport(
 
     revalidatePath("/ordens-servico");
     revalidatePath("/faturamento");
-    return { success: true, report };
-  } catch (error: any) {
-    logger.error("Erro ao salvar relatório de conclusão:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, report };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.completion-report.save", error, "Não foi possível salvar o relatório de conclusão.");
   }
 }
 
@@ -1489,10 +1479,9 @@ export async function addOSPhoto(
     });
 
     revalidatePath("/ordens-servico");
-    return { success: true, photo };
-  } catch (error: any) {
-    logger.error("Erro ao adicionar foto:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, photo };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.photos.create", error, "Não foi possível adicionar a foto.");
   }
 }
 
@@ -1565,7 +1554,7 @@ export async function addOSPhotos(
     return { success: stored.length > 0, saved: stored.length, failed };
   } catch (error: any) {
     logger.error("Erro ao adicionar lote de fotos:", error);
-    return { success: false, saved: 0, failed: photos.map((_, index) => ({ index, error: error.message })) };
+    return { success: false as const, saved: 0, failed: photos.map((_, index) => ({ index, error: error.message })) };
   }
 }
 
@@ -1587,10 +1576,9 @@ export async function deleteOSPhoto(photoId: string) {
     await deleteUploadedAsset(photo.url);
 
     revalidatePath("/ordens-servico");
-    return { success: true };
-  } catch (error: any) {
-    logger.error("Erro ao deletar foto:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.photos.delete", error, "Não foi possível excluir a foto.");
   }
 }
 
@@ -1663,10 +1651,8 @@ export async function deleteServiceOrder(osId: string) {
     revalidatePath("/financeiro");
     revalidatePath("/");
 
-    return { success: true };
-  } catch (error: any) {
-    logger.error("Erro ao excluir Ordem de Serviço:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined };
+  } catch (error: unknown) {
+    return mutationFailure("service-orders.delete", error, "Não foi possível excluir a ordem de serviço.");
   }
 }
-

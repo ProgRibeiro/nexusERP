@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, statSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const run = (bin, args) => execFileSync(bin, args, { stdio: "inherit", env: process.env, shell: true });
+// Executa o binário diretamente. Além de evitar o DEP0190 do Node, isso
+// impede que argumentos sejam reinterpretados por um shell intermediário.
+const run = (bin, args) => execFileSync(bin, args, {
+  stdio: "inherit",
+  env: process.env,
+  shell: false,
+});
 
 
 console.log("[security] Validando schema e tipos...");
@@ -40,6 +46,8 @@ const allowed = [
   "process.env",
   "password: migratedHash",
   "${DB_PASSWORD}",
+  "${MIGRATION_DB_PASSWORD}",
+  "${BACKUP_DB_PASSWORD}",
 ];
 const hits = [];
 for (const file of files) {

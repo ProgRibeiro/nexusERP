@@ -42,7 +42,7 @@ export default async function ComercialMetasPage() {
             <label className="flex items-center gap-2 text-xs text-zinc-300">
               <input name="active" type="checkbox" defaultChecked={goal.active} /> Ativa
             </label>
-            <button className="rounded-lg bg-[#d4af37] px-4 py-2 text-xs font-black text-black">Salvar meta</button>
+            <button className="rounded-lg bg-[#155eef] px-4 py-2 text-xs font-black text-black">Salvar meta</button>
           </form>
         ))}
       </div>

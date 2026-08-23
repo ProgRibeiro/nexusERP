@@ -14,17 +14,17 @@ export function Table({
   ...props
 }: TableProps) {
   return (
-    <div className="w-full overflow-x-auto rounded-[22px] border border-[#e6dfcf] bg-white/95 shadow-[0_12px_35px_rgba(15,23,42,.055)] ring-1 ring-[#f2ecde]/85 dark:border-zinc-800 dark:bg-zinc-900/95 dark:ring-white/[.03]">
+    <div className="w-full overflow-x-auto rounded-2xl border border-[#e2e8f0] bg-white shadow-[0_8px_28px_rgba(15,23,42,.05)] dark:border-zinc-800 dark:bg-zinc-900/95">
       <table
         className={`w-full text-left border-collapse ${className}`}
         {...props}
       >
         <thead>
-          <tr className="border-b border-[#e6dfcf] bg-[linear-gradient(180deg,#fdfaf3,#f7efd9)] dark:border-zinc-800 dark:bg-none dark:bg-zinc-800/45">
+          <tr className="border-b border-[#e2e8f0] bg-[linear-gradient(180deg,#ffffff,#f8fafc)] dark:border-zinc-800 dark:bg-none dark:bg-zinc-800/45">
             {headers.map((h, i) => (
               <th
                 key={i}
-                className="px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.09em] text-[#8d7a44] dark:text-zinc-400"
+                className="px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.09em] text-zinc-500 dark:text-zinc-400"
               >
                 {h}
               </th>
@@ -48,7 +48,7 @@ export function TableRow({
   return (
     <tr
       onClick={onClick}
-      className={`hover:bg-[#f8f0db]/65 dark:hover:bg-[#2e2713]/60 transition-colors duration-150 ${
+      className={`hover:bg-blue-50/65 dark:hover:bg-blue-500/[.08] transition-colors duration-150 ${
         onClick ? "cursor-pointer" : ""
       } ${className}`}
       {...props}

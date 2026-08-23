@@ -31,7 +31,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={generatedId}
-            className="block text-[11px] font-bold tracking-[0.01em] text-[#6d685b] dark:text-[#b6ac95]"
+            className="block text-[11px] font-bold tracking-[0.01em] text-zinc-700 dark:text-zinc-300"
           >
             {label}
           </label>
@@ -46,7 +46,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             id={generatedId}
             ref={ref}
             onFocus={handleFocus}
-            className={`min-h-10 w-full rounded-xl border border-[#ded6c2] bg-white/95 px-3 py-2 text-sm text-slate-900 shadow-[inset_0_1px_1px_rgba(15,23,42,.025)] outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-[#ceb978] focus:border-[#d4af37] focus:bg-white focus:ring-4 focus:ring-[#d4af37]/18 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:border-zinc-600 dark:focus:border-[#d4af37] ${
+            className={`min-h-10 w-full rounded-xl border border-[#dbe4f0] bg-white/95 px-3 py-2 text-sm text-slate-900 shadow-[inset_0_1px_1px_rgba(15,23,42,.025)] outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-[#93b4e8] focus:border-[#155eef] focus:bg-white focus:ring-4 focus:ring-[#155eef]/18 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:border-zinc-600 dark:focus:border-[#155eef] ${
               icon ? "pl-9" : ""
             } ${error ? "border-danger focus:ring-danger/20 focus:border-danger" : ""} ${className}`}
             {...props}

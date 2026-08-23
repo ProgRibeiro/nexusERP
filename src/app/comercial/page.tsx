@@ -35,7 +35,7 @@ export default async function ComercialDashboardPage() {
               <div key={item.stageId} className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
                 <p className="text-sm font-bold text-white">{item.stageName}</p>
                 <p className="text-xs text-zinc-300">{item.leads} leads</p>
-                <p className="text-xs font-semibold text-[#d4af37]">{formatCurrency(item.amount)}</p>
+                <p className="text-xs font-semibold text-[#155eef]">{formatCurrency(item.amount)}</p>
               </div>
             ))}
           </div>
@@ -57,10 +57,10 @@ export default async function ComercialDashboardPage() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Link href="/comercial/pipeline" className="rounded-lg bg-[#d4af37] px-4 py-2 text-xs font-black text-black hover:bg-[#f0cf63]">
+        <Link href="/comercial/pipeline" className="rounded-lg bg-[#155eef] px-4 py-2 text-xs font-black text-black hover:bg-[#60a5fa]">
           Abrir pipeline
         </Link>
-        <Link href="/comercial/leads" className="rounded-lg border border-[#d4af37]/50 px-4 py-2 text-xs font-black text-[#d4af37] hover:bg-[#d4af37]/10">
+        <Link href="/comercial/leads" className="rounded-lg border border-[#155eef]/50 px-4 py-2 text-xs font-black text-[#155eef] hover:bg-[#155eef]/10">
           Gerenciar leads
         </Link>
       </div>

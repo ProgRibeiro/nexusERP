@@ -1,16 +1,17 @@
 export type PortalArea = "marketing" | "app" | "commercial" | "developer" | "unknown";
 export { type LandingArea, inferLandingArea, hasCommercialAccess, hasDeveloperAccess } from "./rbac";
 
-const DEFAULT_MARKETING_HOSTS = ["nexusmanutencao.com", "www.nexusmanutencao.com"];
-const DEFAULT_APP_HOST = "app.nexusmanutencao.com";
-const DEFAULT_COMMERCIAL_HOST = "comercial.nexusmanutencao.com";
-const DEFAULT_DEVELOPER_HOST = "dev.nexusmanutencao.com";
+const DEFAULT_MARKETING_HOSTS = ["oprestador.tech", "www.oprestador.tech"];
+const DEFAULT_APP_HOST = "app.oprestador.tech";
+const DEFAULT_COMMERCIAL_HOST = "vendas.oprestador.tech";
+const DEFAULT_DEVELOPER_HOST = "dev.oprestador.tech";
 
 const MARKETING_PUBLIC_PATHS = [
   "/",
   "/recursos",
   "/solucoes",
   "/planos",
+  "/historia",
   "/demonstracao",
   "/contato",
 ] as const;
@@ -41,6 +42,7 @@ export function getPortalHosts() {
 
 export function classifyPortalArea(hostname: string): PortalArea {
   const host = normalizeHostname(hostname);
+  if (host === "localhost" || host === "127.0.0.1") return "app";
   const configured = getPortalHosts();
   if (configured.marketing.includes(host)) return "marketing";
   if (configured.app === host) return "app";
@@ -73,9 +75,9 @@ export function toPublicMarketingPath(pathname: string) {
 
 export function portalBaseUrls() {
   return {
-    marketing: process.env.NEXT_PUBLIC_NEXUS_MARKETING_URL || "https://nexusmanutencao.com",
-    app: process.env.NEXT_PUBLIC_NEXUS_APP_URL || "https://app.nexusmanutencao.com",
-    commercial: process.env.NEXT_PUBLIC_NEXUS_COMMERCIAL_URL || "https://comercial.nexusmanutencao.com",
-    developer: process.env.NEXT_PUBLIC_NEXUS_DEVELOPER_URL || "https://dev.nexusmanutencao.com",
+    marketing: process.env.NEXT_PUBLIC_NEXUS_MARKETING_URL || "https://oprestador.tech",
+    app: process.env.NEXT_PUBLIC_NEXUS_APP_URL || "https://app.oprestador.tech",
+    commercial: process.env.NEXT_PUBLIC_NEXUS_COMMERCIAL_URL || "https://vendas.oprestador.tech",
+    developer: process.env.NEXT_PUBLIC_NEXUS_DEVELOPER_URL || "https://dev.oprestador.tech",
   };
 }

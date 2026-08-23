@@ -13,7 +13,6 @@ import {
   Loader2,
   Plus,
   Search,
-  UserRound,
   Wrench,
   X,
 } from "lucide-react";
@@ -55,10 +54,10 @@ const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const CLOSED_STATUSES = ["CONCLUIDA", "FATURADA", "CANCELADA"];
 
 const priorityStyles: Record<string, string> = {
-  URGENTE: "border-red-500/35 bg-red-500/10 text-red-300",
-  ALTA: "border-orange-500/35 bg-orange-500/10 text-orange-300",
-  MEDIA: "border-[#d4af37]/35 bg-[#d4af37]/10 text-[#e2bd52]",
-  BAIXA: "border-white/10 bg-white/[.035] text-zinc-300",
+  URGENTE: "border-red-300 bg-red-50 text-red-700 dark:border-red-500/35 dark:bg-red-500/10 dark:text-red-300",
+  ALTA: "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-500/35 dark:bg-orange-500/10 dark:text-orange-300",
+  MEDIA: "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-500/35 dark:bg-blue-500/10 dark:text-blue-300",
+  BAIXA: "border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-white/[.035] dark:text-zinc-300",
 };
 
 function dateKey(date: Date | string) {
@@ -271,15 +270,15 @@ export default function AgendaTab() {
   const todayCount = scheduledByDay.get(todayKey)?.length || 0;
 
   return (
-    <div className="min-h-full space-y-5 pb-8 text-white animate-in fade-in duration-200">
-      <header className="overflow-hidden rounded-3xl border border-[#d4af37]/15 bg-[#101115] shadow-[0_18px_44px_rgba(0,0,0,.3)]">
+    <div className="min-h-full space-y-5 pb-8 text-zinc-900 animate-in fade-in duration-200 dark:text-white">
+      <header className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-[0_18px_44px_rgba(0,0,0,.3)]">
         <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between lg:p-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#d4af37] text-[#0b0c0e]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#155eef] text-[#0b0c0e]">
               <CalendarDays size={23} />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">Calendário operacional</h1>
+              <h1 className="text-xl font-bold tracking-tight text-zinc-950 dark:text-white">Calendário operacional</h1>
               <p className="mt-1 text-xs font-medium text-zinc-400">
                 Arraste uma OS para o dia desejado ou selecione uma data e escolha a OS na lateral.
               </p>
@@ -291,7 +290,7 @@ export default function AgendaTab() {
               { label: "Agendadas", value: scheduledCount, tone: "text-blue-600" },
               { label: "Hoje", value: todayCount, tone: "text-emerald-600" },
             ].map((stat) => (
-              <div key={stat.label} className="min-w-24 rounded-2xl border border-white/[.08] bg-black/10 px-4 py-2.5 text-center">
+              <div key={stat.label} className="min-w-24 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-center dark:border-white/[.08] dark:bg-black/10">
                 <div className={`text-lg font-bold ${stat.tone}`}>{stat.value}</div>
                 <div className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">{stat.label}</div>
               </div>
@@ -301,42 +300,42 @@ export default function AgendaTab() {
       </header>
 
       <div className="grid items-start gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="overflow-hidden rounded-3xl border border-[#d4af37]/15 bg-[#101115] shadow-[0_18px_44px_rgba(0,0,0,.3)] xl:sticky xl:top-0">
-          <div className="border-b border-white/[.07] p-4">
+        <aside className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-[0_18px_44px_rgba(0,0,0,.3)] xl:sticky xl:top-0">
+          <div className="border-b border-zinc-200 p-4 dark:border-white/[.07]">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[.16em] text-[#d4af37]">Agenda do dia</p>
-                <h2 className="mt-1 text-sm font-bold capitalize text-white">{selectedDayLabel}</h2>
+                <p className="text-[9px] font-black uppercase tracking-[.16em] text-[#155eef]">Agenda do dia</p>
+                <h2 className="mt-1 text-sm font-bold capitalize text-zinc-950 dark:text-white">{selectedDayLabel}</h2>
               </div>
-              <span className="flex h-8 min-w-8 items-center justify-center rounded-full bg-[#d4af37] px-2 text-xs font-black text-[#0b0c0e]">{selectedDayOrders.length}</span>
+              <span className="flex h-8 min-w-8 items-center justify-center rounded-full bg-[#155eef] px-2 text-xs font-black text-[#0b0c0e]">{selectedDayOrders.length}</span>
             </div>
             <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
               {selectedDayOrders.length ? selectedDayOrders.map((order) => (
-                <div key={order.id} className="rounded-xl border border-white/[.08] bg-[#17181c] p-3">
+                <div key={order.id} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-white/[.08] dark:bg-zinc-800/70">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <strong className="text-xs text-white">{order.scheduledTime || "08:00"}</strong>
-                        <span className="rounded bg-[#d4af37]/10 px-1.5 py-0.5 text-[8px] font-black uppercase text-[#d4af37]">{operationLabel(order)}</span>
+                        <strong className="text-xs text-zinc-950 dark:text-white">{order.scheduledTime || "08:00"}</strong>
+                        <span className="rounded bg-[#155eef]/10 px-1.5 py-0.5 text-[8px] font-black uppercase text-[#155eef]">{operationLabel(order)}</span>
                       </div>
-                      <p className="mt-1 truncate text-[11px] font-bold text-zinc-200">{order.clientName}</p>
+                      <p className="mt-1 truncate text-[11px] font-bold text-zinc-800 dark:text-zinc-200">{order.clientName}</p>
                       <p className="mt-0.5 truncate text-[9px] text-zinc-500">{order.code} · {order.type.replaceAll("_", " ")}</p>
                       {order.technicians.length > 0 && <p className="mt-1 truncate text-[9px] text-zinc-400">Equipe: {order.technicians.map((tech) => tech.name).join(", ")}</p>}
                     </div>
-                    <button type="button" onClick={() => openTab("ordens-servico", order.code, { id: order.id })} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#d4af37]/20 text-[#d4af37] hover:bg-[#d4af37]/10" title="Abrir ordem de serviço">
+                    <button type="button" onClick={() => openTab("ordens-servico", order.code, { id: order.id })} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#155eef]/20 text-[#155eef] hover:bg-[#155eef]/10" title="Abrir ordem de serviço">
                       <ExternalLink size={13} />
                     </button>
                   </div>
                 </div>
               )) : (
-                <div className="rounded-xl border border-dashed border-white/10 px-3 py-5 text-center text-[10px] text-zinc-500">Nenhum serviço agendado para esta data.</div>
+                <div className="rounded-xl border border-dashed border-zinc-300 px-3 py-5 text-center text-[10px] text-zinc-500 dark:border-white/10">Nenhum serviço agendado para esta data.</div>
               )}
             </div>
           </div>
-          <div className="border-b border-white/[.07] p-4">
+          <div className="border-b border-zinc-200 p-4 dark:border-white/[.07]">
             <div className="mb-3 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-bold text-white">OS sem agendamento</h2>
+                <h2 className="text-sm font-bold text-zinc-950 dark:text-white">OS sem agendamento</h2>
                 <p className="mt-0.5 text-[10px] font-medium text-zinc-400">Arraste para qualquer dia</p>
               </div>
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
@@ -351,8 +350,8 @@ export default function AgendaTab() {
             />
           </div>
 
-          <div className="border-b border-[#d4af37]/18 bg-[#d4af37]/[.07] px-4 py-3">
-            <div className="flex items-start gap-2 text-[10px] font-semibold text-[#d8bd72]">
+          <div className="border-b border-[#155eef]/18 bg-[#155eef]/[.07] px-4 py-3">
+            <div className="flex items-start gap-2 text-[10px] font-semibold text-blue-700 dark:text-blue-300">
               <CalendarDays size={14} className="mt-0.5 shrink-0" />
               <span>
                 Data selecionada: <strong className="capitalize">{selectedDayLabel}</strong>. Clique em uma OS para colocá-la nessa data.
@@ -382,7 +381,7 @@ export default function AgendaTab() {
                   key={order.id}
                   onDragStart={(event) => startDrag(event, order.id)}
                   onClick={() => openScheduler(order, selectedDay)}
-                  className="group w-full cursor-grab rounded-2xl border border-white/[.08] bg-[#15171b] p-3 text-left transition hover:-translate-y-0.5 hover:border-[#d4af37]/45 hover:shadow-md active:cursor-grabbing"
+                  className="group w-full cursor-grab rounded-2xl border border-zinc-200 bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md active:cursor-grabbing dark:border-white/[.08] dark:bg-zinc-800/70"
                 >
                   <div className="flex items-start gap-2.5">
                     <GripVertical size={15} className="mt-0.5 shrink-0 text-zinc-300 group-hover:text-blue-500" />
@@ -405,8 +404,8 @@ export default function AgendaTab() {
           </div>
         </aside>
 
-        <section className="overflow-hidden rounded-3xl border border-[#d4af37]/15 bg-[#0d0e11] shadow-[0_18px_44px_rgba(0,0,0,.3)]">
-          <div className="flex flex-wrap items-center gap-2 border-b border-white/[.07] bg-[#0b0c0f] px-4 py-3">
+        <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-[0_18px_44px_rgba(0,0,0,.3)]">
+          <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-white/[.07] dark:bg-zinc-950">
             <span className="mr-1 text-[9px] font-black uppercase tracking-[.14em] text-zinc-500">Visualizar</span>
             {[
               ["TODAS", "Todos"],
@@ -414,12 +413,12 @@ export default function AgendaTab() {
               ["VISITA_PREVENTIVA", "Preventivas"],
               ["CHAMADO_CONTRATO", "Contratos"],
             ].map(([value, label]) => (
-              <button key={value} type="button" onClick={() => setOperationFilter(value)} className={`rounded-lg px-3 py-1.5 text-[10px] font-bold transition ${operationFilter === value ? "bg-[#d4af37] text-[#0b0c0e]" : "border border-white/[.08] text-zinc-400 hover:border-[#d4af37]/30 hover:text-white"}`}>
+              <button key={value} type="button" onClick={() => setOperationFilter(value)} className={`rounded-lg px-3 py-1.5 text-[10px] font-bold transition ${operationFilter === value ? "bg-[#155eef] text-white" : "border border-zinc-200 text-zinc-600 hover:border-blue-400 hover:text-blue-700 dark:border-white/[.08] dark:text-zinc-400 dark:hover:text-white"}`}>
                 {label}
               </button>
             ))}
           </div>
-          <div className="flex flex-col gap-3 border-b border-white/[.07] bg-[#111319] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-zinc-200 bg-white p-4 dark:border-white/[.07] dark:bg-zinc-900 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -449,7 +448,7 @@ export default function AgendaTab() {
                 <ChevronRight size={17} />
               </button>
             </div>
-            <h2 className="text-base font-bold capitalize text-white sm:absolute sm:left-1/2 sm:-translate-x-1/2">
+            <h2 className="text-base font-bold capitalize text-zinc-950 dark:text-white sm:absolute sm:left-1/2 sm:-translate-x-1/2">
               {visibleMonth.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
             </h2>
             <div className="flex items-center gap-2 text-[10px] font-semibold text-zinc-400">
@@ -457,9 +456,9 @@ export default function AgendaTab() {
             </div>
           </div>
 
-          <div className="grid grid-cols-7 border-b border-white/[.07] bg-[#0b0c0f]">
+          <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50 dark:border-white/[.07] dark:bg-zinc-950">
             {WEEK_DAYS.map((day, index) => (
-              <div key={day} className={`px-2 py-2.5 text-center text-[9px] font-bold uppercase tracking-widest ${index === 0 || index === 6 ? "text-[#d4af37]" : "text-zinc-400"}`}>
+              <div key={day} className={`px-2 py-2.5 text-center text-[9px] font-bold uppercase tracking-widest ${index === 0 || index === 6 ? "text-[#155eef]" : "text-zinc-400"}`}>
                 {day}
               </div>
             ))}
@@ -484,17 +483,17 @@ export default function AgendaTab() {
                   }}
                   onDragLeave={() => setDragOverDay((current) => (current === key ? null : current))}
                   onDrop={(event) => void dropOnDay(event, key)}
-                  className={`group/day relative min-h-28 border-b border-r border-white/[.07] p-1.5 transition sm:min-h-32 sm:p-2 ${
-                    isCurrentMonth ? "bg-[#111216]" : "bg-[#0b0c0e]"
-                  } ${isSelected ? "ring-2 ring-inset ring-[#d4af37]" : ""} ${isDragTarget ? "bg-[#d4af37]/10 ring-2 ring-inset ring-[#d4af37]" : "hover:bg-[#d4af37]/[.045]"}`}
+                  className={`group/day relative min-h-28 border-b border-r border-zinc-200 p-1.5 transition dark:border-white/[.07] sm:min-h-32 sm:p-2 ${
+                    isCurrentMonth ? "bg-white dark:bg-zinc-900" : "bg-zinc-50 dark:bg-zinc-950"
+                  } ${isSelected ? "ring-2 ring-inset ring-[#155eef]" : ""} ${isDragTarget ? "bg-[#155eef]/10 ring-2 ring-inset ring-[#155eef]" : "hover:bg-[#155eef]/[.045]"}`}
                 >
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className={`flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
                       isToday
-                        ? "bg-[#d4af37] text-[#0b0c0e] shadow-sm"
+                        ? "bg-[#155eef] text-white shadow-sm"
                         : isCurrentMonth
-                          ? "text-zinc-200"
-                          : "text-zinc-600"
+                          ? "text-zinc-800 dark:text-zinc-200"
+                          : "text-zinc-400 dark:text-zinc-600"
                     }`}>
                       {day.getDate()}
                     </span>
@@ -504,7 +503,7 @@ export default function AgendaTab() {
                         event.stopPropagation();
                         setSelectedDay(key);
                       }}
-                      className="hidden h-6 w-6 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-[#d4af37]/15 hover:text-[#d4af37] group-hover/day:flex"
+                      className="hidden h-6 w-6 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-[#155eef]/15 hover:text-[#155eef] group-hover/day:flex"
                       title="Selecionar esta data"
                     >
                       <Plus size={13} />
@@ -541,7 +540,7 @@ export default function AgendaTab() {
                   </div>
 
                   {isDragTarget && (
-                    <div className="pointer-events-none absolute inset-1 flex items-center justify-center rounded-xl border-2 border-dashed border-[#d4af37] bg-[#17150d]/95 text-center text-[9px] font-bold text-[#e5c65f]">
+                    <div className="pointer-events-none absolute inset-1 flex items-center justify-center rounded-xl border-2 border-dashed border-blue-500 bg-blue-50/95 text-center text-[9px] font-bold text-blue-700 dark:bg-blue-950/95 dark:text-blue-300">
                       Soltar neste dia
                     </div>
                   )}

@@ -22,8 +22,14 @@ async function main() {
 
   const admin = await prisma.user.findUnique({ where: { email: "admin@erp.com" }, include: { role: true } });
   const clients = await prisma.client.findMany({ include: { addresses: true, equipments: true } });
-  const client = clients.find((item) => item.addresses.length > 0 && item.equipments.length >= 2);
-  if (!admin || !client) throw new Error("O teste precisa de administrador e cliente com dois equipamentos.");
+  const client = clients.find((item) => item.addresses.length > 0);
+  if (!admin || !client) throw new Error("O teste precisa de administrador e cliente com endereço.");
+  const temporaryEquipmentIds: string[] = [];
+  while (client.equipments.length < 2) {
+    const equipment = await prisma.clientEquipment.create({ data: { clientId: client.id, type: `Equipamento QA ${Date.now()}-${client.equipments.length + 1}`, brand: "Teste", model: "Automatizado", serialNumber: `QA-${Date.now()}-${client.equipments.length + 1}` } });
+    client.equipments.push(equipment);
+    temporaryEquipmentIds.push(equipment.id);
+  }
 
   mockSessionToken = await encryptSession({
     userId: admin.id,
@@ -67,6 +73,8 @@ async function main() {
   } finally {
     await prisma.auditLog.deleteMany({ where: { entity: "OrdemServico", entityId: osId } });
     await prisma.serviceOrder.delete({ where: { id: osId } });
+    if (temporaryEquipmentIds.length) await prisma.clientEquipment.deleteMany({ where: { id: { in: temporaryEquipmentIds } } });
+    await prisma.$disconnect();
   }
 }
 

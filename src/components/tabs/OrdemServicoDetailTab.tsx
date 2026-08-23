@@ -3297,7 +3297,7 @@ export default function OrdemServicoDetailTab({
             <button
               type="button"
               onClick={() => void handlePrintReport("SEM_VALORES")}
-              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#d4af37] hover:bg-zinc-800 group"
+              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#155eef] hover:bg-zinc-800 group"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20">
                 <FileText size={20} />
@@ -3318,7 +3318,7 @@ export default function OrdemServicoDetailTab({
             <button
               type="button"
               onClick={() => void handlePrintReport("FOTOGRAFICO_EXPRESS")}
-              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#d4af37] hover:bg-zinc-800 group"
+              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#155eef] hover:bg-zinc-800 group"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-500/10 text-teal-400 group-hover:bg-teal-500/20">
                 <Camera size={20} />
@@ -3336,7 +3336,7 @@ export default function OrdemServicoDetailTab({
             <button
               type="button"
               onClick={() => void handlePrintReport("COMERCIAL_COMPLETO")}
-              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#d4af37] hover:bg-zinc-800 group"
+              className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 text-left transition hover:border-[#155eef] hover:bg-zinc-800 group"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20">
                 <DollarSign size={20} />

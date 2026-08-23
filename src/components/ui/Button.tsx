@@ -20,12 +20,12 @@ export function Button({
   const baseStyle = "inline-flex items-center justify-center font-bold rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] cursor-pointer whitespace-nowrap";
 
   const variants = {
-    primary: "bg-[#d4af37] hover:bg-[#c79d28] text-[#121317] shadow-[0_10px_22px_rgba(212,175,55,.28)] hover:shadow-[0_12px_28px_rgba(212,175,55,.36)] focus:ring-[#d4af37]/35",
-    secondary: "bg-white/95 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-[#ded6c2] dark:border-zinc-700 shadow-sm hover:border-[#d4af37]/60 hover:bg-[#f8f0db] hover:text-[#755a16] dark:hover:border-[#d4af37]/50 dark:hover:bg-[#2f2715] dark:hover:text-[#f1d37d] focus:ring-[#d4af37]/20",
+    primary: "bg-[#155eef] hover:bg-[#1d4ed8] text-white shadow-[0_7px_18px_rgba(37,99,235,.22)] hover:shadow-[0_10px_24px_rgba(37,99,235,.28)] focus:ring-[#155eef]/35",
+    secondary: "bg-white/95 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-[#dbe4f0] dark:border-zinc-700 shadow-sm hover:border-[#155eef]/60 hover:bg-[#eff6ff] hover:text-[#1d4ed8] dark:hover:border-[#155eef]/50 dark:hover:bg-[#102a50] dark:hover:text-[#bfdbfe] focus:ring-[#155eef]/20",
     success: "bg-emerald-500 hover:bg-emerald-600 text-white shadow-[0_7px_16px_rgba(16,185,129,.18)] focus:ring-success/40",
     warning: "bg-warning hover:bg-warning/90 text-white focus:ring-warning/40",
     danger: "bg-danger hover:bg-danger/90 text-white focus:ring-danger/40",
-    ghost: "text-zinc-650 dark:text-zinc-400 hover:bg-[#f7edd1] dark:hover:bg-[#2d2513] hover:text-[#6f5411] dark:hover:text-[#ebcf79] focus:ring-[#d4af37]/25"
+    ghost: "text-zinc-650 dark:text-zinc-400 hover:bg-[#eff6ff] dark:hover:bg-[#102a50] hover:text-[#1d4ed8] dark:hover:text-[#93c5fd] focus:ring-[#155eef]/25"
   };
 
   const sizes = {

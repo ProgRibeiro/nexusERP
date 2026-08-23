@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requirePortalAccess } from "@/lib/auth";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import {
   encryptSession,
   SessionPayload,
@@ -15,6 +15,15 @@ import { revalidatePath } from "next/cache";
 import { verifyPassword as passwordMatches } from "@/lib/crypto";
 import { resolvePlatformRole } from "@/lib/rbac";
 import { resolvePrimaryTenantForUser } from "@/lib/tenantAccess";
+
+async function devSessionCookieOptions() {
+  const headerStore = await headers();
+  const host = (headerStore.get("x-forwarded-host") || headerStore.get("host") || "").split(":")[0].toLowerCase();
+  const configuredDomain = process.env.SESSION_COOKIE_DOMAIN?.trim();
+  const base = configuredDomain?.replace(/^\./, "").toLowerCase();
+  const domain = configuredDomain && base && (host === base || host.endsWith(`.${base}`)) ? configuredDomain : undefined;
+  return { httpOnly: true as const, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: SESSION_MAX_AGE_SECONDS, ...(domain ? { domain } : {}) };
+}
 
 /**
  * Autenticação dedicada no Portal do Desenvolvedor (/dev/login)
@@ -72,13 +81,7 @@ export async function devLoginAction(email: string, password: string) {
 
     const token = await encryptSession(payload);
     const store = await cookies();
-    store.set(SESSION_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-    });
+    store.set(SESSION_COOKIE_NAME, token, await devSessionCookieOptions());
 
     return { success: true as const, user: payload };
   } catch (err: any) {

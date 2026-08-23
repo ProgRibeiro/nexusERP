@@ -153,7 +153,7 @@ export function printExecutiveReport({
     }
     .os-badge {
       display: inline-block;
-      background: #d4af37;
+      background: #155eef;
       color: #000000;
       font-weight: 900;
       font-size: 9px;

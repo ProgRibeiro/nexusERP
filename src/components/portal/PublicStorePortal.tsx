@@ -151,7 +151,7 @@ export default function PublicStorePortal({ initialData }: { initialData: any })
   };
 
   return (
-    <main className="min-h-screen bg-[#f4f7fb] text-slate-900">
+    <main className="min-h-screen bg-[#f7f9fc] text-slate-900">
       <header className="relative overflow-hidden bg-[#071331] text-white">
         <div className="absolute -right-20 -top-28 h-80 w-80 rounded-full bg-blue-500/25 blur-3xl" />
         <div className="absolute bottom-0 left-1/3 h-28 w-80 rounded-full bg-cyan-400/10 blur-3xl" />

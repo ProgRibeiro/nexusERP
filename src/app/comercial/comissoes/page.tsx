@@ -39,7 +39,7 @@ export default async function ComercialComissoesPage() {
             <label className="flex items-center gap-2 text-xs text-zinc-300">
               <input name="active" type="checkbox" defaultChecked={commission.active} /> Ativa
             </label>
-            <button className="rounded-lg bg-[#d4af37] px-4 py-2 text-xs font-black text-black">Salvar comissão</button>
+            <button className="rounded-lg bg-[#155eef] px-4 py-2 text-xs font-black text-black">Salvar comissão</button>
           </form>
         ))}
       </div>

@@ -68,6 +68,7 @@ No modo SaaS, as páginas públicas ficam disponíveis em:
 - `/recursos`
 - `/solucoes`
 - `/planos`
+- `/historia`
 - `/demonstracao`
 - `/contato`
 - `/login`
@@ -79,13 +80,13 @@ Em produção, o roteamento por subdomínio usa as variáveis `NEXUS_*_HOST` e
 
 ### Portais internos SaaS
 
-- **Comercial** (`comercial.nexusmanutencao.com`)
+- **Comercial** (`vendas.oprestador.tech`)
   - `/` (dashboard)
   - `/leads`
   - `/pipeline`
   - `/agenda`
   - `/relatorios`
-- **Desenvolvimento** (`dev.nexusmanutencao.com`)
+- **Desenvolvimento** (`dev.oprestador.tech`)
   - `/` (console técnico)
   - `/tenants`
   - `/monitoramento`

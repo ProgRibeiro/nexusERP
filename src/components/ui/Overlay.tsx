@@ -57,20 +57,20 @@ export function Overlay({
         onClick={onClose}
       />
       <div
-        className={`relative z-10 flex flex-col border border-[#e9e1cf] bg-white/[.98] shadow-[0_35px_90px_rgba(2,8,23,.28)] ring-1 ring-slate-950/5 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/[.98] dark:ring-white/5 ${panelClassName}`}
+        className={`relative z-10 flex flex-col border border-zinc-200 bg-white/[.98] text-zinc-900 shadow-[0_35px_90px_rgba(2,8,23,.28)] ring-1 ring-slate-950/5 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/[.98] dark:text-zinc-100 dark:ring-white/5 ${panelClassName}`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-[#e9e1cf] bg-[linear-gradient(180deg,#ffffff,#faf4e5)] px-5 py-[18px] dark:border-zinc-800 dark:bg-none dark:bg-zinc-900">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-zinc-50/80 px-5 py-[18px] dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center gap-3">
-            <span className="h-8 w-1 rounded-full bg-gradient-to-b from-[#d4af37] to-[#b88d1b]" />
+            <span className="h-8 w-1 rounded-full bg-gradient-to-b from-[#155eef] to-[#1d4ed8]" />
             <h3 className="text-base font-black tracking-tight text-zinc-950 dark:text-white">
               {title}
             </h3>
           </div>
           <div className="flex items-center gap-1">
-            {onMinimize && <button type="button" onClick={onMinimize} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-[#d4af37]/45 hover:bg-[#f8f0db] hover:text-[#6f5411] dark:border-zinc-700 dark:bg-zinc-800" title="Minimizar e continuar depois"><Minus size={16}/></button>}
+            {onMinimize && <button type="button" onClick={onMinimize} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-[#155eef]/45 hover:bg-[#eff6ff] hover:text-[#1d4ed8] dark:border-zinc-700 dark:bg-zinc-800" title="Minimizar e continuar depois"><Minus size={16}/></button>}
             <button
               onClick={onClose}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-[#d4af37]/45 hover:bg-[#f8f0db] hover:text-[#6f5411] dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-[#d4af37]/40 dark:hover:bg-[#2d2513]"
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-zinc-400 shadow-sm transition-all hover:border-[#155eef]/45 hover:bg-[#eff6ff] hover:text-[#1d4ed8] dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-[#155eef]/40 dark:hover:bg-[#102a50]"
             >
               <X size={16} />
             </button>

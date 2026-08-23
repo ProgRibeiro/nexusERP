@@ -117,7 +117,7 @@ function Scene({ kind }: { kind: string }) {
 export default function DemoPage() {
   return (
     <main className="min-h-screen bg-black text-white p-6">
-      <h1 className="text-2xl font-bold mb-4">Apresentação Técnica NX ERP</h1>
+      <h1 className="text-2xl font-bold mb-4">Apresentação Técnica O Prestador</h1>
       <div className="space-y-6 max-w-xl mx-auto">
         {slides.map((s, idx) => (
           <div key={idx} className="rounded-2xl border border-white/10 bg-zinc-900 p-6">

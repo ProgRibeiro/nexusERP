@@ -1234,7 +1234,7 @@ export default function ConfiguracoesTab() {
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex items-start gap-4">
                       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15"><AppWindow size={23} /></span>
-                      <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-black">NX ERP para Android e Apple</h3><span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-300/25">PWA preparada</span></div><p className="mt-2 max-w-2xl text-xs leading-relaxed text-blue-100/80">Instale o ERP na tela inicial, use em tela cheia e receba novas versões sem baixar arquivos novamente.</p></div>
+                      <div><div className="flex flex-wrap items-center gap-2"><h3 className="text-lg font-black">O Prestador para Android e Apple</h3><span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-300/25">PWA preparada</span></div><p className="mt-2 max-w-2xl text-xs leading-relaxed text-blue-100/80">Instale o ERP na tela inicial, use em tela cheia e receba novas versões sem baixar arquivos novamente.</p></div>
                     </div>
                     <div className="rounded-xl bg-white/10 px-4 py-3 text-[11px] leading-relaxed text-blue-100 ring-1 ring-white/15"><strong className="block text-white">Onde instalar?</strong>Use o botão <strong>Instalar aplicativo</strong> na barra superior.</div>
                   </div>
@@ -1251,17 +1251,17 @@ export default function ConfiguracoesTab() {
                 <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
                   <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"><Smartphone size={19} /></span><div><h4 className="text-sm font-black text-zinc-900 dark:text-white">Instalar no Android</h4><p className="mt-1 text-[10px] text-zinc-500">Chrome, Samsung Internet ou navegador compatível.</p></div></div>
                   <ol className="mt-5 space-y-3 text-[11px] text-zinc-600 dark:text-zinc-300">
-                    <li className="flex gap-3"><strong className="text-blue-600">1.</strong><span>Abra o endereço HTTPS do NX ERP no Chrome.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">1.</strong><span>Abra o endereço HTTPS do O Prestador no Chrome.</span></li>
                     <li className="flex gap-3"><strong className="text-blue-600">2.</strong><span>Entre normalmente com seu usuário.</span></li>
                     <li className="flex gap-3"><strong className="text-blue-600">3.</strong><span>Toque em <strong>⋮</strong> e escolha <strong>Instalar aplicativo</strong>. Se a opção não aparecer, use <strong>Adicionar à tela inicial</strong>.</span></li>
-                    <li className="flex gap-3"><strong className="text-blue-600">4.</strong><span>Confirme a instalação e abra o ícone <strong>NX ERP</strong>.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">4.</strong><span>Confirme a instalação e abra o ícone <strong>O Prestador</strong>.</span></li>
                   </ol>
                 </section>
 
                 <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
                   <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-300"><Tablet size={19} /></span><div><h4 className="text-sm font-black text-zinc-900 dark:text-white">Instalar no iPhone ou iPad</h4><p className="mt-1 text-[10px] text-zinc-500">Faça o primeiro acesso pelo Safari.</p></div></div>
                   <ol className="mt-5 space-y-3 text-[11px] text-zinc-600 dark:text-zinc-300">
-                    <li className="flex gap-3"><strong className="text-blue-600">1.</strong><span>Abra o endereço HTTPS do NX ERP no <strong>Safari</strong>.</span></li>
+                    <li className="flex gap-3"><strong className="text-blue-600">1.</strong><span>Abra o endereço HTTPS do O Prestador no <strong>Safari</strong>.</span></li>
                     <li className="flex gap-3"><strong className="text-blue-600">2.</strong><span>Toque no botão <Share2 size={13} className="mx-1 inline text-blue-600" /> <strong>Compartilhar</strong>.</span></li>
                     <li className="flex gap-3"><strong className="text-blue-600">3.</strong><span>Role as opções e toque em <strong>Adicionar à Tela de Início</strong>.</span></li>
                     <li className="flex gap-3"><strong className="text-blue-600">4.</strong><span>Confirme em <strong>Adicionar</strong>. O aplicativo abrirá em tela cheia.</span></li>
@@ -1347,7 +1347,7 @@ export default function ConfiguracoesTab() {
                     {[
                       { icon: ExternalLink, title: "Criar ou selecionar o projeto Google Cloud", text: "Abra o Google Cloud Console com a conta responsável pela empresa." },
                       { icon: Send, title: "Ativar a Gmail API", text: "Em APIs e serviços, pesquise Gmail API e clique em Ativar." },
-                      { icon: ShieldCheck, title: "Configurar a tela de consentimento OAuth", text: "Informe o nome NX ERP, e-mail de suporte e adicione a conta remetente como usuário de teste enquanto o app estiver em teste." },
+                      { icon: ShieldCheck, title: "Configurar a tela de consentimento OAuth", text: "Informe o nome O Prestador, e-mail de suporte e adicione a conta remetente como usuário de teste enquanto o app estiver em teste." },
                       { icon: KeyRound, title: "Criar credencial OAuth 2.0", text: "Escolha Aplicativo da Web e cadastre exatamente a URI de redirecionamento exibida abaixo." },
                       { icon: Server, title: "Salvar as variáveis no servidor", text: "Preencha APP_BASE_URL, INTEGRATION_ENCRYPTION_KEY, GOOGLE_GMAIL_CLIENT_ID e GOOGLE_GMAIL_CLIENT_SECRET no arquivo .env e reinicie o ERP." },
                       { icon: Link2, title: "Conectar e autorizar", text: "Volte nesta tela, clique em Conectar Google e aceite somente a permissão de envio de e-mail." },

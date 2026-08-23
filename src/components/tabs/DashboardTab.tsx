@@ -75,7 +75,7 @@ interface KpiCardProps {
 }
 
 const tones = {
-  blue: "bg-[#f6edcf] text-[#8a6511] dark:bg-[#d4af37]/12 dark:text-[#e3bf58] dark:ring-1 dark:ring-[#d4af37]/15",
+  blue: "bg-[#eff6ff] text-[#1d4ed8] dark:bg-[#155eef]/12 dark:text-[#60a5fa] dark:ring-1 dark:ring-[#155eef]/15",
   green:
     "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/35 dark:text-emerald-400",
   orange:
@@ -97,9 +97,9 @@ function KpiCard({
   return (
     <button
       onClick={onClick}
-      className={`${panel} group relative min-h-40 overflow-hidden p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#d4af37]/55 hover:shadow-[0_20px_45px_rgba(212,175,55,.12)] dark:hover:border-[#d4af37]/45`}
+      className={`${panel} group relative min-h-40 overflow-hidden p-4 text-left transition-all duration-300 hover:-translate-y-1 hover:border-[#155eef]/55 hover:shadow-[0_20px_45px_rgba(37,99,235,.12)] dark:hover:border-[#155eef]/45`}
     >
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-[#d4af37] transition-transform duration-300 group-hover:scale-x-100" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-[#155eef] transition-transform duration-300 group-hover:scale-x-100" />
       <div className="flex items-start justify-between gap-3">
         <div
           className={`flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}
@@ -127,7 +127,7 @@ function KpiCard({
       </p>
       <div className="mt-3 flex items-center justify-between gap-2">
         <span className="truncate text-[10px] text-zinc-500">{helper}</span>
-        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-[#9b7416] dark:text-[#e2bd52]">
+        <span className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-[#155eef] dark:text-[#60a5fa]">
           {action}
           <ChevronRight size={12} />
         </span>
@@ -188,7 +188,7 @@ export default function DashboardTab() {
   if (loading || !data) {
     return (
       <div className="flex h-[65vh] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-[#d4af37]" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#155eef]" />
         <p className="text-xs font-semibold text-zinc-500">
           Preparando sua Central de Comando...
         </p>
@@ -410,7 +410,7 @@ export default function DashboardTab() {
 
   return (
     <div className="space-y-6 pb-10 text-zinc-900 dark:text-zinc-100">
-      <section className="relative overflow-hidden rounded-[22px] border border-[#d4af37]/25 bg-[#090a0c] shadow-[0_28px_70px_rgba(0,0,0,.38)]">
+      <section className="relative overflow-hidden rounded-[22px] border border-zinc-200 bg-white shadow-sm dark:border-[#155eef]/25 dark:bg-zinc-950 dark:shadow-[0_28px_70px_rgba(0,0,0,.38)]">
         <Image
           src="/brand/nx-operations-hero.webp"
           alt="Visão integrada da operação predial"
@@ -418,44 +418,44 @@ export default function DashboardTab() {
           priority
           unoptimized
           sizes="(min-width: 1280px) 1280px, 100vw"
-          className="object-cover object-[68%_center] opacity-60 grayscale"
+          className="object-cover object-[68%_center] opacity-[.08] grayscale dark:opacity-60"
         />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(6,7,9,.98)_0%,rgba(9,10,12,.88)_48%,rgba(9,10,12,.38)_100%)]" />
-        <div className="absolute -bottom-28 -right-20 h-80 w-80 rounded-full border-[2px] border-[#d4af37]/55" />
-        <div className="absolute -bottom-36 -right-12 h-80 w-80 rounded-full border border-[#f0cd62]/20" />
-        <div className="relative p-5 text-white md:p-8 lg:p-9">
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,.99)_0%,rgba(255,255,255,.94)_58%,rgba(255,255,255,.78)_100%)] dark:bg-[linear-gradient(90deg,rgba(6,7,9,.98)_0%,rgba(9,10,12,.88)_48%,rgba(9,10,12,.38)_100%)]" />
+        <div className="absolute -bottom-28 -right-20 h-80 w-80 rounded-full border-[2px] border-[#155eef]/55" />
+        <div className="absolute -bottom-36 -right-12 h-80 w-80 rounded-full border border-[#60a5fa]/20" />
+        <div className="relative p-5 text-zinc-950 dark:text-white md:p-8 lg:p-9">
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
             <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#d4af37]/30 bg-[#d4af37]/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-[#f0d477] backdrop-blur">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#155eef]/30 bg-[#155eef]/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-[#93c5fd] backdrop-blur">
                 <Sparkles size={13} /> Central de Comando Operacional
               </div>
               <h2 className="text-3xl font-black tracking-[-0.045em] md:text-4xl">
                 Bom trabalho, {user?.name?.split(" ")[0]}.
               </h2>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-300/80">
+              <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-300/80">
                 Veja o que exige atenção agora e avance cada etapa da operação
                 sem procurar informação em várias telas.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 rounded-2xl border border-[#d4af37]/20 bg-black/35 p-2 backdrop-blur-md">
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-zinc-200 bg-white/80 p-2 backdrop-blur-md dark:border-[#155eef]/20 dark:bg-black/35">
               {(Object.keys(periodLabels) as DashboardPeriod[]).map((key) => (
                 <button
                   key={key}
                   onClick={() => setPeriod(key)}
-                  className={`rounded-xl px-3 py-2 text-[11px] font-bold transition ${period === key ? "bg-[#d4af37] text-[#111216] shadow-lg" : "text-zinc-300 hover:bg-white/10 hover:text-white"}`}
+                  className={`rounded-xl px-3 py-2 text-[11px] font-bold transition ${period === key ? "bg-[#155eef] text-white shadow-lg" : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"}`}
                 >
                   {periodLabels[key]}
                 </button>
               ))}
               <button
                 onClick={() => setShowFilters((v) => !v)}
-                className="flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-bold text-zinc-300 hover:bg-white/10 hover:text-white"
+                className="flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-bold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"
               >
                 <Filter size={14} /> Filtros
               </button>
               <button
                 onClick={() => void loadData(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-300 hover:bg-white/10 hover:text-white"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"
                 title="Atualizar"
               >
                 <RefreshCw
@@ -513,18 +513,18 @@ export default function DashboardTab() {
       <section className="grid gap-3 md:grid-cols-3">
         {[
           { title: "Novo cliente", helper: "Cadastre em poucos passos", icon: Users, color: "bg-blue-500", run: () => openTab("clientes", "Novo cliente", { new: "true", requestId: String(Date.now()) }) },
-          { title: "Novo orçamento", helper: "Monte e envie uma proposta", icon: FileText, color: "bg-[#d4af37] text-black", run: () => openTab("orcamentos", "Novo orçamento", { new: "true", requestId: String(Date.now()) }) },
+          { title: "Novo orçamento", helper: "Monte e envie uma proposta", icon: FileText, color: "bg-[#155eef] text-black", run: () => openTab("orcamentos", "Novo orçamento", { new: "true", requestId: String(Date.now()) }) },
           { title: "Novo serviço", helper: "Abra uma ordem de serviço", icon: Wrench, color: "bg-emerald-500", run: () => openTab("ordens-servico", "Novo serviço", { new: "true", requestId: String(Date.now()) }) },
-        ].map((action) => <button key={action.title} onClick={action.run} className={`${panel} group flex min-h-28 items-center gap-4 p-4 text-left transition hover:-translate-y-0.5 hover:border-[#d4af37]/50`}><span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg ${action.color}`}><action.icon size={21}/></span><span className="min-w-0 flex-1"><strong className="block text-sm font-black">{action.title}</strong><span className="mt-1 block text-[10px] text-zinc-500">{action.helper}</span></span><Plus size={18} className="text-zinc-500 transition group-hover:text-[#d4af37]"/></button>)}
+        ].map((action) => <button key={action.title} onClick={action.run} className={`${panel} group flex min-h-28 items-center gap-4 p-4 text-left transition hover:-translate-y-0.5 hover:border-[#155eef]/50`}><span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg ${action.color}`}><action.icon size={21}/></span><span className="min-w-0 flex-1"><strong className="block text-sm font-black">{action.title}</strong><span className="mt-1 block text-[10px] text-zinc-500">{action.helper}</span></span><Plus size={18} className="text-zinc-500 transition group-hover:text-[#155eef]"/></button>)}
       </section>
 
       <section className={`${panel} p-5`}>
         <div className="mb-4 flex items-center justify-between"><div><h3 className="font-black">O que precisa de atenção</h3><p className="text-xs text-zinc-500">Somente as prioridades mais importantes de hoje.</p></div><span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-black text-red-600 dark:bg-red-950/30">{pendencias.reduce((sum, item) => sum + item.value, 0)}</span></div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{pendencias.filter((item) => item.value > 0).slice(0,4).map((item) => <button key={item.label} onClick={() => navigate(item.link,item.label)} className="flex items-center gap-3 rounded-xl border border-zinc-100 p-3 text-left transition hover:border-[#d4af37]/45 dark:border-white/[.06]"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.danger ? tones.red : tones.slate}`}><item.icon size={16}/></span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{item.label}</span><span className="text-[10px] text-zinc-500">{item.action}</span></span><strong>{item.value}</strong></button>)}</div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{pendencias.filter((item) => item.value > 0).slice(0,4).map((item) => <button key={item.label} onClick={() => navigate(item.link,item.label)} className="flex items-center gap-3 rounded-xl border border-zinc-100 p-3 text-left transition hover:border-[#155eef]/45 dark:border-white/[.06]"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.danger ? tones.red : tones.slate}`}><item.icon size={16}/></span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{item.label}</span><span className="text-[10px] text-zinc-500">{item.action}</span></span><strong>{item.value}</strong></button>)}</div>
         {!pendencias.some((item) => item.value > 0) && <div className="flex items-center gap-3 rounded-xl bg-emerald-500/10 p-4 text-sm font-bold text-emerald-500"><CheckCircle2 size={19}/> Tudo em dia. Nenhuma pendência crítica.</div>}
       </section>
 
-      <button type="button" onClick={() => setShowAdvanced((value) => !value)} className="mx-auto flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/70 px-5 py-3 text-xs font-bold text-zinc-600 transition hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/[.03] dark:text-zinc-400">
+      <button type="button" onClick={() => setShowAdvanced((value) => !value)} className="mx-auto flex items-center gap-2 rounded-xl border border-zinc-200 bg-white/70 px-5 py-3 text-xs font-bold text-zinc-600 transition hover:border-[#155eef]/45 dark:border-white/10 dark:bg-white/[.03] dark:text-zinc-400">
         <BarChart3 size={15}/>{showAdvanced ? "Ocultar indicadores completos" : "Ver indicadores e relatórios completos"}<ChevronRight size={14} className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}/>
       </button>
 
@@ -570,7 +570,7 @@ export default function DashboardTab() {
               <button
                 key={item.label}
                 onClick={() => navigate(item.link, item.label)}
-                className="flex items-center gap-3 rounded-xl border border-zinc-100 p-3 text-left hover:border-[#d4af37]/45 hover:bg-[#d4af37]/5 dark:border-white/[.06] dark:bg-black/10 dark:hover:border-[#d4af37]/35 dark:hover:bg-[#d4af37]/[.07]"
+                className="flex items-center gap-3 rounded-xl border border-zinc-100 p-3 text-left hover:border-[#155eef]/45 hover:bg-[#155eef]/5 dark:border-white/[.06] dark:bg-black/10 dark:hover:border-[#155eef]/35 dark:hover:bg-[#155eef]/[.07]"
               >
                 <span
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.danger && item.value ? tones.red : tones.slate}`}
@@ -607,7 +607,7 @@ export default function DashboardTab() {
               <button
                 key={step.name}
                 onClick={() => navigate(step.link, step.name)}
-                className="relative rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-left transition hover:border-[#d4af37]/60 hover:bg-[#d4af37]/5 dark:border-white/[.06] dark:bg-black/15 dark:hover:border-[#d4af37]/40 dark:hover:bg-[#d4af37]/[.07]"
+                className="relative rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-left transition hover:border-[#155eef]/60 hover:bg-[#155eef]/5 dark:border-white/[.06] dark:bg-black/15 dark:hover:border-[#155eef]/40 dark:hover:bg-[#155eef]/[.07]"
               >
                 <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
                   {step.name}
@@ -637,7 +637,7 @@ export default function DashboardTab() {
                 Sugestões ordenadas pelo impacto no fluxo.
               </p>
             </div>
-            <Sparkles size={18} className="text-[#d4af37]" />
+            <Sparkles size={18} className="text-[#155eef]" />
           </div>
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {data.acoesUrgentes.length ? (
@@ -647,7 +647,7 @@ export default function DashboardTab() {
                   className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center"
                 >
                   <span
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${index < 2 ? "bg-red-50 text-red-600 dark:bg-red-950/30" : "bg-[#f6edcf] text-[#8a6511] dark:bg-[#d4af37]/12 dark:text-[#e3bf58]"}`}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${index < 2 ? "bg-red-50 text-red-600 dark:bg-red-950/30" : "bg-[#eff6ff] text-[#1d4ed8] dark:bg-[#155eef]/12 dark:text-[#60a5fa]"}`}
                   >
                     {index + 1}
                   </span>
@@ -699,7 +699,7 @@ export default function DashboardTab() {
                 >
                   <div className="flex items-start gap-3">
                     <span
-                      className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${alert.type === "FINANCEIRO" || alert.type === "FISCAL" ? "bg-red-500" : alert.type === "ESTOQUE" ? "bg-orange-500" : "bg-[#d4af37]"}`}
+                      className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${alert.type === "FINANCEIRO" || alert.type === "FISCAL" ? "bg-red-500" : alert.type === "ESTOQUE" ? "bg-orange-500" : "bg-[#155eef]"}`}
                     />
                     <div>
                       <p className="text-xs font-bold">{alert.title}</p>
@@ -793,8 +793,8 @@ export default function DashboardTab() {
           </p>
           <div className="mt-5 space-y-3">
             {[
-              ["Saldo em caixa", f.saldoCaixa, "text-[#b98c20] dark:text-[#e0bb50]"],
-              ["Saldo previsto", f.saldoPrevisto, "text-[#b98c20] dark:text-[#e0bb50]"],
+              ["Saldo em caixa", f.saldoCaixa, "text-[#b98c20] dark:text-[#60a5fa]"],
+              ["Saldo previsto", f.saldoPrevisto, "text-[#b98c20] dark:text-[#60a5fa]"],
               [
                 "Lucro estimado",
                 f.lucroEstimado,
@@ -840,7 +840,7 @@ export default function DashboardTab() {
                 Ritmo e qualidade das ordens de serviço.
               </p>
             </div>
-            <Wrench size={18} className="text-[#d4af37]" />
+            <Wrench size={18} className="text-[#155eef]" />
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[
@@ -871,7 +871,7 @@ export default function DashboardTab() {
                 Pipeline, propostas e conversão.
               </p>
             </div>
-            <BarChart3 size={18} className="text-[#d4af37]" />
+            <BarChart3 size={18} className="text-[#155eef]" />
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[
@@ -930,7 +930,7 @@ export default function DashboardTab() {
                     onClick={() =>
                       navigate(`/ordens-servico?id=${item.id}`, item.code)
                     }
-                    className="cursor-pointer text-xs hover:bg-[#d4af37]/5 dark:hover:bg-[#d4af37]/[.07]"
+                    className="cursor-pointer text-xs hover:bg-[#155eef]/5 dark:hover:bg-[#155eef]/[.07]"
                   >
                     <td className="px-5 py-3 font-bold">{item.code}</td>
                     <td className="max-w-48 truncate px-3 py-3">
@@ -1032,9 +1032,9 @@ export default function DashboardTab() {
                   onClick={() =>
                     navigate(`/orcamentos?id=${item.id}`, item.code)
                   }
-                  className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-[#d4af37]/5 dark:hover:bg-[#d4af37]/[.07]"
+                  className="flex w-full items-center gap-3 px-5 py-3 text-left hover:bg-[#155eef]/5 dark:hover:bg-[#155eef]/[.07]"
                 >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f6edcf] text-[#8a6511] dark:bg-[#d4af37]/12 dark:text-[#e3bf58]">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#eff6ff] text-[#1d4ed8] dark:bg-[#155eef]/12 dark:text-[#60a5fa]">
                     <FileText size={16} />
                   </span>
                   <span className="min-w-0 flex-1">

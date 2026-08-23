@@ -1,71 +1,29 @@
+import Image from "next/image";
 import Link from "next/link";
+import { ArrowRight, BarChart3, Building2, Check, CircleDollarSign, Clock3, FileText, Headphones, PackageCheck, Play, ShieldCheck, Sparkles, TrendingUp, Users, Wrench } from "lucide-react";
 
-const features = [
-  "Dashboard operacional em tempo real",
-  "Orçamentos, OS e execução em campo",
-  "Financeiro, faturamento e NFS-e",
-  "Estoque, contratos e relatórios",
+const modules = [
+  { icon: Users, title: "Clientes e CRM", text: "Histórico completo, oportunidades e relacionamento em um só lugar." },
+  { icon: FileText, title: "Orçamentos", text: "Propostas profissionais com custos, margem e aprovação rastreável." },
+  { icon: Wrench, title: "Ordens de serviço", text: "Planeje, execute e acompanhe cada atendimento do início ao fim." },
+  { icon: CircleDollarSign, title: "Financeiro", text: "Contas, recebimentos, faturamento e visão real dos resultados." },
+  { icon: PackageCheck, title: "Estoque", text: "Controle peças, materiais, movimentações e níveis mínimos." },
+  { icon: BarChart3, title: "Indicadores", text: "Decisões baseadas em dados operacionais atualizados." },
 ];
 
-const segments = ["Climatização", "Facilities", "Elétrica", "Refrigeração", "Manutenção predial", "Serviços técnicos"];
+const steps = [["01", "Configure sua operação", "Cadastre equipe, serviços, clientes e regras da empresa."], ["02", "Conecte os processos", "Transforme propostas em ordens e ordens em faturamento."], ["03", "Cresça com controle", "Acompanhe produtividade, margem e oportunidades em tempo real."]];
 
 export default function MarketingHomePage() {
-  return (
-    <main>
-      <section className="border-b border-white/10 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,.15),transparent_32rem)]">
-        <div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-20 md:grid-cols-2 md:py-24">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">Plataforma Nexus ERP</p>
-            <h1 className="mt-4 text-4xl font-black tracking-[-0.04em] md:text-5xl">
-              Transforme sua operação em uma <span className="text-[#d4af37]">empresa SaaS eficiente</span>
-            </h1>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-zinc-300">
-              Site público, aquisição de clientes, ERP por tenant, CRM comercial interno e administração técnica em um único ecossistema.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/recursos" className="rounded-xl bg-[#d4af37] px-5 py-3 text-xs font-black text-black hover:bg-[#e6c653]">
-                Conhecer o sistema
-              </Link>
-              <Link href="/login" className="rounded-xl border border-white/20 px-5 py-3 text-xs font-bold text-zinc-100 hover:bg-white/10">
-                Entrar
-              </Link>
-            </div>
-          </div>
-          <div className="rounded-3xl border border-white/10 bg-white/[.03] p-6">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d4af37]">Demonstração visual</p>
-            <div className="mt-4 grid gap-3">
-              {features.map((item) => (
-                <div key={item} className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs font-semibold text-zinc-200">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto w-full max-w-7xl px-5 py-16">
-        <h2 className="text-2xl font-black">Segmentos atendidos</h2>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {segments.map((segment) => (
-            <div key={segment} className="rounded-2xl border border-white/10 bg-white/[.03] px-4 py-4 text-sm font-semibold text-zinc-200">
-              {segment}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-white/10 bg-slate-900/40">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-14 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">Próximo passo</p>
-            <h3 className="mt-2 text-2xl font-black">Agende uma demonstração guiada do Nexus</h3>
-          </div>
-          <Link href="/demonstracao" className="rounded-xl bg-[#d4af37] px-5 py-3 text-xs font-black text-black hover:bg-[#e6c653]">
-            Solicitar demonstração
-          </Link>
-        </div>
-      </section>
-    </main>
-  );
+  return <main>
+    <section className="relative overflow-hidden bg-[#0b1f33] text-white"><div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(37,99,235,.1)_1px,transparent_1px),linear-gradient(90deg,rgba(37,99,235,.1)_1px,transparent_1px)] [background-size:52px_52px]" /><div className="absolute left-[-12rem] top-[-14rem] h-[34rem] w-[34rem] rounded-full bg-[#155eef]/20 blur-[100px]" /><div className="relative mx-auto grid min-h-[690px] w-full max-w-[1240px] items-center gap-14 px-5 py-20 lg:grid-cols-[.92fr_1.08fr]">
+      <div><span className="inline-flex items-center gap-2 rounded-full border border-blue-400/25 bg-blue-400/10 px-4 py-2 text-[10px] font-black uppercase tracking-[.2em] text-blue-200"><Sparkles size={13} /> Gestão completa para prestadores</span><h1 className="mt-7 max-w-2xl text-5xl font-black leading-[.98] tracking-[-.055em] sm:text-6xl">Sua empresa organizada. <span className="bg-gradient-to-r from-[#56b8ff] to-[#155eef] bg-clip-text text-transparent">Seus resultados em movimento.</span></h1><p className="mt-6 max-w-xl text-base leading-7 text-slate-300">O Prestador conecta comercial, equipe de campo, ordens de serviço e financeiro em uma plataforma simples, segura e feita para crescer com você.</p><div className="mt-9 flex flex-wrap gap-3"><Link href="/demonstracao" className="inline-flex items-center gap-2 rounded-xl bg-[#155eef] px-6 py-3.5 text-sm font-black shadow-[0_16px_40px_rgba(37,99,235,.3)] hover:bg-[#3674ee]">Quero conhecer <ArrowRight size={16} /></Link><Link href="/login" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-black hover:bg-white/10">Acessar minha conta</Link></div><div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-[11px] font-bold text-slate-400">{["Implantação guiada", "Suporte especializado", "Seus dados protegidos"].map((item) => <span key={item} className="flex items-center gap-2"><Check size={14} className="text-[#22c55e]" /> {item}</span>)}</div></div>
+      <div className="relative"><div className="absolute -inset-5 rounded-[36px] bg-gradient-to-br from-blue-500/20 to-cyan-400/5 blur-2xl" /><div className="relative overflow-hidden rounded-[28px] border border-white/15 bg-[#0d1b2a] p-2 shadow-[0_40px_100px_rgba(0,0,0,.45)]"><Image src="/brand/nx-operations-hero.webp" alt="O Prestador em operação" width={1000} height={720} priority className="aspect-[1.25] w-full rounded-[22px] object-cover" /><div className="absolute inset-x-5 bottom-5 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-[#0b1f33]/85 p-3 backdrop-blur-xl">{[["42", "OS no mês"], ["98%", "no prazo"], ["+18%", "resultado"]].map(([value,label]) => <div key={label} className="text-center"><strong className="block text-lg font-black">{value}</strong><span className="text-[8px] font-bold uppercase tracking-wider text-slate-400">{label}</span></div>)}</div></div></div>
+    </div></section>
+    <section id="recursos" className="mx-auto w-full max-w-[1240px] px-5 py-24"><div className="mx-auto max-w-2xl text-center"><p className="text-[10px] font-black uppercase tracking-[.24em] text-[#155eef]">Tudo conectado</p><h2 className="mt-4 text-3xl font-black tracking-[-.04em] sm:text-4xl">Um ERP que acompanha o serviço do orçamento ao recebimento</h2><p className="mt-4 text-sm leading-6 text-slate-500">Menos planilhas, menos retrabalho e uma visão clara do que precisa acontecer agora.</p></div><div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{modules.map(({icon: Icon,title,text}) => <article key={title} className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"><span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-50 text-[#155eef] group-hover:bg-[#155eef] group-hover:text-white"><Icon size={20} /></span><h3 className="mt-5 text-base font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-500">{text}</p></article>)}</div></section>
+    <section className="bg-[#eef5ff] py-24"><div className="mx-auto grid w-full max-w-[1240px] gap-12 px-5 lg:grid-cols-[.8fr_1.2fr]"><div><p className="text-[10px] font-black uppercase tracking-[.24em] text-[#155eef]">Implantação inteligente</p><h2 className="mt-4 text-3xl font-black tracking-[-.04em]">Comece organizado e evolua sem complicação.</h2><p className="mt-4 text-sm leading-6 text-slate-600">Uma jornada simples, apoiada por treinamento e acompanhamento da nossa equipe.</p><Link href="/treinamentos" className="mt-7 inline-flex items-center gap-2 text-sm font-black text-[#155eef]">Conhecer os treinamentos <ArrowRight size={15} /></Link></div><div className="grid gap-3">{steps.map(([n,title,text]) => <div key={n} className="flex gap-4 rounded-2xl border border-blue-100 bg-white p-5"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#0b1f33] text-xs font-black text-white">{n}</span><div><h3 className="font-black">{title}</h3><p className="mt-1 text-sm text-slate-500">{text}</p></div></div>)}</div></div></section>
+    <section className="mx-auto w-full max-w-[1240px] px-5 py-24"><div className="grid overflow-hidden rounded-[28px] bg-[#0b1f33] text-white lg:grid-cols-[1.05fr_.95fr]"><div className="p-8 sm:p-12"><span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[.2em] text-blue-300"><Headphones size={14} /> Aprenda no seu ritmo</span><h2 className="mt-5 text-3xl font-black tracking-[-.04em]">Treinamentos práticos para sua equipe aproveitar todo o sistema.</h2><p className="mt-4 text-sm leading-6 text-slate-300">Vídeos organizados por módulo, novidades e passo a passo disponíveis sempre que precisar.</p><Link href="/treinamentos" className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-[#0b1f33]"><Play size={15} fill="currentColor" /> Ver treinamentos</Link></div><div className="grid min-h-72 place-items-center bg-gradient-to-br from-[#123760] to-[#155eef] p-10"><div className="grid h-28 w-28 place-items-center rounded-full border border-white/20 bg-white/10 shadow-2xl"><Play size={36} fill="white" /></div></div></div></section>
+    <section className="border-y border-slate-200 bg-white"><div className="mx-auto max-w-[1240px] px-5 py-20"><div className="grid gap-8 text-center md:grid-cols-3">{[{icon: Clock3,value:"Menos retrabalho",text:"Informação flui do comercial até o financeiro."},{icon: Building2,value:"Operação centralizada",text:"Equipe, clientes e serviços no mesmo ambiente."},{icon: TrendingUp,value:"Decisões melhores",text:"Indicadores transformam rotina em crescimento."}].map(({icon:Icon,value,text}) => <div key={value}><Icon className="mx-auto text-[#155eef]" size={24}/><strong className="mt-4 block text-xl font-black">{value}</strong><p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-500">{text}</p></div>)}</div></div></section>
+    <section className="mx-auto max-w-[1240px] px-5 py-24"><div className="grid gap-12 lg:grid-cols-[.8fr_1.2fr]"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#155eef]">Feito para serviços</p><h2 className="mt-4 text-3xl font-black tracking-tight">A realidade da sua equipe cabe no fluxo.</h2><p className="mt-4 text-sm leading-7 text-slate-600">Uma estrutura flexível para empresas que vendem conhecimento, atendimento técnico, manutenção e execução em campo.</p><Link href="/solucoes" className="mt-6 inline-flex items-center gap-2 text-sm font-black text-[#155eef]">Ver todas as soluções <ArrowRight size={15}/></Link></div><div className="grid gap-3 sm:grid-cols-2">{["Manutenção e assistência técnica","Climatização e refrigeração","Elétrica e hidráulica","Facilities e serviços recorrentes","Instalações e projetos","Equipes técnicas em campo"].map(item => <div key={item} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm font-bold shadow-sm"><span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#155eef]"><Check size={15}/></span>{item}</div>)}</div></div></section>
+    <section className="border-t border-slate-200 bg-white"><div className="mx-auto flex w-full max-w-[1240px] flex-col items-center justify-between gap-7 px-5 py-20 text-center md:flex-row md:text-left"><div><span className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[.2em] text-[#22c55e] md:justify-start"><ShieldCheck size={14} /> Pronto para evoluir</span><h2 className="mt-3 text-3xl font-black tracking-[-.04em]">Leve controle e clareza para sua operação.</h2></div><Link href="/demonstracao" className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#f59e0b] px-6 py-3.5 text-sm font-black text-[#0b1f33] shadow-lg">Agendar demonstração <ArrowRight size={16} /></Link></div></section>
+  </main>;
 }

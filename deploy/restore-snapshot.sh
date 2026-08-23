@@ -31,9 +31,16 @@ systemctl stop "nexus-erp@$ACTIVE.service" || true
 
 runuser -u postgres -- psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'nexus_erp' AND pid <> pg_backend_pid();" 2>/dev/null || true
 runuser -u postgres -- dropdb nexus_erp 2>/dev/null || true
-runuser -u postgres -- createdb --owner=nexus_erp nexus_erp
-runuser -u postgres -- pg_restore --dbname=nexus_erp --no-owner --no-privileges "$DUMP_FILE" || true
-runuser -u postgres -- psql -c "ALTER ROLE nexus_erp WITH BYPASSRLS;" 2>/dev/null || true
+runuser -u postgres -- createdb --owner=nexus_migrate nexus_erp
+runuser -u postgres -- pg_restore --exit-on-error --dbname=nexus_erp --no-owner --no-privileges "$DUMP_FILE"
+runuser -u postgres -- psql -v ON_ERROR_STOP=1 -d nexus_erp <<'SQL'
+GRANT CONNECT ON DATABASE nexus_erp TO nexus_erp, nexus_backup;
+GRANT USAGE ON SCHEMA public TO nexus_erp, nexus_backup;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO nexus_erp;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO nexus_erp;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO nexus_backup;
+ALTER ROLE nexus_erp NOBYPASSRLS;
+SQL
 
 systemctl start "nexus-erp@$ACTIVE.service"
 echo "Restauração do banco concluída com sucesso!"

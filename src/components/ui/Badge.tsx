@@ -19,13 +19,13 @@ export function Badge({
 
   const variants = {
     primary:
-      "bg-[#d4af37]/16 text-[#7a5c12] dark:text-[#e8cf7d] border border-[#d4af37]/35",
+      "bg-[#155eef]/16 text-[#1d4ed8] dark:text-[#93c5fd] border border-[#155eef]/35",
     success: "bg-success/10 text-success border border-success/20",
     warning: "bg-warning/10 text-warning border border-warning/20",
     danger: "bg-danger/10 text-danger border border-danger/20",
     neutral:
       "bg-zinc-500/10 text-zinc-500 dark:text-zinc-400 border border-zinc-500/25",
-    info: "bg-[#f2e2ab]/35 text-[#7a5c12] dark:bg-[#362e16] dark:text-[#e8cf7d] border border-[#d4af37]/30",
+    info: "bg-[#dbeafe]/35 text-[#1d4ed8] dark:bg-[#102a50] dark:text-[#93c5fd] border border-[#155eef]/30",
   };
 
   const sizes = {

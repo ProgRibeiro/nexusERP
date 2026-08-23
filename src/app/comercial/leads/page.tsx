@@ -38,7 +38,7 @@ export default async function ComercialLeadsPage() {
           <input name="value" type="number" step="0.01" min="0" placeholder="Valor estimado" className="rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm" />
           <input name="closePrediction" type="date" className="rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm" />
           <input name="notes" placeholder="Observações" className="rounded-lg border border-white/15 bg-slate-900 px-3 py-2 text-sm sm:col-span-2" />
-          <button type="submit" className="rounded-lg bg-[#d4af37] px-4 py-2 text-sm font-black text-black hover:bg-[#f0cf63] sm:col-span-2">
+          <button type="submit" className="rounded-lg bg-[#155eef] px-4 py-2 text-sm font-black text-black hover:bg-[#60a5fa] sm:col-span-2">
             Salvar lead
           </button>
         </form>
@@ -64,7 +64,7 @@ export default async function ComercialLeadsPage() {
                 </td>
                 <td className="px-4 py-3 text-zinc-200">{lead.stageName}</td>
                 <td className="px-4 py-3 text-zinc-300">{lead.ownerName || "Não definido"}</td>
-                <td className="px-4 py-3 text-[#d4af37]">
+                <td className="px-4 py-3 text-[#155eef]">
                   {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(lead.value)}
                 </td>
                 <td className="px-4 py-3 text-zinc-300">

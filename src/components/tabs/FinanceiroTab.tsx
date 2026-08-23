@@ -644,7 +644,7 @@ export default function FinanceiroTab({
                                 <Button
                                   variant="secondary"
                                   size="sm"
-                                  className="h-9 min-w-[92px] border-white/10 bg-transparent px-3 text-zinc-300 shadow-none hover:border-[#d4af37]/35 hover:bg-[#d4af37]/[.06] dark:bg-transparent"
+                                  className="h-9 min-w-[92px] border-zinc-200 bg-white px-3 text-zinc-700 shadow-none hover:border-[#155eef]/35 hover:bg-[#155eef]/[.06] dark:border-white/10 dark:bg-transparent dark:text-zinc-300"
                                   onClick={() => openReceivableEdit(r)}
                                 >
                                   <Edit size={13} /> Editar
@@ -659,7 +659,7 @@ export default function FinanceiroTab({
                                 <Button
                                   variant="primary"
                                   size="sm"
-                                  className="h-9 min-w-[142px] px-3 shadow-[0_8px_18px_rgba(212,175,55,.16)]"
+                                  className="h-9 min-w-[142px] px-3 shadow-[0_8px_18px_rgba(37,99,235,.16)]"
                                   onClick={() => {
                                     setSelectedReceivable(r);
                                     setReceiveForm((prev) => ({
@@ -738,7 +738,7 @@ export default function FinanceiroTab({
                                 <Button
                                   variant="secondary"
                                   size="sm"
-                                  className="h-9 min-w-[92px] border-white/10 bg-transparent px-3 text-zinc-300 shadow-none hover:border-[#d4af37]/35 hover:bg-[#d4af37]/[.06] dark:bg-transparent"
+                                  className="h-9 min-w-[92px] border-zinc-200 bg-white px-3 text-zinc-700 shadow-none hover:border-[#155eef]/35 hover:bg-[#155eef]/[.06] dark:border-white/10 dark:bg-transparent dark:text-zinc-300"
                                   onClick={() => openPayableEdit(p)}
                                 >
                                   <Edit size={13} /> Editar

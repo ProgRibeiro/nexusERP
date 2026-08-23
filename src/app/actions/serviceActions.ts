@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { calculateServicePrice } from "@/lib/servicePricing";
+import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
 /**
  * Busca a lista de serviços do banco de dados, com filtro opcional de busca
@@ -26,8 +27,7 @@ export async function getServices(query = "") {
     });
     return services;
   } catch (error) {
-    logger.error("Erro ao carregar serviços:", error);
-    return [];
+    failDataAccess("services.list", error);
   }
 }
 
@@ -52,11 +52,11 @@ export async function createService(data: {
     });
 
     if (exists) {
-      return { success: false, error: "Já existe um serviço cadastrado com este nome." };
+      return { success: false as const, error: "Já existe um serviço cadastrado com este nome." };
     }
 
     const serviceType = data.serviceType === "TERCEIRIZADO" ? "TERCEIRIZADO" : "PROPRIO";
-    if (serviceType === "TERCEIRIZADO" && !data.supplierId) return { success: false, error: "Selecione o prestador responsável." };
+    if (serviceType === "TERCEIRIZADO" && !data.supplierId) return { success: false as const, error: "Selecione o prestador responsável." };
     const pricing = calculateServicePrice(data);
     const service = await prisma.service.create({
       data: {
@@ -74,10 +74,9 @@ export async function createService(data: {
       },
     });
 
-    return { success: true, service };
-  } catch (error: any) {
-    logger.error("Erro ao criar serviço:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, service };
+  } catch (error: unknown) {
+    return mutationFailure("services.create", error, "Não foi possível cadastrar o serviço.");
   }
 }
 
@@ -109,11 +108,11 @@ export async function updateService(
     });
 
     if (exists) {
-      return { success: false, error: "Já existe outro serviço cadastrado com este nome." };
+      return { success: false as const, error: "Já existe outro serviço cadastrado com este nome." };
     }
 
     const serviceType = data.serviceType === "TERCEIRIZADO" ? "TERCEIRIZADO" : "PROPRIO";
-    if (serviceType === "TERCEIRIZADO" && !data.supplierId) return { success: false, error: "Selecione o prestador responsável." };
+    if (serviceType === "TERCEIRIZADO" && !data.supplierId) return { success: false as const, error: "Selecione o prestador responsável." };
     const pricing = calculateServicePrice(data);
     const service = await prisma.service.update({
       where: { id },
@@ -132,10 +131,9 @@ export async function updateService(
       },
     });
 
-    return { success: true, service };
-  } catch (error: any) {
-    logger.error("Erro ao atualizar serviço:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, service };
+  } catch (error: unknown) {
+    return mutationFailure("services.update", error, "Não foi possível atualizar o serviço.");
   }
 }
 
@@ -149,9 +147,11 @@ export async function deleteService(id: string) {
     await prisma.service.delete({
       where: { id },
     });
-    return { success: true };
-  } catch (error: any) {
-    logger.error("Erro ao excluir serviço:", error);
-    return { success: false, error: "Este serviço não pôde ser excluído pois está vinculado a orçamentos ou OSs." };
+    return { success: true as const, error: undefined };
+  } catch (error: unknown) {
+    const failure = mutationFailure("services.delete", error, "Não foi possível excluir o serviço.");
+    return failure.code === "CONFLICT"
+      ? { ...failure, error: "Este serviço não pode ser excluído porque está vinculado a orçamentos ou ordens de serviço." }
+      : failure;
   }
 }

@@ -282,15 +282,15 @@ export default function PrestadoresTab() {
   };
 
   return (
-    <div className="space-y-6 text-zinc-100 font-sans">
+    <div className="space-y-6 text-zinc-900 dark:text-zinc-100 font-sans">
       {/* Banner Principal / Dashboard KPI */}
-      <section className="overflow-hidden rounded-3xl border border-[#d4af37]/30 bg-[#0d0f14] shadow-2xl">
-        <div className="flex flex-col justify-between gap-4 border-b border-zinc-800 bg-gradient-to-r from-[#17130b] via-[#111318] to-[#161a24] p-6 sm:p-8 md:flex-row md:items-center">
+      <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white dark:border-[#155eef]/30 dark:bg-[#0d0f14] shadow-2xl">
+        <div className="flex flex-col justify-between gap-4 border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-gradient-to-r dark:from-[#17130b] dark:via-[#111318] dark:to-[#161a24] p-6 sm:p-8 md:flex-row md:items-center">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-2 rounded-full bg-[#d4af37]/15 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#e6c653] border border-[#d4af37]/30">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#155eef]/15 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#60a5fa] border border-[#155eef]/30">
               <Sparkles size={12} /> Gestão de Terceirizados & Parceiros
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-zinc-950 dark:text-white">
               Prestadores de Serviço & Credenciados
             </h1>
             <p className="text-xs sm:text-sm text-zinc-400 max-w-2xl">
@@ -300,23 +300,23 @@ export default function PrestadoresTab() {
 
           <Button
             onClick={handleOpenCreate}
-            className="flex items-center gap-2 bg-gradient-to-r from-[#d4af37] to-[#b88d1b] text-black font-black hover:opacity-95 shadow-lg shadow-[#d4af37]/20"
+            className="flex items-center gap-2 bg-gradient-to-r from-[#155eef] to-[#1d4ed8] text-black font-black hover:opacity-95 shadow-lg shadow-[#155eef]/20"
           >
             <Plus size={16} /> Novo Prestador
           </Button>
         </div>
 
         {/* Módulos KPI */}
-        <div className="grid grid-cols-2 divide-x divide-y divide-zinc-800/80 md:grid-cols-4 md:divide-y-0 bg-[#0a0c10]">
+        <div className="grid grid-cols-2 divide-x divide-y divide-zinc-200 dark:divide-zinc-800/80 md:grid-cols-4 md:divide-y-0 bg-white dark:bg-[#0a0c10]">
           <div className="p-5 space-y-1">
-            <div className="flex items-center justify-between text-[#d4af37]">
+            <div className="flex items-center justify-between text-[#155eef]">
               <Users size={20} />
               <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                 Ativos
               </span>
             </div>
             <p className="text-[10px] font-bold uppercase text-zinc-400 pt-2">Prestadores Base</p>
-            <p className="text-2xl font-black text-white">{data.suppliers.length}</p>
+            <p className="text-2xl font-black text-zinc-950 dark:text-white">{data.suppliers.length}</p>
           </div>
 
           <div className="p-5 space-y-1">
@@ -327,18 +327,18 @@ export default function PrestadoresTab() {
               </span>
             </div>
             <p className="text-[10px] font-bold uppercase text-zinc-400 pt-2">OS A Executar</p>
-            <p className="text-2xl font-black text-white">{pendingJobsCount}</p>
+            <p className="text-2xl font-black text-zinc-950 dark:text-white">{pendingJobsCount}</p>
           </div>
 
           <div className="p-5 space-y-1">
-            <div className="flex items-center justify-between text-[#d4af37]">
+            <div className="flex items-center justify-between text-[#155eef]">
               <CircleDollarSign size={20} />
               <span className="text-[9px] font-black uppercase text-zinc-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
                 A Pagar
               </span>
             </div>
             <p className="text-[10px] font-bold uppercase text-zinc-400 pt-2">Custo Pendente OS</p>
-            <p className="text-2xl font-black text-[#e6c653]">{formatCurrency(pendingCost)}</p>
+            <p className="text-2xl font-black text-[#60a5fa]">{formatCurrency(pendingCost)}</p>
           </div>
 
           <div className="p-5 space-y-1">
@@ -355,14 +355,14 @@ export default function PrestadoresTab() {
       </section>
 
       {/* Navegação entre Abas (Cadastros vs Serviços) */}
-      <section className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-[#11141a] p-4 shadow-xl">
+      <section className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 p-4 shadow-xl">
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={() => setViewTab("CADASTROS")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
               viewTab === "CADASTROS"
-                ? "bg-[#d4af37] text-black shadow-md shadow-[#d4af37]/20"
-                : "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white border border-white/5"
+                ? "bg-[#155eef] text-black shadow-md shadow-[#155eef]/20"
+                : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:border-white/5 dark:bg-white/5 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white"
             }`}
           >
             <Users size={15} />
@@ -372,8 +372,8 @@ export default function PrestadoresTab() {
             onClick={() => setViewTab("SERVICOS")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
               viewTab === "SERVICOS"
-                ? "bg-[#d4af37] text-black shadow-md shadow-[#d4af37]/20"
-                : "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white border border-white/5"
+                ? "bg-[#155eef] text-black shadow-md shadow-[#155eef]/20"
+                : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:border-white/5 dark:bg-white/5 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white"
             }`}
           >
             <BriefcaseBusiness size={15} />
@@ -393,7 +393,7 @@ export default function PrestadoresTab() {
                 ? "Buscar por nome, CNPJ, cidade ou especialidade..."
                 : "Buscar por prestador, cliente ou código da OS..."
             }
-            className="w-full rounded-xl border border-zinc-800 bg-[#090b0e] pl-9 pr-4 py-2 text-xs font-semibold text-white placeholder:text-zinc-500 outline-none focus:border-[#d4af37]"
+            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 pl-9 pr-4 py-2 text-xs font-semibold text-zinc-900 dark:text-white placeholder:text-zinc-500 outline-none focus:border-[#155eef]"
           />
         </div>
       </section>
@@ -402,9 +402,9 @@ export default function PrestadoresTab() {
       {viewTab === "CADASTROS" && (
         <section className="space-y-4">
           {filteredSuppliers.length === 0 ? (
-            <div className="rounded-3xl border border-zinc-800 bg-[#11141a] p-12 text-center">
+            <div className="rounded-3xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 p-12 text-center">
               <Users className="mx-auto h-10 w-10 text-zinc-600 mb-3" />
-              <p className="text-sm font-bold text-zinc-300">Nenhum prestador encontrado</p>
+              <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">Nenhum prestador encontrado</p>
               <p className="mt-1 text-xs text-zinc-500 max-w-sm mx-auto">
                 Altere o filtro de busca ou cadastre um novo prestador credenciado para a equipe.
               </p>
@@ -414,12 +414,12 @@ export default function PrestadoresTab() {
               {filteredSuppliers.map((supplier) => (
                 <article
                   key={supplier.id}
-                  className="rounded-3xl border border-zinc-800 bg-[#11141a] p-5 shadow-xl hover:border-[#d4af37]/40 transition-all flex flex-col justify-between space-y-4 group"
+                  className="rounded-3xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 p-5 shadow-xl hover:border-[#155eef]/40 transition-all flex flex-col justify-between space-y-4 group"
                 >
                   <div className="space-y-3">
                     {/* Header do Cartão */}
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#d4af37]/20 to-[#d4af37]/5 border border-[#d4af37]/30 text-xs font-black text-[#e6c653] shadow-md">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#155eef]/20 to-[#155eef]/5 border border-[#155eef]/30 text-xs font-black text-[#60a5fa] shadow-md">
                         {supplier.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -431,7 +431,7 @@ export default function PrestadoresTab() {
 
                     {/* Dados Básicos */}
                     <div>
-                      <h3 className="text-sm font-black text-white group-hover:text-[#e6c653] transition-colors truncate">
+                      <h3 className="text-sm font-black text-zinc-950 dark:text-white group-hover:text-[#155eef] transition-colors truncate">
                         {supplier.tradeName || supplier.name}
                       </h3>
                       {supplier.tradeName && (
@@ -447,7 +447,7 @@ export default function PrestadoresTab() {
                       </span>
                       {supplier.city && (
                         <span className="rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-[9px] font-bold text-zinc-400 flex items-center gap-1">
-                          <MapPin size={10} className="text-[#d4af37]" />
+                          <MapPin size={10} className="text-[#155eef]" />
                           {supplier.city}/{supplier.state || "SP"}
                         </span>
                       )}
@@ -464,7 +464,7 @@ export default function PrestadoresTab() {
                         <span className="truncate">{supplier.email}</span>
                       </p>
                       {supplier.pixKey && (
-                        <p className="flex items-center gap-2 truncate text-[10px] text-[#e6c653]">
+                        <p className="flex items-center gap-2 truncate text-[10px] text-[#60a5fa]">
                           <CreditCard size={12} className="shrink-0" />
                           <span className="font-mono truncate">PIX: {supplier.pixKey}</span>
                         </p>
@@ -479,9 +479,9 @@ export default function PrestadoresTab() {
                         setSelectedProviderDetails(supplier);
                         setDetailTab("GERAL");
                       }}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-white/5 hover:bg-white/10 py-2 text-xs font-bold text-zinc-200 transition-colors border border-white/5 cursor-pointer"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-50 py-2 text-xs font-bold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-white/5 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10 cursor-pointer"
                     >
-                      <FileText size={13} className="text-[#d4af37]" />
+                      <FileText size={13} className="text-[#155eef]" />
                       <span>Ficha Completa & OS</span>
                     </button>
                     <button
@@ -501,10 +501,10 @@ export default function PrestadoresTab() {
 
       {/* VISÃO 2: GESTÃO DE ORDENS DE SERVIÇO TERCEIRIZADAS */}
       {viewTab === "SERVICOS" && (
-        <section className="rounded-3xl border border-zinc-800 bg-[#11141a] p-5 shadow-xl space-y-4">
+        <section className="rounded-3xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 p-5 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
             <div>
-              <h2 className="text-base font-black text-white">Ordens de Serviço dos Prestadores</h2>
+              <h2 className="text-base font-black text-zinc-950 dark:text-white">Ordens de Serviço dos Prestadores</h2>
               <p className="text-xs text-zinc-400">
                 Controle interno de custos e repasses atribuídos a prestadores cadastrados.
               </p>
@@ -515,7 +515,7 @@ export default function PrestadoresTab() {
               <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                className="rounded-xl border border-zinc-800 bg-[#090b0e] px-3 py-1.5 text-xs font-bold text-white outline-none focus:border-[#d4af37]"
+                className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-bold text-zinc-900 outline-none focus:border-[#155eef] dark:border-zinc-800 dark:bg-zinc-950 dark:text-white"
               >
                 {["TODOS", "PENDENTE", "AGENDADO", "EXECUCAO", "CONCLUIDO", "LIBERADO", "PAGO"].map((x) => (
                   <option key={x} value={x}>
@@ -528,7 +528,7 @@ export default function PrestadoresTab() {
 
           <div className="overflow-x-auto scrollbar-none">
             <table className="w-full min-w-[1000px] text-left text-xs">
-              <thead className="border-b border-zinc-800 bg-[#090b0e] text-[10px] uppercase tracking-wider text-zinc-400">
+              <thead className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950 text-[10px] uppercase tracking-wider text-zinc-400">
                 <tr>
                   <th className="px-4 py-3">Prestador / Serviço</th>
                   <th className="px-4 py-3">Cliente Solicitante</th>
@@ -544,12 +544,12 @@ export default function PrestadoresTab() {
                 {filteredJobs.map((job) => (
                   <tr key={job.id} className="hover:bg-white/[.02] transition-colors">
                     <td className="px-4 py-3.5">
-                      <p className="font-bold text-white">{job.supplierName}</p>
+                      <p className="font-bold text-zinc-900 dark:text-white">{job.supplierName}</p>
                       <p className="mt-0.5 max-w-[220px] truncate text-[11px] text-zinc-400">{job.description}</p>
                     </td>
                     <td className="px-4 py-3.5 font-semibold text-zinc-300">{job.clientName}</td>
                     <td className="px-4 py-3.5">
-                      <p className="font-bold text-[#e6c653]">{job.osCode}</p>
+                      <p className="font-bold text-[#60a5fa]">{job.osCode}</p>
                       <p className="text-[10px] text-zinc-500">Ref: {job.quoteCode}</p>
                     </td>
                     <td className="px-4 py-3.5">
@@ -558,12 +558,12 @@ export default function PrestadoresTab() {
                       </span>
                       {job.scheduledDate && (
                         <p className="mt-1 text-[10px] text-zinc-400 flex items-center gap-1">
-                          <CalendarDays size={11} className="text-[#d4af37]" />
+                          <CalendarDays size={11} className="text-[#155eef]" />
                           {formatDate(job.scheduledDate)}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3.5 font-black text-[#e6c653]">{formatCurrency(job.costValue)}</td>
+                    <td className="px-4 py-3.5 font-black text-[#60a5fa]">{formatCurrency(job.costValue)}</td>
                     <td className="px-4 py-3.5">
                       <p className="text-zinc-300">{formatCurrency(job.saleValue)}</p>
                       <p className="text-[10px] font-bold text-emerald-400">+ {formatCurrency(job.profit)}</p>
@@ -591,11 +591,11 @@ export default function PrestadoresTab() {
                           </Button>
                         )}
                         {job.executionStatus === "CONCLUIDO" && !job.payableId && (
-                          <Button size="sm" className="bg-[#d4af37] text-black font-bold" disabled={busy === job.id} onClick={() => handleGeneratePayable(job.id)}>
+                          <Button size="sm" className="bg-[#155eef] text-black font-bold" disabled={busy === job.id} onClick={() => handleGeneratePayable(job.id)}>
                             Liberar Pagamento
                           </Button>
                         )}
-                        {busy === job.id && <Loader2 className="animate-spin text-[#d4af37]" size={16} />}
+                        {busy === job.id && <Loader2 className="animate-spin text-[#155eef]" size={16} />}
                       </div>
                     </td>
                   </tr>
@@ -621,8 +621,8 @@ export default function PrestadoresTab() {
       >
         <form onSubmit={handleSubmitForm} className="space-y-4">
           {/* Seção 1: Dados Cadastrais Principais */}
-          <div className="space-y-3 bg-[#12151d] p-4 rounded-2xl border border-zinc-800">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#d4af37] block">
+          <div className="space-y-3 bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-800">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#155eef] block">
               1. Identificação Cadastral
             </span>
 
@@ -661,10 +661,10 @@ export default function PrestadoresTab() {
                   variant="secondary"
                   disabled={cnpjLoading || busy === "saving" || form.cnpj.replace(/\D/g, "").length !== 14}
                   onClick={handleLookupCNPJ}
-                  className="bg-[#d4af37]/15 border border-[#d4af37]/40 text-[#e6c653] hover:bg-[#d4af37]/25 h-10 px-3 font-bold text-xs shrink-0"
+                  className="bg-[#155eef]/15 border border-[#155eef]/40 text-[#60a5fa] hover:bg-[#155eef]/25 h-10 px-3 font-bold text-xs shrink-0"
                   title="Consultar dados da empresa na Receita Federal"
                 >
-                  {cnpjLoading ? <Loader2 className="animate-spin text-[#d4af37]" size={15} /> : <Search size={15} />}
+                  {cnpjLoading ? <Loader2 className="animate-spin text-[#155eef]" size={15} /> : <Search size={15} />}
                   <span className="hidden sm:inline">{cnpjLoading ? "Buscando..." : "Buscar CNPJ"}</span>
                 </Button>
               </div>
@@ -698,8 +698,8 @@ export default function PrestadoresTab() {
           </div>
 
           {/* Seção 2: Contatos e Endereço */}
-          <div className="space-y-3 bg-[#12151d] p-4 rounded-2xl border border-zinc-800">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#d4af37] block">
+          <div className="space-y-3 bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-800">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#155eef] block">
               2. Contatos & Região de Atendimento
             </span>
 
@@ -749,8 +749,8 @@ export default function PrestadoresTab() {
           </div>
 
           {/* Seção 3: Dados Bancários / Chave PIX */}
-          <div className="space-y-3 bg-[#12151d] p-4 rounded-2xl border border-zinc-800">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[#d4af37] block">
+          <div className="space-y-3 bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-800">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#155eef] block">
               3. Dados de Pagamento & Chave PIX
             </span>
 
@@ -813,7 +813,7 @@ export default function PrestadoresTab() {
             <Button variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={busy === "saving"} className="bg-[#d4af37] text-black font-black">
+            <Button type="submit" disabled={busy === "saving"} className="bg-[#155eef] text-black font-black">
               {busy === "saving" ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
               <span>{editingProviderId ? "Atualizar Cadastro" : "Cadastrar e Salvar no Banco"}</span>
             </Button>
@@ -831,13 +831,13 @@ export default function PrestadoresTab() {
         >
           <div className="space-y-5 text-zinc-100">
             {/* Header da Ficha */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#12151d] p-4 rounded-2xl border border-zinc-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-800">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#d4af37] to-[#8d701a] text-black font-black text-base">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#155eef] to-[#1d4ed8] text-black font-black text-base">
                   {selectedProviderDetails.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-white">{selectedProviderDetails.name}</h3>
+                  <h3 className="text-base font-black text-zinc-950 dark:text-white">{selectedProviderDetails.name}</h3>
                   <p className="text-xs text-zinc-400">
                     CPF/CNPJ: <span className="font-mono text-zinc-200">{selectedProviderDetails.cnpj}</span>
                   </p>
@@ -863,7 +863,7 @@ export default function PrestadoresTab() {
                 onClick={() => setDetailTab("GERAL")}
                 className={`px-4 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
                   detailTab === "GERAL"
-                    ? "border-[#d4af37] text-[#d4af37]"
+                    ? "border-[#155eef] text-[#155eef]"
                     : "border-transparent text-zinc-400 hover:text-white"
                 }`}
               >
@@ -873,7 +873,7 @@ export default function PrestadoresTab() {
                 onClick={() => setDetailTab("HISTORICO")}
                 className={`px-4 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
                   detailTab === "HISTORICO"
-                    ? "border-[#d4af37] text-[#d4af37]"
+                    ? "border-[#155eef] text-[#155eef]"
                     : "border-transparent text-zinc-400 hover:text-white"
                 }`}
               >
@@ -883,7 +883,7 @@ export default function PrestadoresTab() {
                 onClick={() => setDetailTab("FINANCEIRO")}
                 className={`px-4 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
                   detailTab === "FINANCEIRO"
-                    ? "border-[#d4af37] text-[#d4af37]"
+                    ? "border-[#155eef] text-[#155eef]"
                     : "border-transparent text-zinc-400 hover:text-white"
                 }`}
               >
@@ -895,11 +895,11 @@ export default function PrestadoresTab() {
             {detailTab === "GERAL" && (
               <div className="space-y-4 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="bg-[#12151d] p-3.5 rounded-xl border border-zinc-800 space-y-1">
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-800 space-y-1">
                     <span className="text-[10px] font-bold text-zinc-500 uppercase">Especialidade</span>
                     <p className="font-bold text-zinc-200">{selectedProviderDetails.specialty || "Climatização"}</p>
                   </div>
-                  <div className="bg-[#12151d] p-3.5 rounded-xl border border-zinc-800 space-y-1">
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-800 space-y-1">
                     <span className="text-[10px] font-bold text-zinc-500 uppercase">Região de Atendimento</span>
                     <p className="font-bold text-zinc-200">
                       {selectedProviderDetails.city || "Não informada"}/{selectedProviderDetails.state || "SP"}
@@ -907,22 +907,22 @@ export default function PrestadoresTab() {
                   </div>
                 </div>
 
-                <div className="bg-[#12151d] p-4 rounded-xl border border-zinc-800 space-y-2">
+                <div className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-xl border border-zinc-800 space-y-2">
                   <span className="text-[10px] font-bold text-zinc-500 uppercase">Contatos Rápidos</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-zinc-300">
                     <div className="flex items-center gap-2">
-                      <Phone size={14} className="text-[#d4af37]" />
+                      <Phone size={14} className="text-[#155eef]" />
                       <span>{selectedProviderDetails.phone}</span>
                     </div>
                     <div className="flex items-center gap-2 truncate">
-                      <Mail size={14} className="text-[#d4af37]" />
+                      <Mail size={14} className="text-[#155eef]" />
                       <span className="truncate">{selectedProviderDetails.email}</span>
                     </div>
                   </div>
                 </div>
 
                 {selectedProviderDetails.customNotes && (
-                  <div className="bg-[#12151d] p-4 rounded-xl border border-zinc-800 space-y-1">
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-xl border border-zinc-800 space-y-1">
                     <span className="text-[10px] font-bold text-zinc-500 uppercase">Observações Internas</span>
                     <p className="text-zinc-300 whitespace-pre-wrap">{selectedProviderDetails.customNotes}</p>
                   </div>
@@ -941,14 +941,14 @@ export default function PrestadoresTab() {
                   return (
                     <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-none pr-1">
                       {providerJobs.map((job) => (
-                        <div key={job.id} className="bg-[#12151d] p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between gap-3">
+                        <div key={job.id} className="bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-800 flex items-center justify-between gap-3">
                           <div>
-                            <span className="font-bold text-[#e6c653]">{job.osCode}</span>
+                            <span className="font-bold text-[#60a5fa]">{job.osCode}</span>
                             <p className="font-semibold text-zinc-200 mt-0.5">{job.description}</p>
                             <p className="text-[10px] text-zinc-500">Cliente: {job.clientName}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-black text-[#e6c653]">{formatCurrency(job.costValue)}</p>
+                            <p className="font-black text-[#60a5fa]">{formatCurrency(job.costValue)}</p>
                             <span className={`rounded-full border px-2 py-0.5 text-[8px] font-black ${executionBadge[job.executionStatus]}`}>
                               {job.executionStatus}
                             </span>
@@ -964,20 +964,20 @@ export default function PrestadoresTab() {
             {/* ABA DADOS BANCÁRIOS */}
             {detailTab === "FINANCEIRO" && (
               <div className="space-y-4 text-xs">
-                <div className="bg-[#12151d] p-4 rounded-2xl border border-zinc-800 space-y-3">
+                <div className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-2xl border border-zinc-800 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-zinc-500 uppercase">Chave PIX para Transmissão</span>
                     {selectedProviderDetails.pixKey && (
                       <button
                         onClick={() => handleCopyPix(selectedProviderDetails.pixKey)}
-                        className="flex items-center gap-1 text-[11px] font-bold text-[#d4af37] hover:underline cursor-pointer"
+                        className="flex items-center gap-1 text-[11px] font-bold text-[#155eef] hover:underline cursor-pointer"
                       >
                         {copiedPix ? <Check size={13} /> : <Copy size={13} />}
                         <span>{copiedPix ? "Copiado!" : "Copiar Chave"}</span>
                       </button>
                     )}
                   </div>
-                  <p className="text-base font-black font-mono text-[#e6c653]">
+                  <p className="text-base font-black font-mono text-[#60a5fa]">
                     {selectedProviderDetails.pixKey || "Nenhuma chave PIX cadastrada"}
                   </p>
                   <p className="text-[10px] text-zinc-500">
@@ -986,15 +986,15 @@ export default function PrestadoresTab() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-[#12151d] p-3.5 rounded-xl border border-zinc-800 space-y-1">
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-800 space-y-1">
                     <span className="text-[10px] font-bold text-zinc-500 uppercase">Banco</span>
                     <p className="font-bold text-zinc-200">{selectedProviderDetails.bankName || "Não informado"}</p>
                   </div>
-                  <div className="bg-[#12151d] p-3.5 rounded-xl border border-zinc-800 space-y-1">
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-800 space-y-1">
                     <span className="text-[10px] font-bold text-zinc-500 uppercase">Agência</span>
                     <p className="font-bold text-zinc-200">{selectedProviderDetails.bankAgency || "Não informada"}</p>
                   </div>
-                  <div className="bg-[#12151d] p-3.5 rounded-xl border border-zinc-800 space-y-1">
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-800 space-y-1">
                     <span className="text-[10px] font-bold text-zinc-500 uppercase">Conta Corrente</span>
                     <p className="font-bold text-zinc-200">{selectedProviderDetails.bankAccount || "Não informada"}</p>
                   </div>

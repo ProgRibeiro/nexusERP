@@ -113,7 +113,7 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv = process.e
   return new Promise<string>((resolve, reject) => {
     const executable = resolveBinary(command);
     const cmdToRun = process.platform === "win32" && executable.includes(" ") ? `"${executable}"` : executable;
-    const child = spawn(cmdToRun, args, { env, stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
+    const child = spawn(/* turbopackIgnore: true */ cmdToRun, args, { env, stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" });
 
 
     const stdout: Buffer[] = [];
@@ -246,8 +246,8 @@ function cleanupExpiredBackups(directory: string) {
 }
 
 export async function createBackup(type: BackupType = "manual"): Promise<BackupMetadata> {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL não configurada.");
+  const connectionString = process.env.BACKUP_DATABASE_URL || process.env.DATABASE_URL;
+  if (!connectionString) throw new Error("BACKUP_DATABASE_URL/DATABASE_URL não configurada.");
 
   const directory = backupDirectory();
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -285,7 +285,7 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
     const uploadsDirectory = path.resolve(process.cwd(), "public", "uploads");
     if (fs.existsSync(uploadsDirectory) && fs.readdirSync(uploadsDirectory).some((name) => name !== ".gitkeep")) {
       uploadsName = `${baseName}-uploads.tar.gz`;
-      const uploadsPath = path.join(directory, uploadsName);
+      const uploadsPath = path.join(/* turbopackIgnore: true */ directory, uploadsName);
       const temporaryUploads = `${uploadsPath}.tmp`;
       await run("tar", ["-czf", temporaryUploads, "-C", path.dirname(uploadsDirectory), path.basename(uploadsDirectory)]);
       await run("tar", ["-tzf", temporaryUploads]);
@@ -314,7 +314,7 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
     fs.writeFileSync(metadataPath, JSON.stringify(metadata, null, 2), { mode: 0o600 });
 
     const uploadsUploaded = uploadsName
-      ? await uploadFile(path.join(directory, uploadsName), "application/gzip")
+      ? await uploadFile(path.join(/* turbopackIgnore: true */ directory, uploadsName), "application/gzip")
       : true;
     const uploadsChecksumUploaded = uploadsName
       ? await uploadFile(`${path.join(directory, uploadsName)}.sha256`, "text/plain")
@@ -340,8 +340,8 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
     });
     return metadata;
   } catch (error) {
-    for (const temporary of [temporaryDump, `${path.join(directory, baseName)}-uploads.tar.gz.tmp`]) {
-      if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+    for (const temporary of [temporaryDump, `${path.join(/* turbopackIgnore: true */ directory, baseName)}-uploads.tar.gz.tmp`]) {
+      if (fs.existsSync(/* turbopackIgnore: true */ temporary)) fs.unlinkSync(temporary);
     }
     throw error;
   } finally {
@@ -352,12 +352,12 @@ export async function createBackup(type: BackupType = "manual"): Promise<BackupM
 
 export function listBackups(limit = 20): BackupMetadata[] {
   const directory = backupDirectory();
-  if (!fs.existsSync(directory)) return [];
-  return fs.readdirSync(directory)
+  if (!fs.existsSync(/* turbopackIgnore: true */ directory)) return [];
+  return fs.readdirSync(/* turbopackIgnore: true */ directory)
     .filter((name) => name.endsWith(".json") && name !== "latest.json")
     .flatMap((name) => {
       try {
-        return [JSON.parse(fs.readFileSync(path.join(directory, name), "utf8")) as BackupMetadata];
+        return [JSON.parse(fs.readFileSync(path.join(/* turbopackIgnore: true */ directory, name), "utf8")) as BackupMetadata];
       } catch {
         return [];
       }
@@ -401,9 +401,9 @@ export function verifyRecentBackups(limit = 3): BackupVerificationResult[] {
   const checkedLimit = Math.max(1, Math.min(20, Math.floor(limit)));
   const directory = backupDirectory();
   return listBackups(checkedLimit).map((backup) => {
-    const result = verifyBackupDetailed(path.join(directory, backup.fileName));
+    const result = verifyBackupDetailed(path.join(/* turbopackIgnore: true */ directory, backup.fileName));
     if (!result.valid) return result;
-    if (backup.uploadsFileName && !fs.existsSync(path.join(directory, backup.uploadsFileName))) {
+    if (backup.uploadsFileName && !fs.existsSync(path.join(/* turbopackIgnore: true */ directory, backup.uploadsFileName))) {
       return {
         fileName: backup.fileName,
         valid: false,
@@ -452,7 +452,7 @@ export function getBackupReadinessStatus(options?: { maxAgeHours?: number; verif
       issues.push("Último backup sem cópia externa (BACKUP_BUCKET não confirmado).");
     }
     if (options?.verifyLatestChecksum) {
-      const verification = verifyBackupDetailed(path.join(backupDirectory(), latestBackup.fileName));
+      const verification = verifyBackupDetailed(path.join(/* turbopackIgnore: true */ backupDirectory(), latestBackup.fileName));
       if (!verification.valid) {
         hasCriticalIssue = true;
         issues.push(verification.reason || "Falha de integridade no último backup.");
@@ -477,8 +477,8 @@ export function getBackupReadinessStatus(options?: { maxAgeHours?: number; verif
 }
 
 export async function restoreBackup(filePath: string) {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL não configurada.");
+  const connectionString = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
+  if (!connectionString) throw new Error("MIGRATION_DATABASE_URL/DATABASE_URL não configurada.");
   const absolute = path.resolve(filePath);
   if (!verifyBackup(absolute)) throw new Error("Checksum inválido: o backup pode estar corrompido.");
   await run("pg_restore", [

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAnyPermission, requireAuth, requirePermission } from "@/lib/auth";
 import { clientCreateSchema } from "@/lib/schemas";
+import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
 export interface ClientDTO {
   id: string;
@@ -98,8 +99,7 @@ export async function getClients(search?: string): Promise<ClientDTO[]> {
     });
     return clients;
   } catch (error) {
-    logger.error("Erro ao obter clientes:", error);
-    return [];
+    failDataAccess("clients.list", error);
   }
 }
 
@@ -200,8 +200,7 @@ export async function getClientDetails(id: string): Promise<ClientDetailsDTO | n
       receivables: client.accountsReceivable,
     };
   } catch (error) {
-    logger.error(`Erro ao obter prontuário do cliente ${id}:`, error);
-    return null;
+    failDataAccess("clients.details", error);
   }
 }
 
@@ -283,9 +282,9 @@ export async function createClient(data: {
 
     revalidatePath("/clientes");
     revalidatePath("/orcamentos");
-    return { success: true, client };
-  } catch (error: any) {
-    if (error?.code === "P2002" && data.cpfCnpj) {
+    return { success: true as const, error: undefined, client };
+  } catch (error: unknown) {
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002" && data.cpfCnpj) {
       try {
         const normalizedDocument = data.cpfCnpj.replace(/\D/g, "");
         const existing = await prisma.client.findFirst({
@@ -303,8 +302,7 @@ export async function createClient(data: {
         logger.error("Erro ao localizar cliente duplicado:", lookupError);
       }
     }
-    logger.error("Erro ao criar cliente:", error);
-    return { success: false, error: error.issues?.[0]?.message || error.message };
+    return mutationFailure("clients.create", error, "Não foi possível cadastrar o cliente.");
   }
 }
 
@@ -378,10 +376,9 @@ export async function updateClient(data: {
     revalidatePath("/clientes");
     revalidatePath("/orcamentos");
     revalidatePath("/preventivas");
-    return { success: true, client };
-  } catch (error: any) {
-    logger.error("Erro ao atualizar cliente:", error);
-    return { success: false, error: error.issues?.[0]?.message || error.message };
+    return { success: true as const, error: undefined, client };
+  } catch (error: unknown) {
+    return mutationFailure("clients.update", error, "Não foi possível atualizar o cliente.");
   }
 }
 
@@ -477,11 +474,9 @@ export async function createClientWithAddress(data: {
 
     revalidatePath("/clientes");
     revalidatePath("/contratos");
-    return { success: true, client: created };
+    return { success: true as const, error: undefined, client: created };
   } catch (error: unknown) {
-    logger.error("Erro ao criar cliente com endereço:", error);
-    const message = error instanceof Error ? error.message : "Não foi possível cadastrar o cliente.";
-    return { success: false, error: message };
+    return mutationFailure("clients.create-with-address", error, "Não foi possível cadastrar o cliente.");
   }
 }
 
@@ -506,10 +501,9 @@ export async function addClientContact(data: {
       data,
     });
     revalidatePath(`/clientes`);
-    return { success: true, contact };
-  } catch (error: any) {
-    logger.error("Erro ao adicionar contato:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, contact };
+  } catch (error: unknown) {
+    return mutationFailure("clients.contacts.create", error, "Não foi possível adicionar o contato.");
   }
 }
 
@@ -535,10 +529,9 @@ export async function addClientAddress(data: {
       data,
     });
     revalidatePath(`/clientes`);
-    return { success: true, address };
-  } catch (error: any) {
-    logger.error("Erro ao adicionar endereço:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, address };
+  } catch (error: unknown) {
+    return mutationFailure("clients.addresses.create", error, "Não foi possível adicionar o endereço.");
   }
 }
 
@@ -564,10 +557,9 @@ export async function addClientEquipment(data: {
       data,
     });
     revalidatePath(`/clientes`);
-    return { success: true, equipment };
-  } catch (error: any) {
-    logger.error("Erro ao adicionar equipamento:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, equipment };
+  } catch (error: unknown) {
+    return mutationFailure("clients.equipment.create", error, "Não foi possível adicionar o equipamento.");
   }
 }
 
@@ -697,16 +689,16 @@ export async function syncClientFromCNPJ(clientId: string) {
       where: { id: clientId },
       include: { addresses: true },
     });
-    if (!current) return { success: false, error: "Cliente não encontrado." };
+    if (!current) return { success: false as const, error: "Cliente não encontrado." };
 
     const document = current.cpfCnpj?.replace(/\D/g, "") || "";
     if (document.length !== 14) {
-      return { success: false, error: "A atualização automática está disponível apenas para clientes com CNPJ." };
+      return { success: false as const, error: "A atualização automática está disponível apenas para clientes com CNPJ." };
     }
 
     const lookup = await consultarCNPJAction(document);
     if (!lookup.success || !lookup.data) {
-      return { success: false, error: lookup.error || "CNPJ não localizado." };
+      return { success: false as const, error: lookup.error || "CNPJ não localizado." };
     }
     const official = lookup.data;
 
@@ -754,9 +746,8 @@ export async function syncClientFromCNPJ(clientId: string) {
 
     revalidatePath("/clientes");
     revalidatePath("/orcamentos");
-    return { success: true, client: updated };
-  } catch (error: any) {
-    logger.error("Erro ao atualizar cliente pelo CNPJ:", error);
-    return { success: false, error: error.message || "Erro ao atualizar o cliente pelo CNPJ." };
+    return { success: true as const, error: undefined, client: updated };
+  } catch (error: unknown) {
+    return mutationFailure("clients.sync-cnpj", error, "Não foi possível atualizar o cliente pelo CNPJ.");
   }
 }

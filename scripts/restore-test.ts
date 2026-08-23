@@ -91,9 +91,9 @@ function buildRestoreEnv(connectionString: string) {
 
 async function main() {
   const args = parseArgs();
-  const sourceUrl = normalizeConnectionString(args.dbUrl, process.env.DATABASE_URL || "");
+  const sourceUrl = normalizeConnectionString(args.dbUrl, process.env.RESTORE_TEST_DATABASE_URL || "");
   if (!sourceUrl) {
-    throw new Error("É necessário DATABASE_URL ou --db-url=. Configure a conexão do PostgreSQL para testar a restauração.");
+    throw new Error("É necessário RESTORE_TEST_DATABASE_URL ou --db-url=. O banco principal não é usado como fallback.");
   }
 
   const selectedBackup = args.backupPath ? path.resolve(args.backupPath) : latestBackupPath();

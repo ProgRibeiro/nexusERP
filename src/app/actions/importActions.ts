@@ -1,10 +1,10 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { logger } from "@/lib/logger";
 import { requirePermission } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { mutationFailure } from "@/lib/actionErrors";
 
 export type ImportType = "clientes" | "servicos" | "materiais";
 type ImportRecord = Record<string, unknown>;
@@ -84,8 +84,7 @@ export async function parseImportFileAction(formData: FormData) {
     }
     return { success: true as const, text: lines.join("\n"), fileName: file.name, sheetName: worksheet.name };
   } catch (error) {
-    logger.error("Erro ao ler arquivo de importação", error);
-    return { success: false as const, error: "Não foi possível ler a planilha. Verifique se o arquivo não está corrompido ou protegido por senha." };
+    return mutationFailure("imports.file.parse", error, "Não foi possível ler a planilha. Verifique se o arquivo não está corrompido ou protegido por senha.");
   }
 }
 
@@ -225,8 +224,7 @@ export async function previewImportAction(type: ImportType, rows: ImportRecord[]
       },
     };
   } catch (error) {
-    logger.error("Erro ao pré-validar importação", error);
-    return { success: false as const, error: errorMessage(error) };
+    return mutationFailure("imports.preview", error, "Não foi possível validar a planilha.");
   }
 }
 
@@ -335,17 +333,17 @@ async function importRows(type: ImportType, rows: ImportRecord[]) {
 
 export async function importClientsAction(clients: ImportRecord[]) {
   try { return await importRows("clientes", clients); }
-  catch (error) { logger.error("Erro ao importar clientes", error); return { success: false as const, error: errorMessage(error) }; }
+  catch (error) { return mutationFailure("imports.clients.execute", error, "Não foi possível importar os clientes."); }
 }
 
 export async function importServicesAction(services: ImportRecord[]) {
   try { return await importRows("servicos", services); }
-  catch (error) { logger.error("Erro ao importar serviços", error); return { success: false as const, error: errorMessage(error) }; }
+  catch (error) { return mutationFailure("imports.services.execute", error, "Não foi possível importar os serviços."); }
 }
 
 export async function importProductsAction(products: ImportRecord[]) {
   try { return await importRows("materiais", products); }
-  catch (error) { logger.error("Erro ao importar produtos", error); return { success: false as const, error: errorMessage(error) }; }
+  catch (error) { return mutationFailure("imports.products.execute", error, "Não foi possível importar os produtos."); }
 }
 
 export async function getImportHistoryAction() {
@@ -358,6 +356,6 @@ export async function getImportHistoryAction() {
     });
     return { success: true as const, batches: batches.map((batch) => ({ ...batch, createdAt: batch.createdAt.toISOString(), finishedAt: batch.finishedAt?.toISOString() || null })) };
   } catch (error) {
-    return { success: false as const, error: errorMessage(error), batches: [] };
+    return { ...mutationFailure("imports.history.list", error, "Não foi possível carregar o histórico de importações."), batches: [] };
   }
 }

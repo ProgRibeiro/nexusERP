@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { receivePaymentSchema, payBillSchema } from "@/lib/schemas";
+import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
 export interface ReceivableDTO {
   id: string;
@@ -70,8 +71,7 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
       notes: r.notes,
     }));
   } catch (error) {
-    logger.error("Erro ao obter contas a receber:", error);
-    return [];
+    failDataAccess("financial.receivables.list", error);
   }
 }
 
@@ -87,8 +87,7 @@ export async function getPayables(): Promise<PayableDTO[]> {
     });
     return list.map((item) => ({ ...item, value: Number(item.value) }));
   } catch (error) {
-    logger.error("Erro ao obter contas a pagar:", error);
-    return [];
+    failDataAccess("financial.payables.list", error);
   }
 }
 
@@ -102,8 +101,7 @@ export async function getBankAccounts() {
     const accounts = await prisma.bankAccount.findMany({ orderBy: { name: "asc" } });
     return accounts.map((account) => ({ ...account, balance: Number(account.balance) }));
   } catch (error) {
-    logger.error("Erro ao obter contas bancárias:", error);
-    return [];
+    failDataAccess("financial.bank-accounts.list", error);
   }
 }
 
@@ -126,8 +124,7 @@ export async function getTransactions() {
         : null,
     }));
   } catch (error) {
-    logger.error("Erro ao obter transações:", error);
-    return [];
+    failDataAccess("financial.transactions.list", error);
   }
 }
 
@@ -230,10 +227,9 @@ export async function receivePayment(data: {
     revalidatePath("/financeiro");
     revalidatePath("/");
 
-    return { success: true, receivable: result.updatedRec };
-  } catch (error: any) {
-    logger.error("Erro ao receber pagamento:", error);
-    return { success: false, error: error.issues?.[0]?.message || error.message };
+    return { success: true as const, error: undefined, receivable: result.updatedRec };
+  } catch (error: unknown) {
+    return mutationFailure("financial.receivable.receive", error, "Não foi possível registrar o recebimento.");
   }
 }
 
@@ -311,10 +307,9 @@ export async function payBill(data: {
     revalidatePath("/financeiro");
     revalidatePath("/");
 
-    return { success: true, payable: result.updatedPay };
-  } catch (error: any) {
-    logger.error("Erro ao pagar conta:", error);
-    return { success: false, error: error.issues?.[0]?.message || error.message };
+    return { success: true as const, error: undefined, payable: result.updatedPay };
+  } catch (error: unknown) {
+    return mutationFailure("financial.payable.pay", error, "Não foi possível registrar o pagamento.");
   }
 }
 
@@ -359,10 +354,9 @@ export async function createPayable(
     });
 
     revalidatePath("/financeiro");
-    return { success: true, payable };
-  } catch (error: any) {
-    logger.error("Erro ao criar conta a pagar:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, payable };
+  } catch (error: unknown) {
+    return mutationFailure("financial.payable.create", error, "Não foi possível criar a conta a pagar.");
   }
 }
 
@@ -411,10 +405,9 @@ export async function updatePayable(
     });
     revalidatePath("/financeiro");
     revalidatePath("/");
-    return { success: true, payable: updated };
-  } catch (error: any) {
-    logger.error("Erro ao editar conta a pagar:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, payable: updated };
+  } catch (error: unknown) {
+    return mutationFailure("financial.payable.update", error, "Não foi possível editar a conta a pagar.");
   }
 }
 
@@ -497,7 +490,7 @@ export async function estornoTransaction(
         }
       }
 
-      return { success: true };
+      return { success: true as const, error: undefined };
     });
 
     // Log de auditoria
@@ -518,10 +511,9 @@ export async function estornoTransaction(
     revalidatePath("/financeiro");
     revalidatePath("/");
 
-    return { success: true };
-  } catch (error: any) {
-    logger.error("Erro ao realizar estorno:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined };
+  } catch (error: unknown) {
+    return mutationFailure("financial.transaction.reverse", error, "Não foi possível realizar o estorno.");
   }
 }
 
@@ -567,10 +559,9 @@ export async function createReceivable(
     });
 
     revalidatePath("/financeiro");
-    return { success: true, receivable };
-  } catch (error: any) {
-    logger.error("Erro ao criar conta a receber:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, receivable };
+  } catch (error: unknown) {
+    return mutationFailure("financial.receivable.create", error, "Não foi possível criar a conta a receber.");
   }
 }
 
@@ -625,9 +616,8 @@ export async function updateReceivable(
     });
     revalidatePath("/financeiro");
     revalidatePath("/");
-    return { success: true, receivable: updated };
-  } catch (error: any) {
-    logger.error("Erro ao editar conta a receber:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, receivable: updated };
+  } catch (error: unknown) {
+    return mutationFailure("financial.receivable.update", error, "Não foi possível editar a conta a receber.");
   }
 }

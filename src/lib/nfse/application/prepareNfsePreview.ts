@@ -49,7 +49,7 @@ export async function prepareNfsePreview(serviceOrderId: string): Promise<NfsePr
     tradeName: fiscalConfig.tradeName || "Nexus Ar Condicionado",
     crt: fiscalConfig.crt || "SIMPLES_NACIONAL",
     cLocEmi: "3301702", // Duque de Caxias / RJ
-    email: fiscalConfig.email || "contato@nexusmanutencao.com",
+    email: fiscalConfig.email || "contato@oprestador.tech",
     phone: fiscalConfig.phone || "(21) 3999-8888",
   };
 

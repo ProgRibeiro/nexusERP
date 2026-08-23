@@ -24,7 +24,7 @@ if [[ ! -r "$ENV_FILE" ]]; then
   exit 1
 fi
 
-for command_name in git node npm npx curl nginx systemctl flock rsync runuser; do
+for command_name in git node npm npx curl nginx psql systemctl flock rsync runuser; do
   command -v "$command_name" >/dev/null 2>&1 || { echo "Dependência ausente: $command_name" >&2; exit 1; }
 done
 
@@ -254,6 +254,18 @@ find "$STATIC_ROOT" -type f -exec chmod 0640 {} +
 write_update_status "migrating" "Aplicando somente migrações compatíveis e aditivas no PostgreSQL."
 runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate deploy
 runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate status
+
+# Migrations criam objetos como nexus_migrate. Reaplica privilégios mínimos
+# para o runtime e leitura completa somente para a conta de backup.
+MIGRATION_DATABASE_URL="$MIGRATION_DATABASE_URL" /usr/bin/psql "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+GRANT USAGE ON SCHEMA public TO nexus_erp, nexus_backup;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO nexus_erp;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO nexus_erp;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO nexus_backup;
+ALTER DEFAULT PRIVILEGES FOR ROLE nexus_migrate IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO nexus_erp;
+ALTER DEFAULT PRIVILEGES FOR ROLE nexus_migrate IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO nexus_erp;
+ALTER DEFAULT PRIVILEGES FOR ROLE nexus_migrate IN SCHEMA public GRANT SELECT ON TABLES TO nexus_backup;
+SQL
 
 # Camada lógica: uma atualização nunca pode reduzir registros ou totais dos
 # domínios protegidos. Se houver divergência, a versão antiga continua ativa.

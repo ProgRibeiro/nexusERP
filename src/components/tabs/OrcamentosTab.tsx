@@ -322,6 +322,7 @@ export default function OrcamentosTab({
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [newQuoteForm, setNewQuoteForm] = useState({
     clientId: "",
+    proposalType: "AVULSA" as "AVULSA" | "PREVENTIVA" | "LICITACAO",
     proposalCode: "",
     storeName: "",
     addressId: "",
@@ -340,6 +341,13 @@ export default function OrcamentosTab({
     financialPercentage: 1,
     profitPercentage: 15,
     taxPercentage: 6,
+    procurementNumber: "",
+    contractingAgency: "",
+    biddingNumber: "",
+    referenceBase: "SINAPI",
+    referenceMonth: "",
+    publicBudgetSource: "",
+    deliveryTerm: "",
   });
 
   const [quoteItems, setQuoteItems] = useState<QuoteItemInput[]>([
@@ -935,6 +943,7 @@ export default function OrcamentosTab({
 
     setNewQuoteForm({
       clientId: quote.clientId,
+      proposalType: quote.proposalType === "LICITACAO" ? "LICITACAO" : "AVULSA",
       proposalCode: quote.code || "",
       storeName: quote.storeName || "",
       addressId: quote.addressId || "",
@@ -955,6 +964,13 @@ export default function OrcamentosTab({
       financialPercentage: Number(quote.financialPercentage || 1),
       profitPercentage: Number(quote.profitPercentage || 15),
       taxPercentage: Number(quote.taxPercentage || taxProfile.rate),
+      procurementNumber: quote.procurementNumber || "",
+      contractingAgency: quote.contractingAgency || "",
+      biddingNumber: quote.biddingNumber || "",
+      referenceBase: quote.referenceBase || "SINAPI",
+      referenceMonth: quote.referenceMonth || "",
+      publicBudgetSource: quote.publicBudgetSource || "",
+      deliveryTerm: quote.deliveryTerm || "",
     });
 
     setQuoteItems(
@@ -1018,8 +1034,16 @@ export default function OrcamentosTab({
         editingQuoteId,
         {
           clientId: newQuoteForm.clientId,
+          proposalType: newQuoteForm.proposalType,
           code: newQuoteForm.proposalCode || undefined,
           storeName: newQuoteForm.storeName || undefined,
+          procurementNumber: newQuoteForm.procurementNumber || undefined,
+          contractingAgency: newQuoteForm.contractingAgency || undefined,
+          biddingNumber: newQuoteForm.biddingNumber || undefined,
+          referenceBase: newQuoteForm.referenceBase || undefined,
+          referenceMonth: newQuoteForm.referenceMonth || undefined,
+          publicBudgetSource: newQuoteForm.publicBudgetSource || undefined,
+          deliveryTerm: newQuoteForm.deliveryTerm || undefined,
           addressId: newQuoteForm.addressId || undefined,
           contactId: newQuoteForm.contactId || undefined,
           notes: newQuoteForm.notes || undefined,
@@ -1058,6 +1082,7 @@ export default function OrcamentosTab({
         ]);
         setNewQuoteForm({
           clientId: clients[0]?.id || "",
+          proposalType: "AVULSA",
           proposalCode: "",
           storeName: "",
           addressId: "",
@@ -1072,6 +1097,7 @@ export default function OrcamentosTab({
       useCustomFinalValue: false,
       finalValueOverride: 0,
       overheadPercentage: 8, riskPercentage: 3, financialPercentage: 1, profitPercentage: 15, taxPercentage: taxProfile.rate,
+      procurementNumber: "", contractingAgency: "", biddingNumber: "", referenceBase: "SINAPI", referenceMonth: "", publicBudgetSource: "", deliveryTerm: "",
         });
         setSelectedQuoteId(res.quote.id);
         setQuoteDetails(res.quote as any);
@@ -1116,8 +1142,16 @@ export default function OrcamentosTab({
       const res = await createQuote(
         {
           clientId: newQuoteForm.clientId,
+          proposalType: newQuoteForm.proposalType,
           code: newQuoteForm.proposalCode || undefined,
           storeName: newQuoteForm.storeName || undefined,
+          procurementNumber: newQuoteForm.procurementNumber || undefined,
+          contractingAgency: newQuoteForm.contractingAgency || undefined,
+          biddingNumber: newQuoteForm.biddingNumber || undefined,
+          referenceBase: newQuoteForm.referenceBase || undefined,
+          referenceMonth: newQuoteForm.referenceMonth || undefined,
+          publicBudgetSource: newQuoteForm.publicBudgetSource || undefined,
+          deliveryTerm: newQuoteForm.deliveryTerm || undefined,
           addressId: newQuoteForm.addressId || undefined,
           contactId: newQuoteForm.contactId || undefined,
           notes: newQuoteForm.notes || undefined,
@@ -1156,6 +1190,7 @@ export default function OrcamentosTab({
         ]);
         setNewQuoteForm({
           clientId: clients[0]?.id || "",
+          proposalType: "AVULSA",
           proposalCode: "",
           storeName: "",
           addressId: "",
@@ -1170,6 +1205,7 @@ export default function OrcamentosTab({
           useCustomFinalValue: false,
           finalValueOverride: 0,
           overheadPercentage: 8, riskPercentage: 3, financialPercentage: 1, profitPercentage: 15, taxPercentage: taxProfile.rate,
+          procurementNumber: "", contractingAgency: "", biddingNumber: "", referenceBase: "SINAPI", referenceMonth: "", publicBudgetSource: "", deliveryTerm: "",
         });
         setSelectedQuoteId(res.quote.id);
         setView("list");
@@ -1808,6 +1844,33 @@ export default function OrcamentosTab({
             onSubmit={view === "edit" ? handleUpdateQuote : handleCreateQuote}
             className="space-y-6"
           >
+            <Card className="border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-600 dark:text-blue-300">Tipo de orçamento</p>
+                  <h3 className="mt-1 text-base font-black text-zinc-950 dark:text-white">Escolha o fluxo da proposta</h3>
+                  <p className="mt-1 max-w-2xl text-xs text-zinc-500">O modo licitação habilita identificação do edital, órgão, base de referência, fonte orçamentária e prazo de execução.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[{ value: "AVULSA", label: "Comercial" }, { value: "LICITACAO", label: "Cotação de licitação" }].map((option) => (
+                    <button key={option.value} type="button" onClick={() => setNewQuoteForm((current) => ({ ...current, proposalType: option.value as "AVULSA" | "LICITACAO" }))} className={`rounded-xl border px-4 py-2.5 text-xs font-black transition ${newQuoteForm.proposalType === option.value ? "border-blue-600 bg-blue-600 text-white shadow-sm" : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-blue-300 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"}`}>
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {newQuoteForm.proposalType === "LICITACAO" && (
+                <div className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 dark:border-zinc-800 sm:grid-cols-2 lg:grid-cols-4">
+                  <Input label="Processo / edital" value={newQuoteForm.procurementNumber} onChange={(event) => setNewQuoteForm((current) => ({ ...current, procurementNumber: event.target.value }))} placeholder="Ex.: 00012/2026" />
+                  <Input label="Órgão contratante" value={newQuoteForm.contractingAgency} onChange={(event) => setNewQuoteForm((current) => ({ ...current, contractingAgency: event.target.value }))} placeholder="Prefeitura, autarquia..." />
+                  <Input label="Modalidade / número" value={newQuoteForm.biddingNumber} onChange={(event) => setNewQuoteForm((current) => ({ ...current, biddingNumber: event.target.value }))} placeholder="PE 04/2026" />
+                  <Input label="Fonte orçamentária" value={newQuoteForm.publicBudgetSource} onChange={(event) => setNewQuoteForm((current) => ({ ...current, publicBudgetSource: event.target.value }))} placeholder="Tesouro, convênio..." />
+                  <Select label="Base de referência" value={newQuoteForm.referenceBase} onChange={(event) => setNewQuoteForm((current) => ({ ...current, referenceBase: event.target.value }))} options={[{ value: "SINAPI", label: "SINAPI" }, { value: "SICRO", label: "SICRO" }, { value: "SEINFRA", label: "SEINFRA" }, { value: "ORSE", label: "ORSE" }, { value: "OUTRA", label: "Outra base" }]} />
+                  <Input label="Mês de referência" value={newQuoteForm.referenceMonth} onChange={(event) => setNewQuoteForm((current) => ({ ...current, referenceMonth: event.target.value }))} placeholder="Ex.: 06/2026" />
+                  <Input label="Prazo de execução/entrega" value={newQuoteForm.deliveryTerm} onChange={(event) => setNewQuoteForm((current) => ({ ...current, deliveryTerm: event.target.value }))} placeholder="Ex.: 120 dias" />
+                </div>
+              )}
+            </Card>
             {/* Etapa 1: cliente e local de execução */}
             <Card className="space-y-5 shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-6 animate-in fade-in duration-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-150 dark:border-zinc-800 pb-4">
@@ -2111,10 +2174,10 @@ export default function OrcamentosTab({
 
             {/* Bottom Section: Items management & Pricing (Full Width) */}
             <Card className="overflow-hidden shadow-premium border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900 p-0">
-              <div className="border-b border-[#e7d9a8] bg-[#f6edcf] px-5 py-5 text-[#211b12] dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
+              <div className="border-b border-[#e7d9a8] bg-[#eff6ff] px-5 py-5 text-[#211b12] dark:border-zinc-800 dark:bg-zinc-900 sm:px-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d4af37] bg-[#d4af37] text-[#17130d] shadow-sm">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#155eef] bg-[#155eef] text-[#17130d] shadow-sm">
                       <BookOpen size={19} />
                     </span>
                     <div>
@@ -2122,7 +2185,7 @@ export default function OrcamentosTab({
                         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7a5e19] dark:text-[#f0d171]">
                           Etapa 3
                         </span>
-                        <span className="rounded-full border border-[#d9c77a] bg-[#fff6d8] px-2 py-0.5 text-[9px] font-bold uppercase text-[#6f5614] shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                        <span className="rounded-full border border-[#d9c77a] bg-[#fff6d8] px-2 py-0.5 text-[9px] font-bold uppercase text-[#1d4ed8] shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                           Editor comercial
                         </span>
                       </div>
@@ -2150,7 +2213,7 @@ export default function OrcamentosTab({
                       size="sm"
                       variant="secondary"
                       onClick={() => handleAddItem("PECAS")}
-                      className="border-[#f0d9a3] text-[#7a5e19] hover:bg-[#f7efde] dark:border-[#d4af37]/40 dark:text-[#f0d171] dark:hover:bg-[#2c2416]"
+                      className="border-[#f0d9a3] text-[#7a5e19] hover:bg-[#f7efde] dark:border-[#155eef]/40 dark:text-[#f0d171] dark:hover:bg-[#2c2416]"
                     >
                       <Package size={14} /> Adicionar material
                     </Button>
@@ -2159,7 +2222,7 @@ export default function OrcamentosTab({
                       size="sm"
                       variant="secondary"
                       onClick={() => handleAddItem("TERCEIRIZADO")}
-                      className="border-[#ead8f7] text-[#6e4d8d] hover:bg-[#f4ebfa] dark:border-[#d4af37]/40 dark:text-[#f0d171] dark:hover:bg-[#2c2416]"
+                      className="border-[#ead8f7] text-[#6e4d8d] hover:bg-[#f4ebfa] dark:border-[#155eef]/40 dark:text-[#f0d171] dark:hover:bg-[#2c2416]"
                     >
                       <Handshake size={14} /> Serviço terceirizado
                     </Button>
@@ -2169,7 +2232,7 @@ export default function OrcamentosTab({
 
               <div className="grid grid-cols-2 border-b border-[#ecd9a9] bg-[#faf3de] dark:border-zinc-800 dark:bg-zinc-900/60 sm:grid-cols-5">
                 <div className="border-b border-r border-[#ecd9a9] px-5 py-3 dark:border-zinc-800 sm:border-b-0">
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-[#6f5614]">
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-[#1d4ed8]">
                     Linhas
                   </p>
                   <p className="mt-1 text-sm font-black text-[#2e261d] dark:text-white">
@@ -2664,7 +2727,7 @@ export default function OrcamentosTab({
                     <p className="mb-3 mt-1 text-[10px] text-blue-700/70 dark:text-blue-300/70">Único encargo exibido ao cliente: valor destinado ao recolhimento governamental.</p>
                     <Input label="Alíquota tributária %" type="number" min="0" max="100" step="0.1" value={newQuoteForm.taxPercentage} onChange={(e)=>setNewQuoteForm((prev)=>({...prev,taxPercentage:Number(e.target.value)||0}))}/>
                   </div>
-                  <div className="rounded-xl border border-[#d4af37]/20 bg-[#d4af37]/[.05] p-3">
+                  <div className="rounded-xl border border-[#155eef]/20 bg-[#155eef]/[.05] p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-xs font-black text-zinc-900 dark:text-white">Valor final da proposta</p>
@@ -2679,7 +2742,7 @@ export default function OrcamentosTab({
                           useCustomFinalValue: !prev.useCustomFinalValue,
                           finalValueOverride: !prev.useCustomFinalValue ? liveTotals.calculatedTotal : 0,
                         }))}
-                        className={`relative h-7 w-12 shrink-0 rounded-full border transition ${newQuoteForm.useCustomFinalValue ? "border-[#d4af37] bg-[#d4af37]" : "border-zinc-600 bg-zinc-800"}`}
+                        className={`relative h-7 w-12 shrink-0 rounded-full border transition ${newQuoteForm.useCustomFinalValue ? "border-[#155eef] bg-[#155eef]" : "border-zinc-600 bg-zinc-800"}`}
                       >
                         <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${newQuoteForm.useCustomFinalValue ? "translate-x-5" : "translate-x-0.5"}`} />
                       </button>
@@ -2740,18 +2803,18 @@ export default function OrcamentosTab({
       {/* 2. MAIN SPLIT-SCREEN VIEW (List + PDF preview side-by-side) */}
       {view === "list" && (
         <>
-          <section className="relative overflow-hidden rounded-[26px] bg-[#1a150f] p-6 text-white shadow-xl shadow-[#d4af37]/10 print:hidden sm:p-8">
-            <div className="absolute -right-24 -top-32 h-80 w-80 rounded-full bg-[#d4af37]/12 blur-3xl" />
-            <div className="absolute -bottom-20 left-1/3 h-48 w-96 rounded-full bg-[#f0cd62]/8 blur-3xl" />
+          <section className="relative overflow-hidden rounded-[26px] border border-zinc-200 bg-white p-6 text-zinc-950 shadow-sm print:hidden dark:border-zinc-800 dark:bg-zinc-950 dark:text-white dark:shadow-xl dark:shadow-[#155eef]/10 sm:p-8">
+            <div className="absolute -right-24 -top-32 h-80 w-80 rounded-full bg-[#155eef]/12 blur-3xl" />
+            <div className="absolute -bottom-20 left-1/3 h-48 w-96 rounded-full bg-[#60a5fa]/8 blur-3xl" />
             <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
               <div>
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-[#f3d88a]">
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-blue-600 dark:text-blue-300">
                   <BriefcaseBusiness size={14} /> Central comercial
                 </div>
                 <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
                   Propostas e Orçamentos
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#e4dcc7]">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">
                   Acompanhe oportunidades, negociações, aprovações e a conversão
                   de cada proposta em ordem de serviço.
                 </p>
@@ -2764,13 +2827,13 @@ export default function OrcamentosTab({
                         tab: "preventiva",
                       })
                     }
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#d4af37]/45 bg-[#2b241b] px-4 text-sm font-black text-[#f8e7b5] transition hover:bg-[#352d22]"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-black text-blue-700 transition hover:bg-blue-100 dark:border-[#155eef]/45 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/15"
                   >
                     <Sparkles size={16} /> Proposta preventiva
                   </button>
                   <button
-                    onClick={() => setView("create")}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#d4af37] px-5 text-sm font-black text-[#17130d] shadow-lg shadow-[#d4af37]/20 transition hover:bg-[#c79d28]"
+                    onClick={() => { window.location.href = "/orcamentos/novo"; }}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#155eef] px-5 text-sm font-black text-white shadow-lg shadow-[#155eef]/20 transition hover:bg-[#1d4ed8]"
                   >
                     <Plus size={17} /> Novo orçamento
                   </button>
@@ -2783,7 +2846,7 @@ export default function OrcamentosTab({
             <button
               type="button"
               onClick={() => setStatusFilter("EM_ANDAMENTO")}
-              className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-zinc-900 ${statusFilter === "EM_ANDAMENTO" ? "border-[#d4af37] ring-2 ring-[#f5e4a4] dark:ring-[#5d4920]" : "border-zinc-200 dark:border-zinc-800"}`}
+              className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:bg-zinc-900 ${statusFilter === "EM_ANDAMENTO" ? "border-[#155eef] ring-2 ring-[#f5e4a4] dark:ring-[#5d4920]" : "border-zinc-200 dark:border-zinc-800"}`}
             >
               <div className="flex items-center justify-between">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f7edc9] text-[#7a5e19] dark:bg-[#2e261d] dark:text-[#f0d171]">
@@ -2874,7 +2937,7 @@ export default function OrcamentosTab({
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Buscar por cliente ou número da proposta"
-                  className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-4 text-sm font-semibold outline-none transition focus:border-[#d4af37] focus:bg-white focus:ring-2 focus:ring-[#f4e6b4] dark:border-zinc-700 dark:bg-zinc-800"
+                  className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-10 pr-4 text-sm font-semibold outline-none transition focus:border-[#155eef] focus:bg-white focus:ring-2 focus:ring-[#f4e6b4] dark:border-zinc-700 dark:bg-zinc-800"
                 />
               </div>
               <div className="flex gap-2 overflow-x-auto">
@@ -2898,7 +2961,7 @@ export default function OrcamentosTab({
                     key={item.id}
                     type="button"
                     onClick={() => setStatusFilter(item.id)}
-                    className={`shrink-0 rounded-xl px-3.5 py-2.5 text-xs font-black transition ${statusFilter === item.id ? "bg-[#d4af37] text-[#17130d] shadow-sm" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                    className={`shrink-0 rounded-xl px-3.5 py-2.5 text-xs font-black transition ${statusFilter === item.id ? "bg-[#155eef] text-[#17130d] shadow-sm" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
                   >
                     {item.label}
                   </button>
@@ -2961,7 +3024,7 @@ export default function OrcamentosTab({
                           onClick={() => setSelectedQuoteId(q.id)}
                           className={`cursor-pointer rounded-2xl border p-4 transition-all ${
                             isActive
-                              ? "border-[#d4af37] bg-white shadow-md ring-2 ring-[#f3e7b0] dark:border-[#d4af37] dark:bg-zinc-900 dark:ring-[#5d4920]"
+                              ? "border-[#155eef] bg-white shadow-md ring-2 ring-[#f3e7b0] dark:border-[#155eef] dark:bg-zinc-900 dark:ring-[#5d4920]"
                               : "border-transparent bg-white/80 hover:border-zinc-200 hover:bg-white hover:shadow-sm dark:bg-zinc-900/60 dark:hover:border-zinc-700"
                           }`}
                         >
@@ -2974,6 +3037,11 @@ export default function OrcamentosTab({
                                 <span className="text-[9px] font-bold text-zinc-400">
                                   V{q.version || 1}
                                 </span>
+                                {q.proposalType === "LICITACAO" && (
+                                  <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                                    Licitação
+                                  </span>
+                                )}
                               </div>
                               <p className="mt-2 truncate text-sm font-black text-zinc-950 dark:text-white">
                                 {q.clientName}
@@ -3021,7 +3089,7 @@ export default function OrcamentosTab({
                                       );
                                       if (details) handleStartEdit(details);
                                     }}
-                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:border-[#d4af37] hover:text-[#7a5e19] dark:border-zinc-700 dark:bg-zinc-800"
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:border-[#155eef] hover:text-[#7a5e19] dark:border-zinc-700 dark:bg-zinc-800"
                                     title="Editar Orçamento"
                                   >
                                     <Edit size={15} />
@@ -3155,7 +3223,7 @@ export default function OrcamentosTab({
                 >
                   {/* HEADER ROW */}
                   <header className="quote-print-responsive-grid print-keep-together relative grid grid-cols-1 overflow-hidden rounded-2xl bg-[#1b150f] p-4 text-white sm:grid-cols-12 sm:gap-5 sm:p-5">
-                    <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[#d4af37]/10" />
+                    <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[#155eef]/10" />
                     {/* Logo and company profile details */}
                     <div className="relative flex min-w-0 items-center gap-3 sm:col-span-7">
                       {companyParams.logoUrl ? (
@@ -3567,13 +3635,13 @@ export default function OrcamentosTab({
                   </span>
 
                   <div className="space-y-2">
-                    <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 cursor-pointer transition-all hover:border-[#d4af37]/50 dark:border-zinc-800 dark:bg-zinc-900">
+                    <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 cursor-pointer transition-all hover:border-[#155eef]/50 dark:border-zinc-800 dark:bg-zinc-900">
                       <input
                         type="radio"
                         name="closedValueOption"
                         checked={closedValueOption === "ORIGINAL"}
                         onChange={() => setClosedValueOption("ORIGINAL")}
-                        className="h-4 w-4 text-[#d4af37] focus:ring-[#d4af37]"
+                        className="h-4 w-4 text-[#155eef] focus:ring-[#155eef]"
                       />
                       <div className="flex-1">
                         <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
@@ -3582,13 +3650,13 @@ export default function OrcamentosTab({
                       </div>
                     </label>
 
-                    <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 cursor-pointer transition-all hover:border-[#d4af37]/50 dark:border-zinc-800 dark:bg-zinc-900">
+                    <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 cursor-pointer transition-all hover:border-[#155eef]/50 dark:border-zinc-800 dark:bg-zinc-900">
                       <input
                         type="radio"
                         name="closedValueOption"
                         checked={closedValueOption === "CUSTOM"}
                         onChange={() => setClosedValueOption("CUSTOM")}
-                        className="h-4 w-4 text-[#d4af37] focus:ring-[#d4af37]"
+                        className="h-4 w-4 text-[#155eef] focus:ring-[#155eef]"
                       />
                       <div className="flex-1">
                         <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
@@ -3609,7 +3677,7 @@ export default function OrcamentosTab({
                         value={customClosedValue === "0" ? "" : customClosedValue}
                         onChange={(e) => setCustomClosedValue(e.target.value)}
                         placeholder="0.00"
-                        className="font-bold text-sm text-[#d4af37]"
+                        className="font-bold text-sm text-[#155eef]"
                       />
 
                       {(() => {

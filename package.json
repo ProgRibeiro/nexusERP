@@ -2,6 +2,9 @@
     "name": "erp-servicos",
     "version": "0.1.0",
     "private": true,
+    "engines": {
+        "node": ">=20.9 <25"
+    },
     "scripts": {
         "dev": "next dev",
         "build": "node scripts/build-next.mjs",
@@ -33,6 +36,8 @@
         "backup:restore": "tsx scripts/restore-db.ts",
         "backup:install-local": "bash deploy/install-macos-backup.sh",
         "test:import-services": "tsx scripts/verify-service-import.ts",
+        "test:construction-budget": "tsx --tsconfig tsconfig.json src/tests/testConstructionBudget.ts",
+        "import:reference-bases": "tsx scripts/import-reference-bases.ts",
         "test:service-visits": "tsx src/tests/testServiceVisitWorkflow.ts",
         "test:field-forms": "tsx src/tests/testFieldFormWorkflow.ts",
         "test:multi-assets": "tsx src/tests/testMultiAssetWorkflow.ts",
@@ -48,8 +53,13 @@
         "check:linux": "sudo bash deploy/check-linux.sh",
         "lint": "eslint",
         "security:audit": "node scripts/security-audit.mjs",
-        "test:integration": "tsx --env-file=.env src/tests/testAll.ts",
+        "prepare:vps": "bash deploy/preflight-vps.sh",
+    "test:integration": "tsx --env-file=.env src/tests/testAll.ts",
+    "test:core-crud": "tsx --env-file=.env src/tests/testCoreCrudAndImports.ts",
         "test:rls": "node scripts/test-tenant-rls.mjs",
+        "test:tenant-foundation": "node scripts/test-tenant-foundation.mjs",
+        "test:identity-foundation": "tsx --env-file=.env src/tests/testIdentityFoundation.ts",
+        "test:action-errors": "tsx scripts/test-action-errors.ts",
         "quality:gate": "npm run security:audit && npm run test:rls && npm run build",
         "backup:audit": "tsx scripts/backup-audit.ts --max=3"
     },

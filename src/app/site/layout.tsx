@@ -1,53 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ArrowRight, Menu } from "lucide-react";
+import { PrestadorBrand } from "@/components/brand/PrestadorBrand";
 
-export const metadata: Metadata = {
-  title: "Nexus · Plataforma SaaS",
-  description: "Nexus ERP: plataforma SaaS para operação, financeiro, serviços e gestão integrada.",
-};
+export const metadata: Metadata = { title: "O Prestador · ERP para empresas de serviços", description: "Organize clientes, vendas, ordens de serviço, equipe e financeiro em uma única plataforma." };
 
-const menu = [
-  { href: "/", label: "Home" },
-  { href: "/recursos", label: "Recursos" },
-  { href: "/solucoes", label: "Soluções" },
-  { href: "/planos", label: "Planos" },
-  { href: "/demonstracao", label: "Demonstração" },
-  { href: "/contato", label: "Contato" },
-];
+const menu = [{ href: "/#recursos", label: "Recursos" }, { href: "/solucoes", label: "Soluções" }, { href: "/planos", label: "Planos" }, { href: "/historia", label: "Nossa história" }, { href: "/treinamentos", label: "Treinamentos" }, { href: "/contato", label: "Contato" }];
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-4">
-          <Link href="/" className="text-sm font-black tracking-wide text-[#d4af37]">NEXUS</Link>
-          <nav className="hidden items-center gap-5 text-xs font-semibold text-zinc-300 md:flex">
-            {menu.map((item) => (
-              <Link key={item.href} href={item.href} className="transition hover:text-white">
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-2">
-            <Link href="/login" className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10">
-              Entrar
-            </Link>
-            <Link href="/cadastro" className="rounded-lg bg-[#d4af37] px-3 py-2 text-xs font-black text-black hover:bg-[#e6c653]">
-              Começar
-            </Link>
-          </div>
-        </div>
-      </header>
-      {children}
-      <footer className="border-t border-white/10 bg-slate-950">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-5 py-8 text-[11px] text-zinc-500 md:flex-row md:items-center md:justify-between">
-          <p>© 2026 Nexus · Plataforma SaaS</p>
-          <div className="flex gap-3">
-            <Link href="/contato" className="hover:text-zinc-300">Contato</Link>
-            <Link href="/demonstracao" className="hover:text-zinc-300">Solicitar demonstração</Link>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
+  return <div className="min-h-screen bg-[#f8fafc] font-sans text-[#0b1f33]">
+    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl"><div className="mx-auto flex h-[72px] w-full max-w-[1240px] items-center justify-between px-5">
+      <Link href="/" aria-label="Página inicial"><PrestadorBrand /></Link>
+      <nav className="hidden items-center gap-7 text-[12px] font-bold text-slate-600 lg:flex">{menu.map((item) => <Link key={item.href} href={item.href} className="transition hover:text-[#155eef]">{item.label}</Link>)}</nav>
+      <div className="relative flex items-center gap-2"><Link href="/login" className="rounded-xl px-4 py-2.5 text-[12px] font-black transition hover:bg-slate-100">Entrar</Link><Link href="/demonstracao" className="hidden items-center gap-2 rounded-xl bg-[#155eef] px-4 py-2.5 text-[12px] font-black text-white shadow-[0_10px_25px_rgba(37,99,235,.22)] hover:bg-[#1d4ed8] sm:inline-flex">Ver demonstração <ArrowRight size={14} /></Link><details className="group lg:hidden"><summary className="grid h-10 w-10 cursor-pointer list-none place-items-center rounded-xl border border-slate-200" aria-label="Abrir menu"><Menu size={18} /></summary><nav className="absolute right-0 top-12 grid min-w-52 gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">{menu.map((item) => <Link key={item.href} href={item.href} className="rounded-xl px-4 py-3 text-xs font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-600">{item.label}</Link>)}</nav></details></div>
+    </div></header>
+    {children}
+    <footer className="bg-[#0b1f33] text-white"><div className="mx-auto grid w-full max-w-[1240px] gap-10 px-5 py-14 md:grid-cols-[1.4fr_1fr_1fr_1fr]"><div><PrestadorBrand light /><p className="mt-5 max-w-sm text-sm leading-6 text-slate-400">Gestão que conecta vendas, operação e resultados para empresas prestadoras de serviços.</p></div><div><p className="text-xs font-black uppercase tracking-wider text-blue-300">Plataforma</p><div className="mt-4 grid gap-3 text-sm text-slate-400"><Link href="/recursos">Recursos</Link><Link href="/solucoes">Soluções</Link><Link href="/planos">Planos</Link></div></div><div><p className="text-xs font-black uppercase tracking-wider text-blue-300">Conteúdo</p><div className="mt-4 grid gap-3 text-sm text-slate-400"><Link href="/historia">Nossa história</Link><Link href="/treinamentos">Treinamentos</Link><Link href="/contato">Contato</Link></div></div><div><p className="text-xs font-black uppercase tracking-wider text-blue-300">Comece agora</p><div className="mt-4 grid gap-3 text-sm text-slate-400"><Link href="/login">Entrar no ERP</Link><Link href="/demonstracao">Solicitar demonstração</Link><Link href="/cadastro">Criar conta</Link></div></div></div><div className="border-t border-white/10 px-5 py-5 text-center text-[11px] text-slate-500">© 2026 O Prestador · oprestador.tech</div></footer>
+  </div>;
 }

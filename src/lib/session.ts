@@ -28,6 +28,7 @@ export interface SessionPayload {
   platformRole?: string;
   tenantId?: string;
   permissions: string[];
+  sessionVersion?: number;
   /** epoch ms de expiração da sessão */
   exp: number;
 }
@@ -103,6 +104,7 @@ export async function decryptSession(token: string): Promise<SessionPayload | nu
       (payload.tenantId !== undefined && (typeof payload.tenantId !== "string" || !UUID_PATTERN.test(payload.tenantId))) ||
       !Array.isArray(payload.permissions) ||
       !payload.permissions.every((permission) => typeof permission === "string") ||
+      (payload.sessionVersion !== undefined && (!Number.isInteger(payload.sessionVersion) || payload.sessionVersion < 1)) ||
       typeof payload.exp !== "number" ||
       payload.exp < Date.now()
     ) return null;

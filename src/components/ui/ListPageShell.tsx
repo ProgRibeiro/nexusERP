@@ -7,6 +7,8 @@ import { Button } from "./Button";
 import { Card } from "./Card";
 
 interface ListPageShellProps {
+  title?: string;
+  description?: string;
   /** Omit to hide the search box entirely (rare, e.g. read-only log views). */
   searchValue?: string;
   onSearchChange?: (value: string) => void;
@@ -31,6 +33,8 @@ interface ListPageShellProps {
  * identically.
  */
 export function ListPageShell({
+  title,
+  description,
   searchValue,
   onSearchChange,
   searchPlaceholder = "Buscar...",
@@ -46,9 +50,10 @@ export function ListPageShell({
 }: ListPageShellProps) {
   return (
     <div className="flex flex-col gap-5">
+      {(title || description) && <div><h1 className="text-2xl font-bold tracking-tight text-[#101828] dark:text-white">{title}</h1>{description && <p className="mt-1 text-sm text-[#667085]">{description}</p>}</div>}
       {insight}
 
-      <div className="flex flex-wrap items-center gap-3 rounded-[20px] border border-slate-200/80 bg-white/90 p-3 shadow-[0_10px_30px_rgba(15,23,42,.045)] ring-1 ring-white/80 backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/90 dark:ring-white/[.03] sm:p-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#e4e7ec] bg-white p-3 shadow-[0_1px_3px_rgba(16,24,40,.08)] dark:border-zinc-800 dark:bg-zinc-900 sm:p-4">
         {onSearchChange && (
           <div className="w-full sm:w-auto sm:flex-1 sm:max-w-md">
             <Input

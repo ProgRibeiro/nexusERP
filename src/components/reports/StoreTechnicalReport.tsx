@@ -260,7 +260,7 @@ export default function StoreTechnicalReport({ dossier, discipline }: { dossier:
         {!allItems.length && <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-14 text-center"><FileText className="mx-auto text-slate-300" size={40} /><h2 className="mt-4 font-black">Nenhum item cadastrado neste relatório</h2><p className="mt-2 text-sm text-slate-500">Volte à Central e cadastre os itens técnicos nos ambientes da loja.</p></section>}
 
         <footer className="flex flex-col gap-2 border-t border-slate-300 px-2 py-5 text-[10px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-          <span>NX ERP · Prontuário técnico gerado em {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(dossier.generatedAt))}</span>
+          <span>O Prestador · Prontuário técnico gerado em {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(dossier.generatedAt))}</span>
           <span>Documento de apoio operacional. Confirmar dados críticos em campo antes de intervenções.</span>
         </footer>
       </div>

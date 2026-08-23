@@ -34,7 +34,7 @@ export default async function DevFeatureFlagsPage() {
               </div>
             </label>
           ))}
-          <button className="rounded-lg bg-[#d4af37] px-4 py-2 text-xs font-black text-black lg:col-span-2">Salvar feature flags</button>
+          <button className="rounded-lg bg-[#155eef] px-4 py-2 text-xs font-black text-black lg:col-span-2">Salvar feature flags</button>
         </form>
       </div>
     </main>

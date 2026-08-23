@@ -6,20 +6,17 @@ import {
   SESSION_COOKIE_NAME,
 } from "./session";
 import { logger } from "./logger";
-import { prisma } from "./db";
+import { enterTenantContext, prisma } from "./db";
 import { classifyPortalArea, normalizeHostname } from "./portalRouting";
 import { hasCommercialAccess, hasDeveloperAccess, isAdminSession, resolvePlatformRole } from "./rbac";
 import { bindUserToTenant, ensureUserTenantAccess, resolvePrimaryTenantForUser } from "./tenantAccess";
+import { resolveEffectiveIdentity } from "./identityPermissions";
 
 async function resolveUserTenantId(userId: string, fallbackTenantId?: string) {
   if (!userId) {
     throw new AuthError("NAO_AUTENTICADO", "Usuário inválido para contexto de tenant.");
   }
   return resolvePrimaryTenantForUser(userId, fallbackTenantId);
-}
-
-async function applyTenantContext(tenantId: string) {
-  await prisma.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, false)`;
 }
 
 /**
@@ -58,27 +55,28 @@ export async function requireAuth(): Promise<SessionPayload> {
       "Sessão inválida ou expirada. Faça login novamente."
     );
   }
+  if (session.tenantId) enterTenantContext(session.tenantId);
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    include: { role: true },
+    include: { role: true, userRoles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } } },
   });
   if (!user) {
     throw new AuthError("NAO_AUTENTICADO", "Usuário da sessão não existe mais.");
   }
-
-  let permissions: string[];
-  try {
-    const parsed = JSON.parse(user.permissions);
-    permissions = Array.isArray(parsed)
-      ? parsed.filter((permission): permission is string => typeof permission === "string")
-      : [];
-  } catch {
-    permissions = [];
+  if (!user.active || user.blockedAt) {
+    throw new AuthError("SEM_PERMISSAO", "Usuário inativo ou bloqueado. Procure o administrador da empresa.");
   }
+
+  if ((session.sessionVersion ?? 1) !== user.sessionVersion) {
+    throw new AuthError("NAO_AUTENTICADO", "A sessão foi revogada. Faça login novamente.");
+  }
+
+  const identity = resolveEffectiveIdentity(user);
+  const permissions = identity.permissions;
 
   // Autorizações são sempre atualizadas a partir do banco. Assim, revogar um
   // papel/permissão surte efeito sem esperar os sete dias do cookie.
-  const platformRole = resolvePlatformRole({ roleName: user.role?.name || "Sem Perfil", permissions });
+  const platformRole = resolvePlatformRole({ roleName: identity.roleName, permissions });
   const tenantId = await resolveUserTenantId(user.id, session.tenantId);
   if (platformRole === "CUSTOMER_ADMIN" || platformRole === "CUSTOMER_USER") {
     let hasTenantAccess = await ensureUserTenantAccess(user.id, tenantId);
@@ -94,12 +92,12 @@ export async function requireAuth(): Promise<SessionPayload> {
       throw new AuthError("SEM_PERMISSAO", "Usuário sem vínculo ativo com o tenant.");
     }
   }
-  await applyTenantContext(tenantId);
+  enterTenantContext(tenantId);
   return {
     ...session,
     name: user.name,
     email: user.email,
-    roleName: user.role?.name || "Sem Perfil",
+    roleName: identity.roleName,
     platformRole,
     tenantId,
     permissions,

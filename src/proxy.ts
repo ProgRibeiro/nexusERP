@@ -35,8 +35,10 @@ const PASSTHROUGH_PREFIXES = [
   "/sw.js",
   "/offline.html",
   "/icons",
+  "/brand",
   "/site",
   "/auth",
+  "/treinamentos",
   // Evidências são arquivos estáticos com nomes aleatórios. Elas precisam
   // carregar também no relatório/PDF, onde a requisição da tag <img> pode
   // não carregar o cookie usado pela navegação principal.
@@ -89,12 +91,13 @@ function checkRateLimit(ip: string, maxRequests = 120, windowMs = 10000): { allo
   return { allowed: true, remaining: maxRequests - record.count };
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const userAgent = request.headers.get("user-agent");
   const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "127.0.0.1";
   const requestHost = normalizeHostname(request.headers.get("x-forwarded-host") || request.headers.get("host"));
   const hostArea = classifyPortalArea(requestHost);
+  const isLocalHost = requestHost === "localhost" || requestHost === "127.0.0.1";
 
   // WAF / Bot Fight Mode: Bloquear bots de varredura maliciosa
   if (isMaliciousBot(userAgent)) {
@@ -127,7 +130,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(uploadUrl);
   }
 
-  if (pathname.startsWith("/site") && hostArea !== "marketing") {
+  if (pathname.startsWith("/site") && hostArea !== "marketing" && !isLocalHost) {
     const target = request.nextUrl.clone();
     target.pathname = toPublicMarketingPath(pathname);
     target.search = request.nextUrl.search;
@@ -140,6 +143,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(authUrl);
   }
 
+  if (isLocalHost && pathname !== "/" && isMarketingPublicPath(pathname)) {
+    const marketingUrl = request.nextUrl.clone();
+    marketingUrl.pathname = toInternalMarketingPath(pathname);
+    return NextResponse.rewrite(marketingUrl);
+  }
+
   if (hostArea === "marketing" && isMarketingPublicPath(pathname)) {
     const marketingUrl = request.nextUrl.clone();
     marketingUrl.pathname = toInternalMarketingPath(pathname);
@@ -147,10 +156,34 @@ export async function middleware(request: NextRequest) {
   }
 
   if (hostArea !== "marketing" && pathname !== "/" && isMarketingPublicPath(pathname)) {
-    const target = new URL(process.env.NEXUS_MARKETING_REDIRECT_URL || "https://nexusmanutencao.com");
+    const target = new URL(process.env.NEXUS_MARKETING_REDIRECT_URL || "https://oprestador.tech");
     target.pathname = pathname;
     target.search = request.nextUrl.search;
     return NextResponse.redirect(target);
+  }
+
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const session = token ? await decryptSession(token) : null;
+
+  if ((hostArea === "developer" || hostArea === "commercial") && !session) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("redirectTo", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (hostArea === "developer" && session && !hasDeveloperAccess(session)) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("error", "sem-permissao");
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (hostArea === "commercial" && session && !hasCommercialAccess(session)) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("error", "sem-permissao");
+    return NextResponse.redirect(loginUrl);
   }
 
   if (hostArea === "developer" && pathname === "/") {
@@ -183,9 +216,6 @@ export async function middleware(request: NextRequest) {
     response.headers.set("X-RateLimit-Remaining", String(rateCheck.remaining));
     return response;
   }
-
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const session = token ? await decryptSession(token) : null;
 
   if (!session) {
     const loginUrl = new URL("/login", request.url);

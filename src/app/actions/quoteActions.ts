@@ -1,6 +1,7 @@
 "use server";
 
 import { logger } from "@/lib/logger";
+import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
@@ -90,6 +91,14 @@ export async function getQuotes(search?: string) {
       code: q.code,
       storeName: q.storeName,
       clientId: q.clientId,
+      proposalType: q.proposalType,
+      procurementNumber: q.procurementNumber,
+      contractingAgency: q.contractingAgency,
+      biddingNumber: q.biddingNumber,
+      referenceBase: q.referenceBase,
+      referenceMonth: q.referenceMonth,
+      publicBudgetSource: q.publicBudgetSource,
+      deliveryTerm: q.deliveryTerm,
       clientName: q.client.name,
       status: q.status,
       total: Number(q.total),
@@ -99,8 +108,7 @@ export async function getQuotes(search?: string) {
       serviceOrders: q.serviceOrders,
     }));
   } catch (error) {
-    logger.error("Erro ao obter orçamentos:", error);
-    return [];
+    failDataAccess("quotes.list", error);
   }
 }
 
@@ -152,8 +160,7 @@ export async function getQuoteDetails(id: string) {
       })),
     };
   } catch (error) {
-    logger.error(`Erro ao obter orçamento ${id}:`, error);
-    return null;
+    failDataAccess("quotes.details", error);
   }
 }
 
@@ -165,6 +172,14 @@ export async function createQuote(
     clientId: string;
     code?: string;
     storeName?: string;
+    proposalType?: "AVULSA" | "PREVENTIVA" | "LICITACAO";
+    procurementNumber?: string;
+    contractingAgency?: string;
+    biddingNumber?: string;
+    referenceBase?: string;
+    referenceMonth?: string;
+    publicBudgetSource?: string;
+    deliveryTerm?: string;
     addressId?: string;
     contactId?: string;
     validityDays?: number;
@@ -285,6 +300,14 @@ export async function createQuote(
         addressId: relations.addressId || null,
         contactId: relations.contactId || null,
         status: "RASCUNHO",
+        proposalType: data.proposalType || "AVULSA",
+        procurementNumber: data.procurementNumber?.trim() || null,
+        contractingAgency: data.contractingAgency?.trim() || null,
+        biddingNumber: data.biddingNumber?.trim() || null,
+        referenceBase: data.referenceBase?.trim() || null,
+        referenceMonth: data.referenceMonth?.trim() || null,
+        publicBudgetSource: data.publicBudgetSource?.trim() || null,
+        deliveryTerm: data.deliveryTerm?.trim() || null,
         validUntil,
         warrantyDays: data.warrantyDays || 90,
         executionTerm: data.executionTerm || null,
@@ -321,10 +344,9 @@ export async function createQuote(
     });
 
     revalidatePath("/orcamentos");
-    return { success: true, quote };
-  } catch (error: any) {
-    logger.error("Erro ao criar orçamento:", error);
-    return { success: false, error: error.issues?.[0]?.message || error.message };
+    return { success: true as const, error: undefined, quote };
+  } catch (error: unknown) {
+    return mutationFailure("quotes.create", error, "Não foi possível criar o orçamento.");
   }
 }
 
@@ -388,10 +410,9 @@ export async function updateQuoteStatus(
     });
 
     revalidatePath("/orcamentos");
-    return { success: true, quote };
-  } catch (error: any) {
-    logger.error("Erro ao atualizar status do orçamento:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, quote };
+  } catch (error: unknown) {
+    return mutationFailure("quotes.status.update", error, "Não foi possível atualizar o status do orçamento.");
   }
 }
 
@@ -640,10 +661,9 @@ export async function approveAndConvertQuote(
     revalidatePath("/orcamentos");
     revalidatePath("/ordens-servico");
 
-    return { success: true, os, quoteStatus: "CONVERTIDO" };
-  } catch (error: any) {
-    logger.error("Erro na conversão de orçamento para OS:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, os, quoteStatus: "CONVERTIDO" };
+  } catch (error: unknown) {
+    return mutationFailure("quotes.convert-to-service-order", error, "Não foi possível converter o orçamento em ordem de serviço.");
   }
 }
 
@@ -675,9 +695,25 @@ export async function getQuoteCatalog() {
       })),
     };
   } catch (error) {
-    logger.error("Erro ao obter catálogo:", error);
-    return { products: [], services: [] };
+    failDataAccess("quotes.catalog", error);
   }
+}
+
+/** Catálogo oficial (SINAPI/SICRO/SEINFRA/OUTRA) usado em licitações. */
+export async function getReferencePriceCatalog(input?: { base?: string; search?: string; referenceMonth?: string; limit?: number }) {
+  try {
+    await requireAuth();
+    const limit = Math.min(Math.max(input?.limit ?? 80, 1), 200);
+    const search = input?.search?.trim();
+    const rows = await prisma.referencePriceItem.findMany({
+      where: {
+        ...(input?.base ? { base: input.base } : {}),
+        ...(input?.referenceMonth ? { referenceMonth: input.referenceMonth } : {}),
+        ...(search ? { OR: [{ code: { contains: search, mode: "insensitive" } }, { description: { contains: search, mode: "insensitive" } }] } : {}),
+      }, orderBy: [{ base: "asc" }, { code: "asc" }], take: limit,
+    });
+    return rows.map((row) => ({ ...row, unitPrice: Number(row.unitPrice) }));
+  } catch (error) { failDataAccess("quotes.reference-catalog", error); }
 }
 
 export interface ClientItemHistoryDTO {
@@ -738,8 +774,7 @@ export async function getClientItemHistory(clientId: string): Promise<ClientItem
       }))
       .sort((a, b) => b.count - a.count);
   } catch (error) {
-    logger.error("Erro ao obter histórico de itens do cliente:", error);
-    return [];
+    failDataAccess("quotes.client-item-history", error);
   }
 }
 
@@ -763,15 +798,15 @@ export async function registerCatalogItem(data: {
   try {
     const session = await requirePermission("quotes.write");
     const name = data.name.trim();
-    if (name.length < 2) return { success: false, error: "Informe um nome válido para o item." };
-    if (!Number.isFinite(data.price) || data.price < 0) return { success: false, error: "Informe um preço de venda válido." };
+    if (name.length < 2) return { success: false as const, error: "Informe um nome válido para o item." };
+    if (!Number.isFinite(data.price) || data.price < 0) return { success: false as const, error: "Informe um preço de venda válido." };
 
     if (data.type === "SERVICO") {
       const exists = await prisma.service.findFirst({
         where: { name: { equals: name, mode: "insensitive" } }
       });
       if (exists) {
-        return { success: false, error: "Serviço já cadastrado com este nome." };
+        return { success: false as const, error: "Serviço já cadastrado com este nome." };
       }
       const service = await prisma.service.create({
         data: {
@@ -789,13 +824,13 @@ export async function registerCatalogItem(data: {
       });
       revalidatePath("/orcamentos");
       revalidatePath("/servicos");
-      return { success: true, item: { name: service.name, price: Number(service.defaultPrice), type: "SERVICO", unit: service.billingUnit || "SERVIÇO", costPrice: 0 } };
+      return { success: true as const, error: undefined, item: { name: service.name, price: Number(service.defaultPrice), type: "SERVICO", unit: service.billingUnit || "SERVIÇO", costPrice: 0 } };
     } else {
       const exists = await prisma.product.findFirst({
         where: { name: { equals: name, mode: "insensitive" } }
       });
       if (exists) {
-        return { success: false, error: "Peça já cadastrada com este nome." };
+        return { success: false as const, error: "Peça já cadastrada com este nome." };
       }
       const productCodes = await prisma.product.findMany({ where: { code: { startsWith: "P-" } }, select: { code: true } });
       const lastNumber = Math.max(0, ...productCodes.map((product) => Number(product.code.match(/(\d+)$/)?.[1] || 0)));
@@ -838,9 +873,8 @@ export async function registerCatalogItem(data: {
         },
       };
     }
-  } catch (error: any) {
-    logger.error("Erro ao registrar item no catálogo:", error);
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    return mutationFailure("quotes.catalog.create", error, "Não foi possível registrar o item no catálogo.");
   }
 }
 
@@ -853,6 +887,14 @@ export async function updateQuote(
     clientId: string;
     code?: string;
     storeName?: string;
+    proposalType?: "AVULSA" | "PREVENTIVA" | "LICITACAO";
+    procurementNumber?: string;
+    contractingAgency?: string;
+    biddingNumber?: string;
+    referenceBase?: string;
+    referenceMonth?: string;
+    publicBudgetSource?: string;
+    deliveryTerm?: string;
     addressId?: string;
     contactId?: string;
     validityDays?: number;
@@ -941,6 +983,14 @@ export async function updateQuote(
         data: {
           ...(requestedCode ? { code: requestedCode } : {}),
           storeName: data.storeName?.trim() || null,
+          proposalType: data.proposalType || "AVULSA",
+          procurementNumber: data.procurementNumber?.trim() || null,
+          contractingAgency: data.contractingAgency?.trim() || null,
+          biddingNumber: data.biddingNumber?.trim() || null,
+          referenceBase: data.referenceBase?.trim() || null,
+          referenceMonth: data.referenceMonth?.trim() || null,
+          publicBudgetSource: data.publicBudgetSource?.trim() || null,
+          deliveryTerm: data.deliveryTerm?.trim() || null,
           client: { connect: { id: data.clientId } },
           address: relations.addressId ? { connect: { id: relations.addressId } } : { disconnect: true },
           contact: relations.contactId ? { connect: { id: relations.contactId } } : { disconnect: true },
@@ -991,9 +1041,8 @@ export async function updateQuote(
       return updated;
     });
 
-    return { success: true, quote };
-  } catch (error: any) {
-    logger.error("Erro ao atualizar orçamento:", error);
-    return { success: false, error: error.message };
+    return { success: true as const, error: undefined, quote };
+  } catch (error: unknown) {
+    return mutationFailure("quotes.update", error, "Não foi possível atualizar o orçamento.");
   }
 }

@@ -36,6 +36,8 @@ if [[ -r "$ENV_FILE" ]]; then
   source "$ENV_FILE"
   set +a
   [[ -n "${DATABASE_URL:-}" ]] && ok "DATABASE_URL configurada" || fail "DATABASE_URL não configurada"
+  [[ -n "${MIGRATION_DATABASE_URL:-}" ]] && ok "MIGRATION_DATABASE_URL separada" || fail "MIGRATION_DATABASE_URL não configurada"
+  [[ -n "${BACKUP_DATABASE_URL:-}" ]] && ok "BACKUP_DATABASE_URL separada" || fail "BACKUP_DATABASE_URL não configurada"
   [[ "${TENANT_ID:-}" =~ ^[0-9a-fA-F-]{36}$ ]] && ok "TENANT_ID configurado" || fail "TENANT_ID ausente ou inválido"
   SESSION_SECRET_VALUE="${SESSION_SECRET:-}"
   SESSION_SECRET_LENGTH="${#SESSION_SECRET_VALUE}"
@@ -44,9 +46,30 @@ else
   fail "ambiente ausente ou ilegível: $ENV_FILE"
 fi
 
+if [[ -n "${MIGRATION_DATABASE_URL:-}" && "$MIGRATION_DATABASE_URL" != "$DATABASE_URL" ]]; then
+  MIGRATION_FLAGS="$(psql "$MIGRATION_DATABASE_URL" -Atc "SELECT rolsuper::text || ':' || rolbypassrls::text FROM pg_roles WHERE rolname=current_user" 2>/dev/null || true)"
+  [[ "$MIGRATION_FLAGS" == "false:false" ]] && ok "usuário de migrations não é superuser/BYPASSRLS" || fail "conta de migrations possui privilégios excessivos"
+else
+  fail "runtime e migrations não podem usar a mesma conexão"
+fi
+
+if [[ -n "${BACKUP_DATABASE_URL:-}" && "$BACKUP_DATABASE_URL" != "$DATABASE_URL" ]]; then
+  BACKUP_FLAGS="$(psql "$BACKUP_DATABASE_URL" -Atc "SELECT rolsuper::text || ':' || rolbypassrls::text FROM pg_roles WHERE rolname=current_user" 2>/dev/null || true)"
+  [[ "$BACKUP_FLAGS" == "false:true" ]] && ok "usuário de backup separado com BYPASSRLS" || fail "conta de backup não está corretamente isolada"
+else
+  fail "runtime e backup não podem usar a mesma conexão"
+fi
+
 if [[ -n "${DATABASE_URL:-}" ]]; then
   DB_ROLE_FLAGS="$(psql "$DATABASE_URL" -Atc "SELECT rolsuper::text || ':' || rolbypassrls::text FROM pg_roles WHERE rolname=current_user" 2>/dev/null || true)"
   [[ "$DB_ROLE_FLAGS" == "false:false" ]] && ok "usuário do banco respeita RLS" || fail "usuário do banco não pode ser superuser nem BYPASSRLS"
+fi
+
+PG_LISTEN="$(runuser -u postgres -- psql -Atc 'SHOW listen_addresses' 2>/dev/null || true)"
+if [[ "$PG_LISTEN" == "localhost" || "$PG_LISTEN" == "127.0.0.1" || "$PG_LISTEN" == "::1" ]]; then
+  ok "PostgreSQL escuta somente no host local ($PG_LISTEN)"
+else
+  fail "PostgreSQL não pode escutar publicamente (listen_addresses=$PG_LISTEN)"
 fi
 
 ACTIVE="$(cat "$ROOT/active-slot" 2>/dev/null || true)"
@@ -77,6 +100,22 @@ if grep -q '"status":"ok"' <<<"$HEALTH" && grep -q '"database":"ok"' <<<"$HEALTH
 else
   fail "health check da aplicação falhou"
 fi
+
+# Valida os hostnames e trajetos antes do apontamento do DNS externo.
+MARKETING_HOST="${NEXUS_MARKETING_HOSTS%%,*}"
+APP_HOST="${NEXUS_APP_HOST:-app.oprestador.tech}"
+COMMERCIAL_HOST="${NEXUS_COMMERCIAL_HOST:-vendas.oprestador.tech}"
+DEV_HOST="${NEXUS_DEVELOPER_HOST:-${NEXUS_DEV_HOST:-dev.oprestador.tech}}"
+for route in / /recursos /solucoes /planos /historia /demonstracao /contato /login; do
+  ROUTE_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 -H "Host: $MARKETING_HOST" "http://127.0.0.1$route" || true)"
+  [[ "$ROUTE_STATUS" =~ ^(200|30[1278])$ ]] && ok "trajeto comercial $route responde ($ROUTE_STATUS)" || fail "trajeto comercial $route falhou ($ROUTE_STATUS)"
+done
+for portal_host in "$APP_HOST" "$COMMERCIAL_HOST" "$DEV_HOST"; do
+  LOGIN_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 -H "Host: $portal_host" http://127.0.0.1/login || true)"
+  ROOT_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 -H "Host: $portal_host" http://127.0.0.1/ || true)"
+  [[ "$LOGIN_STATUS" == "200" ]] && ok "login de $portal_host responde" || fail "login de $portal_host falhou ($LOGIN_STATUS)"
+  [[ "$ROOT_STATUS" =~ ^30[1278]$ ]] && ok "área protegida de $portal_host exige sessão" || fail "área protegida de $portal_host não redirecionou ($ROOT_STATUS)"
+done
 
 if [[ -n "$HEALTH" ]]; then
   BACKUP_HEALTH="$(HEALTH_JSON="$HEALTH" node <<'NODE'
@@ -109,8 +148,16 @@ for timer in hourly daily weekly audit alert; do
   systemctl is-enabled --quiet "nexus-erp-backup-$timer.timer" 2>/dev/null && \
     ok "timer de backup $timer habilitado" || fail "timer de backup $timer não habilitado"
 done
-systemctl is-enabled --quiet nexus-erp-restore-test.timer 2>/dev/null && \
-  ok "timer de backup restore-test habilitado" || fail "timer de backup restore-test não habilitado"
+if [[ -n "${RESTORE_TEST_DATABASE_URL:-}" ]]; then
+  systemctl is-enabled --quiet nexus-erp-restore-test.timer 2>/dev/null && \
+    ok "timer restore-test habilitado com banco isolado" || fail "RESTORE_TEST_DATABASE_URL existe, mas o timer restore-test não está habilitado"
+else
+  if systemctl is-enabled --quiet nexus-erp-restore-test.timer 2>/dev/null; then
+    fail "timer restore-test não pode estar habilitado sem RESTORE_TEST_DATABASE_URL"
+  else
+    ok "restore-test desabilitado até configurar banco isolado"
+  fi
+fi
 
 if systemctl is-enabled --quiet nexus-erp-update.timer 2>/dev/null; then
   ok "busca automática de atualizações habilitada"

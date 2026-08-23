@@ -106,3 +106,26 @@ export async function tenantScopedUserFilter(tenantId?: string, allowPlatformWid
     id: { in: tenantUserIds.length > 0 ? tenantUserIds : ["00000000-0000-0000-0000-000000000000"] },
   };
 }
+
+export async function assertUserBelongsToTenant(userId: string, tenantId?: string, options?: { allowPlatformWide?: boolean }) {
+  const resolvedTenantId = resolveTenantFallback(tenantId);
+
+  if (options?.allowPlatformWide) {
+    return true;
+  }
+
+  const rows = await prisma.$queryRaw<Array<{ hasAccess: number }>>`
+    SELECT 1::int AS "hasAccess"
+    FROM "UserTenantAccess"
+    WHERE "userId" = ${userId}
+      AND "tenantId" = ${resolvedTenantId}::uuid
+      AND "active" = true
+    LIMIT 1
+  `;
+
+  if (rows.length === 0) {
+    throw new Error("Usuário não pertence ao tenant atual.");
+  }
+
+  return true;
+}

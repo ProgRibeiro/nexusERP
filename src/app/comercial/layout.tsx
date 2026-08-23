@@ -20,7 +20,7 @@ export default async function ComercialLayout({ children }: { children: React.Re
       <header className="border-b border-white/10 bg-slate-900/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#d4af37]">Nexus Platform</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#155eef]">Nexus Platform</p>
             <h1 className="text-lg font-black">Portal Comercial</h1>
           </div>
           <nav className="flex flex-wrap gap-2">
@@ -28,7 +28,7 @@ export default async function ComercialLayout({ children }: { children: React.Re
               <Link
                 key={item.href}
                 href={item.href}
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-zinc-200 transition hover:border-[#d4af37]/50 hover:text-[#f3d56f]"
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-zinc-200 transition hover:border-[#155eef]/50 hover:text-[#f3d56f]"
               >
                 {item.label}
               </Link>

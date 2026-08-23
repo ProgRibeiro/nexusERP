@@ -55,16 +55,16 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     title: "",
     data: null
   });
-  // A identidade principal da Nexus e escura; o tema claro continua disponivel
-  // pelo seletor e e respeitado quando ja foi escolhido pelo usuario.
-  const [darkMode, setDarkMode] = useState(true);
+  // O ERP abre no tema claro por padrão. Uma escolha explícita do usuário
+  // continua sendo respeitada nas próximas sessões.
+  const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Initialize Theme from localStorage
   useEffect(() => {
     // Remove definitivamente o histórico da antiga barra de abas.
     localStorage.removeItem("nx_workspace_v1");
     const savedTheme = localStorage.getItem("theme");
-    const isDark = savedTheme !== "light";
+    const isDark = savedTheme === "dark";
     setTimeout(() => {
       setDarkMode(isDark);
     }, 0);

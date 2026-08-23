@@ -125,12 +125,12 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
       <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0d0f14]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#d4af37] to-[#8a6e19] text-black font-black text-lg shadow-md shadow-[#d4af37]/20">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#155eef] to-[#1d4ed8] text-black font-black text-lg shadow-md shadow-[#155eef]/20">
               {data.provider.name.slice(0, 2).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black tracking-wider uppercase text-[#d4af37]">
+                <span className="text-xs font-black tracking-wider uppercase text-[#155eef]">
                   Prestador Técnico
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-extrabold text-emerald-400 border border-emerald-500/20">
@@ -157,7 +157,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
         <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-[#12151c] via-[#0d0f14] to-[#151a24] p-6 sm:p-8 shadow-2xl">
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#d4af37]/10 px-3 py-1 text-xs font-bold text-[#e6c653] border border-[#d4af37]/20">
+              <div className="inline-flex items-center gap-2 rounded-full bg-[#155eef]/10 px-3 py-1 text-xs font-bold text-[#60a5fa] border border-[#155eef]/20">
                 <Sparkles size={13} />
                 <span>Painel de Operações Técnicas & Repasses</span>
               </div>
@@ -207,11 +207,11 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
               <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
                 Saldo A Receber
               </span>
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#d4af37]/10 text-[#d4af37] border border-[#d4af37]/20">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#155eef]/10 text-[#155eef] border border-[#155eef]/20">
                 <CircleDollarSign size={16} />
               </div>
             </div>
-            <p className="mt-3 text-xl sm:text-2xl font-black text-[#e6c653]">
+            <p className="mt-3 text-xl sm:text-2xl font-black text-[#60a5fa]">
               {formatCurrency(receivableTotal)}
             </p>
             <p className="mt-1 text-[10px] text-zinc-500">Aguardando liberação de repasse</p>
@@ -244,7 +244,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
               placeholder="Buscar por OS, cliente ou serviço..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-[#090b0e] pl-9 pr-4 py-2 text-xs font-semibold text-white placeholder:text-zinc-500 outline-none focus:border-[#d4af37]"
+              className="w-full rounded-xl border border-white/10 bg-[#090b0e] pl-9 pr-4 py-2 text-xs font-semibold text-white placeholder:text-zinc-500 outline-none focus:border-[#155eef]"
             />
           </div>
 
@@ -256,7 +256,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
                 onClick={() => setStatusFilter(filterKey)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                   statusFilter === filterKey
-                    ? "bg-[#d4af37] text-black shadow-md shadow-[#d4af37]/20"
+                    ? "bg-[#155eef] text-black shadow-md shadow-[#155eef]/20"
                     : "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white border border-white/5"
                 }`}
               >
@@ -297,12 +297,12 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
                 return (
                   <article
                     key={job.id}
-                    className="rounded-2xl border border-white/10 bg-[#11141a] p-5 sm:p-6 shadow-xl hover:border-[#d4af37]/30 transition-all space-y-4"
+                    className="rounded-2xl border border-white/10 bg-[#11141a] p-5 sm:p-6 shadow-xl hover:border-[#155eef]/30 transition-all space-y-4"
                   >
                     {/* Topo do Cartão de Serviço */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                       <div className="flex items-center gap-3">
-                        <span className="rounded-xl bg-[#d4af37]/15 border border-[#d4af37]/30 px-3 py-1 text-xs font-black text-[#e6c653]">
+                        <span className="rounded-xl bg-[#155eef]/15 border border-[#155eef]/30 px-3 py-1 text-xs font-black text-[#60a5fa]">
                           {job.osCode}
                         </span>
                         <span
@@ -326,7 +326,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
                         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                           Valor Combinado:
                         </span>
-                        <span className="text-base font-black text-[#e6c653]">
+                        <span className="text-base font-black text-[#60a5fa]">
                           {formatCurrency(job.costValue)}
                         </span>
                         <span
@@ -358,7 +358,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
                           Data do Agendamento
                         </span>
                         <div className="flex items-center gap-2 font-bold text-zinc-200">
-                          <CalendarDays size={14} className="text-[#d4af37]" />
+                          <CalendarDays size={14} className="text-[#155eef]" />
                           <span>
                             {job.scheduledDate ? formatDate(job.scheduledDate) : "Data a definir"}
                           </span>
@@ -374,7 +374,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
                           onClick={() => setSelectedJob(job)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 font-semibold text-xs transition-colors cursor-pointer border border-white/5"
                         >
-                          <FileText size={13} className="text-[#d4af37]" />
+                          <FileText size={13} className="text-[#155eef]" />
                           <span>Ver Ficha da OS</span>
                         </button>
                       </div>
@@ -385,10 +385,10 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
                           <button
                             disabled={isBusy}
                             onClick={() => handleUpdateStatus(job.id, "EXECUCAO")}
-                            className="flex items-center gap-2 rounded-xl border border-[#d4af37]/40 bg-[#d4af37]/10 px-4 py-2 text-xs font-black text-[#e6c653] hover:bg-[#d4af37]/20 transition-all cursor-pointer disabled:opacity-50"
+                            className="flex items-center gap-2 rounded-xl border border-[#155eef]/40 bg-[#155eef]/10 px-4 py-2 text-xs font-black text-[#60a5fa] hover:bg-[#155eef]/20 transition-all cursor-pointer disabled:opacity-50"
                           >
                             {isBusy ? (
-                              <Loader2 size={14} className="animate-spin text-[#d4af37]" />
+                              <Loader2 size={14} className="animate-spin text-[#155eef]" />
                             ) : (
                               <Play size={14} />
                             )}
@@ -400,7 +400,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
                           <button
                             disabled={isBusy}
                             onClick={() => handleUpdateStatus(job.id, "CONCLUIDO")}
-                            className="flex items-center gap-2 rounded-xl bg-[#d4af37] px-5 py-2 text-xs font-black text-black hover:bg-[#ebd06b] transition-all cursor-pointer shadow-lg shadow-[#d4af37]/20 disabled:opacity-50"
+                            className="flex items-center gap-2 rounded-xl bg-[#155eef] px-5 py-2 text-xs font-black text-black hover:bg-[#93c5fd] transition-all cursor-pointer shadow-lg shadow-[#155eef]/20 disabled:opacity-50"
                           >
                             {isBusy ? (
                               <Loader2 size={14} className="animate-spin text-black" />
@@ -440,7 +440,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
             {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div>
-                <span className="text-xs font-black text-[#d4af37]">OS #{selectedJob.osCode}</span>
+                <span className="text-xs font-black text-[#155eef]">OS #{selectedJob.osCode}</span>
                 <h3 className="text-lg font-bold text-white mt-0.5">{selectedJob.description}</h3>
               </div>
               <button
@@ -461,7 +461,7 @@ export function ProviderDashboard({ data }: ProviderDashboardProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-[#141720] p-4 rounded-2xl border border-white/5 space-y-1">
                   <p className="text-[10px] font-bold uppercase text-zinc-500">Status da Execução</p>
-                  <p className="text-sm font-black text-[#e6c653]">{selectedJob.executionStatus}</p>
+                  <p className="text-sm font-black text-[#60a5fa]">{selectedJob.executionStatus}</p>
                 </div>
                 <div className="bg-[#141720] p-4 rounded-2xl border border-white/5 space-y-1">
                   <p className="text-[10px] font-bold uppercase text-zinc-500">Valor a Receber</p>

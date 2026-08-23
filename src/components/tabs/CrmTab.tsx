@@ -466,12 +466,12 @@ export default function CrmTab({ newRecord = false, requestId }: CrmTabProps) {
 
   return (
     <div className="crm-tab space-y-5 pb-8 animate-in fade-in duration-300">
-      <section className="relative overflow-hidden rounded-[26px] border border-amber-900/25 bg-gradient-to-br from-[#17130d] via-[#3a2d16] to-[#7a5f1d] px-5 py-6 text-white shadow-[0_22px_55px_rgba(88,66,18,.24)] sm:px-7">
+      <section className="relative overflow-hidden rounded-[26px] border border-zinc-200 bg-white px-5 py-6 text-zinc-950 shadow-sm dark:border-blue-500/25 dark:bg-gradient-to-br dark:from-zinc-950 dark:via-[#0b1730] dark:to-[#102a50] dark:text-white dark:shadow-[0_22px_55px_rgba(2,12,27,.35)] sm:px-7">
         <div className="absolute -right-24 -top-28 h-72 w-72 rounded-full bg-blue-400/20 blur-3xl" />
         <div className="absolute bottom-0 left-1/3 h-28 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
         <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-2xl">
-            <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em] text-blue-200">
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[.22em] text-blue-600 dark:text-blue-200">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
                 <Flame size={16} />
               </span>
@@ -480,7 +480,7 @@ export default function CrmTab({ newRecord = false, requestId }: CrmTabProps) {
             <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
               CRM e gestão de oportunidades
             </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-blue-100/80">
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-zinc-600 dark:text-blue-100/80">
               Acompanhe cada negociação, organize os próximos contatos e
               transforme oportunidades em propostas sem perder o histórico.
             </p>

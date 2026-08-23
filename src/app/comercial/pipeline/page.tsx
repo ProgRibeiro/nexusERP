@@ -29,7 +29,7 @@ export default async function ComercialPipelinePage() {
                 <div key={lead.id} className="rounded-xl border border-white/10 bg-slate-900/70 p-3">
                   <p className="text-sm font-semibold text-white">{lead.name}</p>
                   <p className="text-xs text-zinc-400">{lead.company || "Sem empresa"}</p>
-                  <p className="mt-2 text-xs text-[#d4af37]">
+                  <p className="mt-2 text-xs text-[#155eef]">
                     {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(lead.value)}
                   </p>
                   <p className="text-[11px] text-zinc-400">

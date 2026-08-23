@@ -26,8 +26,8 @@ systemctl stop nexus-erp-update.timer nexus-erp-update.service 2>/dev/null || tr
 echo "[2/5] Recriando banco de dados PostgreSQL do zero..."
 runuser -u postgres -- psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'nexus_erp' AND pid <> pg_backend_pid();" 2>/dev/null || true
 runuser -u postgres -- dropdb nexus_erp 2>/dev/null || true
-runuser -u postgres -- createdb --owner=nexus_erp nexus_erp 2>/dev/null || true
-runuser -u postgres -- psql -c "ALTER ROLE nexus_erp WITH LOGIN BYPASSRLS;" 2>/dev/null || true
+runuser -u postgres -- createdb --owner=nexus_migrate nexus_erp 2>/dev/null || true
+runuser -u postgres -- psql -c "ALTER ROLE nexus_erp WITH LOGIN NOBYPASSRLS;" 2>/dev/null || true
 
 echo "[3/5] Limpando releases e slots anteriores..."
 rm -rf "$ROOT/releases"/* "$ROOT/slots"/* "$ROOT/active-slot" "$ROOT/.release-commit"

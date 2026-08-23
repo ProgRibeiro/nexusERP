@@ -21,6 +21,11 @@ model User {
   roleId              String?
   role                Role?                       @relation(fields: [roleId], references: [id])
   permissions         String                      @default("[]") // JSON string of permission codes
+  active              Boolean                     @default(true)
+  blockedAt           DateTime?
+  lastLoginAt         DateTime?
+  passwordChangedAt   DateTime?
+  sessionVersion      Int                         @default(1)
   createdAt           DateTime                    @default(now())
   updatedAt           DateTime                    @updatedAt
   leads               Lead[]                      @relation("LeadOwner")
@@ -41,15 +46,22 @@ model User {
   marketingPosts      MarketingPost[]
   errorReports        ErrorReport[]
   tenantAccesses      UserTenantAccess[]
+  userRoles           UserRole[]
+  loginHistory        LoginHistory[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Tenant {
-  id           String             @id @db.Uuid
-  name         String
-  active       Boolean            @default(true)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  userAccesses UserTenantAccess[]
+  id                  String               @id @db.Uuid
+  name                String
+  active              Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  userAccesses        UserTenantAccess[]
+  userRoles           UserRole[]
+  rolePermissions     RolePermission[]
+  loginHistory        LoginHistory[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model UserTenantAccess {
@@ -68,17 +80,78 @@ model UserTenantAccess {
 }
 
 model Role {
-  id          String  @id @default(uuid())
-  name        String  @unique // Administrador, Gestor, Comercial, Operacional, Técnico, Faturamento, Financeiro, Estoque
-  description String?
-  users       User[]
+  id              String           @id @default(uuid())
+  name            String           @unique // Administrador, Gestor, Comercial, Operacional, Técnico, Faturamento, Financeiro, Estoque
+  description     String?
+  users           User[]
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
 }
 
 model Permission {
-  id          String  @id @default(uuid())
-  code        String  @unique // e.g. "crm.read", "finance.write"
-  name        String
-  description String?
+  id              String           @id @default(uuid())
+  code            String           @unique // e.g. "crm.read", "finance.write"
+  name            String
+  description     String?
+  rolePermissions RolePermission[]
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  tenantId  String   @db.Uuid
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId, tenantId])
+  @@index([tenantId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  tenantId     String     @db.Uuid
+  createdAt    DateTime   @default(now())
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId, tenantId])
+  @@index([tenantId])
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String?
+  tenantId  String   @db.Uuid
+  email     String
+  success   Boolean
+  reason    String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model PasswordResetToken {
+  id          String    @id @default(uuid())
+  userId      String
+  tenantId    String    @db.Uuid
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@index([userId, expiresAt])
 }
 
 // 2. Cadastro de Clientes
@@ -307,7 +380,7 @@ model CrmActivity {
 model Quote {
   id                  String               @id @default(uuid())
   code                String               @unique // Q-2026-0001
-  storeName           String?              // Loja, unidade ou ponto de atendimento da proposta
+  storeName           String? // Loja, unidade ou ponto de atendimento da proposta
   clientId            String
   client              Client               @relation(fields: [clientId], references: [id])
   addressId           String?
@@ -315,6 +388,13 @@ model Quote {
   contactId           String?
   contact             ClientContact?       @relation(fields: [contactId], references: [id])
   proposalType        String               @default("AVULSA") // AVULSA, PREVENTIVA
+  procurementNumber   String?              // Número do processo/edital da licitação
+  contractingAgency   String?              // Órgão/entidade contratante
+  biddingNumber       String?              // Modalidade e número (ex.: CP 04/2026)
+  referenceBase       String?              // SINAPI, SICRO, SEINFRA ou outra base
+  referenceMonth      String?              // Mês/ano da referência de preços
+  publicBudgetSource  String?              // Fonte/orçamento público
+  deliveryTerm        String?              // Prazo de entrega/execução da licitação
   preventivePlanJson  String? // Plano estruturado, escopo, equipamentos e frequência da preventiva
   status              String               @default("RASCUNHO") // RASCUNHO, ENVIADO, NEGOCIACAO, APROVADO, REPROVADO, EXPIRADO, CANCELADO, CONVERTIDO
   version             Int                  @default(1)
@@ -1001,6 +1081,124 @@ model BankReconciliation {
   createdAt     DateTime    @default(now())
 }
 
+// Catálogos oficiais de referência para orçamentos e licitações.
+// Mantidos separados do estoque/serviços internos para preservar a origem,
+// competência e metodologia de cada composição.
+model ReferencePriceItem {
+  id                 String   @id @default(uuid())
+  base               String   // SINAPI, SICRO, SEINFRA, OUTRA
+  sourceOrganization String?
+  state              String?
+  referenceMonth     String?
+  regime             String?
+  itemType           String   // COMPOSICAO, INSUMO, MANUAL
+  code               String
+  description        String
+  unit               String?
+  unitPrice          Decimal  @db.Decimal(14, 4)
+  metadataJson       String?  @db.Text
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([base, referenceMonth, code, state, regime])
+  @@index([base, referenceMonth])
+  @@index([code])
+  @@index([description])
+}
+
+model ConstructionBudget {
+  id              String   @id @default(uuid())
+  code            String
+  version         Int      @default(1)
+  workName        String
+  clientId        String?
+  contractorName  String?
+  technicalLead   String?
+  address         String?
+  status          String   @default("RASCUNHO")
+  isPublic        Boolean  @default(false)
+  procurementJson String?  @db.Text
+  enabledBasesJson String? @db.Text
+  directCost      Decimal  @default(0) @db.Decimal(14, 2)
+  bdiPercentage   Decimal  @default(0) @db.Decimal(8, 4)
+  bdiValue        Decimal  @default(0) @db.Decimal(14, 2)
+  globalTotal     Decimal  @default(0) @db.Decimal(14, 2)
+  frozenAt        DateTime?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  items           ConstructionBudgetItem[]
+  bdi             ConstructionBdi?
+  periods         ConstructionSchedulePeriod[]
+  @@unique([code, version])
+  @@index([status, createdAt])
+}
+
+model ConstructionBudgetItem {
+  id                  String   @id @default(uuid())
+  budgetId            String
+  budget              ConstructionBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  parentId            String?
+  parent              ConstructionBudgetItem? @relation("BudgetItemTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children             ConstructionBudgetItem[] @relation("BudgetItemTree")
+  kind                String   // ETAPA, SUBETAPA, SERVICO
+  hierarchyCode       String
+  sortOrder           Int      @default(0)
+  description         String
+  sourceBase          String?
+  sourceCode          String?
+  sourceItemId        String?
+  unit                String?
+  calculationMemory   String?
+  quantity            Decimal  @default(0) @db.Decimal(14, 4)
+  referenceUnitPrice  Decimal  @default(0) @db.Decimal(14, 4)
+  adoptedUnitPrice    Decimal  @default(0) @db.Decimal(14, 4)
+  adjustmentPercent   Decimal  @default(0) @db.Decimal(8, 4)
+  directTotal         Decimal  @default(0) @db.Decimal(14, 2)
+  differentiatedBdi   Decimal?
+  bdiValue            Decimal  @default(0) @db.Decimal(14, 2)
+  totalWithBdi        Decimal  @default(0) @db.Decimal(14, 2)
+  snapshotJson        String?  @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  @@unique([budgetId, hierarchyCode])
+  @@index([budgetId, parentId, sortOrder])
+  @@index([sourceBase, sourceCode])
+}
+
+model ConstructionBdi {
+  id                   String   @id @default(uuid())
+  budgetId             String   @unique
+  budget               ConstructionBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  administration       Decimal  @default(0) @db.Decimal(8, 4)
+  financial            Decimal  @default(0) @db.Decimal(8, 4)
+  risk                 Decimal  @default(0) @db.Decimal(8, 4)
+  insuranceGuarantee   Decimal  @default(0) @db.Decimal(8, 4)
+  profit               Decimal  @default(0) @db.Decimal(8, 4)
+  cofins              Decimal  @default(0) @db.Decimal(8, 4)
+  pis                 Decimal  @default(0) @db.Decimal(8, 4)
+  cprb                Decimal  @default(0) @db.Decimal(8, 4)
+  iss                 Decimal  @default(0) @db.Decimal(8, 4)
+  directPercentage    Decimal?
+  minReference        Decimal?
+  maxReference        Decimal?
+  memoryJson          String?  @db.Text
+  updatedAt           DateTime @updatedAt
+}
+
+model ConstructionSchedulePeriod {
+  id         String   @id @default(uuid())
+  budgetId   String
+  budget     ConstructionBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  period     Int
+  startDate  DateTime?
+  endDate    DateTime?
+  allocationsJson String @db.Text
+  percentage Decimal  @default(0) @db.Decimal(8, 4)
+  amount     Decimal  @default(0) @db.Decimal(14, 2)
+  @@unique([budgetId, period])
+}
+
 // 8. Produtos, Estoque e Serviços
 model Product {
   id            String                 @id @default(uuid())
@@ -1199,14 +1397,19 @@ model MarketingPost {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
-  action      String // CRIACAO, EDICAO, EXCLUSAO, APROVACAO, CANCELAMENTO
-  entity      String // Cliente, Orcamento, OS, ContaReceber, etc.
-  entityId    String
-  changesJson String // JSON format string of values changed
-  timestamp   DateTime @default(now())
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  action       String // CRIACAO, EDICAO, EXCLUSAO, APROVACAO, CANCELAMENTO
+  entity       String // Cliente, Orcamento, OS, ContaReceber, etc.
+  entityId     String
+  changesJson  String // JSON format string of values changed
+  category     String   @default("GENERAL")
+  previousJson String?
+  newJson      String?
+  ipAddress    String?
+  userAgent    String?
+  timestamp    DateTime @default(now())
 }
 
 model Attachment {
@@ -1314,8 +1517,8 @@ model NfseRecord {
   cTribNac                 String
   cTribMun                 String?
   cNBS                     String?
-  accessKey                String?       // Chave de Acesso da NFS-e Nacional de 50 dígitos
-  nfseNumber               String?       // Número da NFS-e autorizada
+  accessKey                String? // Chave de Acesso da NFS-e Nacional de 50 dígitos
+  nfseNumber               String? // Número da NFS-e autorizada
   requestXml               String?       @db.Text
   responseXml              String?       @db.Text
   authorizedXml            String?       @db.Text
@@ -1340,7 +1543,11 @@ model NfseRecord {
 }
 
 model DpsSequence {
-  series     String   @id
-  lastNumber Int      @default(0)
-  updatedAt  DateTime @updatedAt
+  series       String   @id
+  tenantId     String   @db.Uuid
+  fiscalSeries String
+  lastNumber   Int      @default(0)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, fiscalSeries])
 }

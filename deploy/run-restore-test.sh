@@ -9,4 +9,8 @@ if [[ "$ACTIVE_SLOT" != "blue" && "$ACTIVE_SLOT" != "green" ]]; then
 fi
 
 cd "$ROOT/slots/$ACTIVE_SLOT"
-/usr/bin/npx --no-install tsx scripts/restore-test.ts --db-url="${RESTORE_TEST_DATABASE_URL:-${DATABASE_URL:-}}"
+if [[ -z "${RESTORE_TEST_DATABASE_URL:-}" ]]; then
+  echo "RESTORE_TEST_DATABASE_URL não configurada. O teste nunca usa o banco principal como fallback." >&2
+  exit 1
+fi
+/usr/bin/npx --no-install tsx scripts/restore-test.ts --db-url="$RESTORE_TEST_DATABASE_URL"

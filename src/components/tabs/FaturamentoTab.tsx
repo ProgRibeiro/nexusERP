@@ -431,7 +431,7 @@ export default function FaturamentoTab() {
     try {
       const ExcelJS = await import("exceljs");
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = "NX ERP";
+      workbook.creator = "O Prestador";
       const notes = workbook.addWorksheet("Notas");
       const headers = [
         "Razão social ou Nome do tomador\n*Obrigatório*",
@@ -676,13 +676,13 @@ export default function FaturamentoTab() {
   return (
     <div className="space-y-6 pb-10">
       <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="bg-[#090a0c] p-6 text-white">
+        <div className="border-b border-zinc-200 bg-zinc-50 p-6 text-zinc-900 dark:border-zinc-800 dark:bg-zinc-950 dark:text-white">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-[#d4af37]">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#155eef]">
                 <FileSpreadsheet size={15} /> Espelho e Controle de Faturamento
               </div>
-              <h2 className="mt-2 text-2xl font-black text-white">Prontuário de Faturamento & Baixa de Notas</h2>
+              <h2 className="mt-2 text-2xl font-black text-zinc-950 dark:text-white">Prontuário de Faturamento & Baixa de Notas</h2>
               <p className="mt-1 max-w-3xl text-sm text-zinc-400">
                 Fature OS concluídas ou registre **Faturamento Avulso (sem OS)** para terceirização e vendas. Gerencie prontuários, altere vencimentos e dê baixa de pagamento.
               </p>
@@ -729,8 +729,8 @@ export default function FaturamentoTab() {
           onClick={() => setActiveTab("mirror")}
           className={`rounded-lg px-4 py-2 text-xs font-bold transition ${
             activeTab === "mirror"
-              ? "bg-[#d4af37] text-[#0b0c0e]"
-              : "text-zinc-400 hover:bg-white/[.05] hover:text-white"
+              ? "bg-[#155eef] text-white"
+              : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/[.05] dark:hover:text-white"
           }`}
         >
           Espelho das OS ({rows.length})
@@ -739,8 +739,8 @@ export default function FaturamentoTab() {
           onClick={() => setActiveTab("history")}
           className={`rounded-lg px-4 py-2 text-xs font-bold transition ${
             activeTab === "history"
-              ? "bg-[#d4af37] text-[#0b0c0e]"
-              : "text-zinc-400 hover:bg-white/[.05] hover:text-white"
+              ? "bg-[#155eef] text-white"
+              : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/[.05] dark:hover:text-white"
           }`}
         >
           Prontuário de NFs & Vistoria mensal ({invoices.length})
@@ -1004,7 +1004,7 @@ export default function FaturamentoTab() {
           <div className="flex flex-col gap-4 border-b border-zinc-100 p-5 lg:flex-row lg:items-center lg:justify-between dark:border-zinc-800">
             <div>
               <div className="flex items-center gap-2">
-                <Archive size={16} className="text-[#d4af37]" />
+                <Archive size={16} className="text-[#155eef]" />
                 <h3 className="text-sm font-black">Prontuário de NFs Emitidas & Vistoria Mensal</h3>
               </div>
               <p className="mt-1 text-xs text-zinc-500">
@@ -1100,7 +1100,7 @@ export default function FaturamentoTab() {
                             ? "bg-emerald-500/10 text-emerald-500"
                             : invoice.status === "CANCELADA"
                             ? "bg-red-500/10 text-red-500"
-                            : "bg-[#d4af37]/10 text-[#b88d1b]"
+                            : "bg-[#155eef]/10 text-[#1d4ed8]"
                         }`}
                       >
                         {isPaid ? "PAGO / QUITADO" : invoice.status}
@@ -1177,7 +1177,7 @@ export default function FaturamentoTab() {
                             target="_blank"
                             rel="noreferrer"
                             download
-                            className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1 text-[10px] font-bold text-[#b88d1b] hover:bg-amber-50 dark:border-zinc-700 dark:hover:bg-amber-950/30"
+                            className="flex items-center gap-1 rounded-lg border border-zinc-200 px-2 py-1 text-[10px] font-bold text-[#1d4ed8] hover:bg-amber-50 dark:border-zinc-700 dark:hover:bg-amber-950/30"
                             href={invoice.xmlUrl}
                           >
                             <FileCode2 size={12} /> XML
@@ -1341,8 +1341,8 @@ export default function FaturamentoTab() {
               />
             </label>
 
-            <label className="group cursor-pointer rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-3 text-center transition hover:border-[#d4af37] dark:border-zinc-700 dark:bg-zinc-800">
-              <FileCode2 className="mx-auto text-[#d4af37]" size={18} />
+            <label className="group cursor-pointer rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-3 text-center transition hover:border-[#155eef] dark:border-zinc-700 dark:bg-zinc-800">
+              <FileCode2 className="mx-auto text-[#155eef]" size={18} />
               <p className="mt-1 text-xs font-bold">Anexar XML</p>
               <p className="mt-0.5 truncate text-[10px] text-zinc-500">{directXmlName || "Selecione XML (opcional)"}</p>
               <input
@@ -1741,8 +1741,8 @@ export default function FaturamentoTab() {
                   />
                 </label>
 
-                <label className="group cursor-pointer rounded-xl border border-dashed border-zinc-300 bg-white p-3.5 text-center transition hover:border-[#d4af37] dark:border-zinc-700 dark:bg-zinc-800">
-                  <FileCode2 className="mx-auto text-[#d4af37]" size={20} />
+                <label className="group cursor-pointer rounded-xl border border-dashed border-zinc-300 bg-white p-3.5 text-center transition hover:border-[#155eef] dark:border-zinc-700 dark:bg-zinc-800">
+                  <FileCode2 className="mx-auto text-[#155eef]" size={20} />
                   <p className="mt-2 text-xs font-bold">Anexar XML da NF</p>
                   <p className="mt-1 truncate text-[10px] text-zinc-500">
                     {registerXmlName || "Selecione arquivo XML (até 4 MB)"}
