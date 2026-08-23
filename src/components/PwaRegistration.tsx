@@ -21,6 +21,22 @@ export default function PwaRegistration() {
       };
     }
 
+    const hostname = window.location.hostname.toLowerCase();
+    const isErpHost = hostname === "app.oprestador.tech" || hostname === "localhost" || hostname === "127.0.0.1";
+    if (!isErpHost) {
+      void navigator.serviceWorker.getRegistrations().then((registrations) =>
+        Promise.all(registrations.map((registration) => registration.unregister())),
+      );
+      if ("caches" in window) {
+        void caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))));
+      }
+      return () => {
+        window.clearTimeout(initialTimer);
+        window.removeEventListener("online", syncConnection);
+        window.removeEventListener("offline", syncConnection);
+      };
+    }
+
     // HMR/Turbopack e service worker não devem compartilhar o controle dos
     // chunks. Remove workers e caches antigos no ambiente de desenvolvimento.
     if (process.env.NODE_ENV !== "production") {
