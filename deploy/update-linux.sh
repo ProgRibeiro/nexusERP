@@ -90,12 +90,10 @@ set -a
 source "$ENV_FILE"
 set +a
 
-if [[ -z "$REQUIRE_OFFSITE_BACKUP" ]]; then
-  if [[ -n "${BACKUP_BUCKET:-}" || -n "${BACKUP_RCLONE_REMOTE:-}" ]]; then
-    REQUIRE_OFFSITE_BACKUP="true"
-  else
-    REQUIRE_OFFSITE_BACKUP="false"
-  fi
+if [[ -z "${BACKUP_BUCKET:-}" && -z "${BACKUP_RCLONE_REMOTE:-}" ]]; then
+  REQUIRE_OFFSITE_BACKUP="false"
+else
+  REQUIRE_OFFSITE_BACKUP="${REQUIRE_OFFSITE_BACKUP:-true}"
 fi
 
 export BACKUP_DIR="$SHARED/backups"
