@@ -29,6 +29,7 @@ import {
   X,
   Building2,
   Code2,
+  ExternalLink,
 } from "lucide-react";
 import {
   getNavigationIndicators,
@@ -44,6 +45,7 @@ interface MenuItem {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   permission: string;
   indicator?: keyof NavigationIndicators;
+  openInNewPage?: boolean;
 }
 
 interface MenuSection {
@@ -131,6 +133,7 @@ export default function Sidebar() {
     { title: "Clientes", href: "/clientes", icon: Users, permission: "clients.read" },
     { title: "Orçamentos", href: "/orcamentos", icon: FileText, permission: "quotes.read" },
     { title: "Serviços", href: "/ordens-servico", icon: Wrench, permission: "os.read", indicator: "os" },
+    { title: "Central de Preventivas", href: "/preventivas", icon: ClipboardCheck, permission: "quotes.read", openInNewPage: true },
     { title: "Agenda", href: "/agenda", icon: Calendar, permission: "os.read" },
     { title: "Financeiro", href: "/financeiro", icon: DollarSign, permission: "financeiro.read", indicator: "overdue" },
   ];
@@ -150,12 +153,6 @@ export default function Sidebar() {
           href: "/orcamentos?tab=preventiva",
           icon: FileSignature,
           permission: "quotes.write",
-        },
-        {
-          title: "Central de Preventivas",
-          href: "/preventivas",
-          icon: ClipboardCheck,
-          permission: "quotes.read",
         },
         {
           title: "Marketing",
@@ -406,12 +403,18 @@ export default function Sidebar() {
               const Icon = item.icon;
               const isActive = isLinkActive(item.href);
               return <button type="button" key={item.href} onClick={() => {
+                if (item.openInNewPage) {
+                  window.open(item.href, "_blank", "noopener,noreferrer");
+                  setSidebarOpen(false);
+                  return;
+                }
                 const [path, query] = item.href.slice(1).split("?");
                 const params = query ? Object.fromEntries(new URLSearchParams(query)) : undefined;
                 openTab(path, item.title, params); setSidebarOpen(false);
-              }} className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${isActive ? "bg-[#155eef] text-white shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#93c5fd]/25" : "text-slate-300 hover:bg-white/[0.06] hover:text-white"}`} title={item.title}>
+              }} className={`group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold transition-all duration-150 ${isActive ? "bg-[#155eef] text-white shadow-[0_12px_26px_rgba(0,0,0,.33)] ring-1 ring-[#93c5fd]/25" : "text-slate-300 hover:bg-white/[0.06] hover:text-white"}`} title={item.openInNewPage ? `${item.title} — abrir em nova aba` : item.title}>
                 <Icon size={16} className={`shrink-0 ${isActive ? "text-white" : "text-slate-400 group-hover:text-[#60a5fa]"}`}/>
                 {!isCollapsed && <span className="truncate">{item.title}</span>}
+                {!isCollapsed && item.openInNewPage && <ExternalLink size={12} className="ml-auto shrink-0 opacity-60" aria-hidden="true" />}
                 {item.indicator && indicators[item.indicator] > 0 && <span className={`${isCollapsed ? "absolute right-1 top-1" : "ml-auto"} min-w-5 rounded-full bg-orange-500 px-1.5 py-0.5 text-center text-[9px] font-black text-white`}>{indicators[item.indicator] > 99 ? "99+" : indicators[item.indicator]}</span>}
               </button>;
             })}
