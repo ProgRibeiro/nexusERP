@@ -30,6 +30,8 @@ import {
   ClientDTO,
 } from "@/app/actions/clientActions";
 import { getCompanyTaxProfile, saveCompanyTaxProfile, getCompanySettingsAction } from "@/app/actions/settingsActions";
+import { getSimplesTaxStatusAction, recalculateDraftQuotesTaxAction } from "@/app/actions/simplesTaxActions";
+import { SimplesTaxInfo } from "@/lib/simplesTaxCalculation";
 import {
   isStaleServerActionError,
   preserveFormDraft,
@@ -78,6 +80,7 @@ import {
   BriefcaseBusiness,
   Handshake,
   Calculator,
+  RefreshCw,
 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { TaxProfile } from "@/lib/tax";
@@ -222,6 +225,8 @@ export default function OrcamentosTab({
     label: "Simples Nacional",
     configured: false,
   });
+  const [simplesTaxInfo, setSimplesTaxInfo] = useState<SimplesTaxInfo | null>(null);
+  const [recalculatingSimplesTax, setRecalculatingSimplesTax] = useState(false);
 
   useEffect(() => {
     const draft = takePreservedFormDraft<typeof quickClientForm>(
@@ -238,9 +243,44 @@ export default function OrcamentosTab({
 
   useEffect(() => {
     getCompanyTaxProfile()
-      .then(setTaxProfile)
+      .then((profile) => {
+        setTaxProfile(profile);
+        return getSimplesTaxStatusAction();
+      })
+      .then((status) => {
+        if (status) {
+          setSimplesTaxInfo(status);
+          if (status.regime === "SIMPLES_NACIONAL" && status.rate > 0) {
+            setTaxProfile((prev) => ({
+              ...prev,
+              rate: status.rate,
+              label: status.label,
+            }));
+          }
+        }
+      })
       .catch(() => {});
   }, []);
+
+  const handleRecalculateDraftsTax = async () => {
+    try {
+      setRecalculatingSimplesTax(true);
+      const res = await recalculateDraftQuotesTaxAction();
+      if (res.success) {
+        toast(
+          `Impostos atualizados para a alíquota efetiva de ${res.newRate.toFixed(2)}% do Simples Nacional em ${res.updatedCount} proposta(s) em rascunho!`,
+          "success",
+        );
+        const updatedQuotes = await getQuotes();
+        setQuotes(updatedQuotes);
+        if (res.simplesInfo) setSimplesTaxInfo(res.simplesInfo);
+      }
+    } catch {
+      toast("Erro ao recalcular impostos do Simples Nacional.", "error");
+    } finally {
+      setRecalculatingSimplesTax(false);
+    }
+  };
 
   useEffect(() => {
     if (clientId && clients.some((client) => client.id === clientId)) {
@@ -2852,6 +2892,51 @@ export default function OrcamentosTab({
               )}
             </div>
           </section>
+
+          {/* BANNER DINÂMICO DA EVOLUÇÃO DO SIMPLES NACIONAL */}
+          {simplesTaxInfo && simplesTaxInfo.regime === "SIMPLES_NACIONAL" && (
+            <section className="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/50 p-4 shadow-sm print:hidden dark:from-emerald-950/30 dark:via-teal-950/20 dark:to-emerald-950/20 dark:border-emerald-500/20">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white shadow-md">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-black uppercase tracking-wider text-emerald-950 dark:text-emerald-300">
+                        Evolução Automática de Imposto (Simples Nacional)
+                      </span>
+                      <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[10px] font-black text-white shadow-sm">
+                        Faixa {simplesTaxInfo.bracket} · Anexo {simplesTaxInfo.annex}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-emerald-900 dark:text-emerald-200">
+                      Alíquota Efetiva Automática: <strong className="text-sm font-black text-emerald-700 dark:text-emerald-400">{simplesTaxInfo.rate.toFixed(2)}%</strong>
+                      <span className="mx-2 text-emerald-400">•</span>
+                      RBT12 Acumulado (12 meses): <strong className="font-semibold">{formatCurrency(simplesTaxInfo.rbt12)}</strong>
+                      {simplesTaxInfo.remaining > 0 && (
+                        <span className="ml-2 text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
+                          (Faltam {formatCurrency(simplesTaxInfo.remaining)} para a Faixa {simplesTaxInfo.bracket + 1})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                {hasPermission("comercial.write") && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleRecalculateDraftsTax}
+                    loading={recalculatingSimplesTax}
+                    className="shrink-0 border-emerald-300 bg-white font-bold text-emerald-900 shadow-sm hover:bg-emerald-100 dark:bg-zinc-900 dark:text-emerald-300"
+                  >
+                    <RefreshCw size={14} className="mr-1.5" /> Recalcular Impostos dos Rascunhos
+                  </Button>
+                )}
+              </div>
+            </section>
+          )}
 
           <section className="grid gap-3 print:hidden sm:grid-cols-2 xl:grid-cols-4">
             <button

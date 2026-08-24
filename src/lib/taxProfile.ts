@@ -1,10 +1,22 @@
 import { prisma } from "@/lib/db";
 import { defaultTaxRate, normalizeTaxRegime, TAX_REGIMES, TaxProfile } from "@/lib/tax";
 
+import { getDynamicSimplesTaxProfile } from "@/lib/simplesTaxCalculation";
+
 const REGIME_KEY = "company.fiscalRegime";
 const RATE_KEY = "company.taxRate";
 
 export async function loadTaxProfile(): Promise<TaxProfile> {
+  const dynamicSimples = await getDynamicSimplesTaxProfile();
+  if (dynamicSimples.regime === "SIMPLES_NACIONAL") {
+    return {
+      regime: "SIMPLES_NACIONAL",
+      rate: dynamicSimples.rate,
+      label: dynamicSimples.label,
+      configured: true,
+    };
+  }
+
   const settings = await prisma.setting.findMany({
     where: { key: { in: [REGIME_KEY, RATE_KEY] } },
   });
