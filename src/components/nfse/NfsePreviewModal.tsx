@@ -7,6 +7,10 @@ import { useToast } from "@/components/ui/Toast";
 import { formatCurrency } from "@/lib/utils";
 import { confirmAndIssueNfseAction } from "@/app/actions/nfseActions";
 import { NfsePreview } from "@/lib/nfse/domain/dpsTypes";
+import {
+  NFSE_ISSUANCE_DISABLED_MESSAGE,
+  NFSE_ISSUANCE_ENABLED,
+} from "@/lib/nfse/issuancePolicy";
 import { ShieldCheck, AlertTriangle, FileText, CheckCircle2, DollarSign, Building, User, Info, Lock } from "lucide-react";
 
 interface NfsePreviewModalProps {
@@ -73,6 +77,13 @@ export function NfsePreviewModal({ isOpen, onClose, preview, onIssueSuccess }: N
               Schema v{preview.versaoDados}
             </span>
           </div>
+
+          {!NFSE_ISSUANCE_ENABLED && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+              <AlertTriangle size={17} className="mt-0.5 shrink-0" />
+              <span>{NFSE_ISSUANCE_DISABLED_MESSAGE} A conferência permanece disponível, mas nenhuma nota será transmitida.</span>
+            </div>
+          )}
 
           {/* Erros / Pendências Fiscais (Bloqueantes) */}
           {preview.validationErrors.length > 0 && (
@@ -198,11 +209,12 @@ export function NfsePreviewModal({ isOpen, onClose, preview, onIssueSuccess }: N
             </Button>
             <Button
               variant="primary"
-              disabled={!preview.isValid}
+              disabled={!preview.isValid || !NFSE_ISSUANCE_ENABLED}
               onClick={() => setIsConfirmDialogOpen(true)}
+              title={!NFSE_ISSUANCE_ENABLED ? NFSE_ISSUANCE_DISABLED_MESSAGE : undefined}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
             >
-              <CheckCircle2 size={16} /> Ir para 2ª Confirmação de Emissão
+              <CheckCircle2 size={16} /> {NFSE_ISSUANCE_ENABLED ? "Ir para 2ª Confirmação de Emissão" : "Transmissão desativada"}
             </Button>
           </div>
         </div>

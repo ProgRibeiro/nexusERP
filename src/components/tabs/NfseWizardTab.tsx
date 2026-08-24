@@ -70,7 +70,7 @@ export default function NfseWizardTab() {
       });
 
       if (res.success) {
-        toast("NFS-e emitida e contas a receber registradas!", "success");
+        toast("Nota fiscal registrada e contas a receber geradas!", "success");
         setStep(6); // Success screen
       } else {
         toast(res.error || "Erro no faturamento fiscal", "error");
@@ -88,7 +88,7 @@ export default function NfseWizardTab() {
     "Tributação",
     "Retenções",
     "Revisão",
-    "Emitir"
+    "Registrar"
   ];
 
   if (loading) {
@@ -324,7 +324,7 @@ export default function NfseWizardTab() {
               <FileCheck size={32} />
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100">NFS-e Emitida com Sucesso!</h3>
+              <h3 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100">Nota fiscal registrada com sucesso!</h3>
               <p className="text-xs text-zinc-450 mt-1">O faturamento foi consolidado e as parcelas geradas no Contas a Receber.</p>
             </div>
             <div className="pt-4 flex justify-center gap-3">
@@ -381,7 +381,7 @@ export default function NfseWizardTab() {
                 onClick={handleProcess}
                 loading={actionLoading}
               >
-                Emitir Nota Fiscal (NFS-e)
+                Registrar Nota Fiscal
               </Button>
             )}
           </div>

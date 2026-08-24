@@ -7,6 +7,10 @@ import { issueNfse } from "@/lib/nfse/application/issueNfse";
 import { reconcileNfseStatus } from "@/lib/nfse/application/queryNfse";
 import { cancelNfse } from "@/lib/nfse/application/cancelNfse";
 import { CertificateProvider } from "@/lib/nfse/infrastructure/certProvider";
+import {
+  NFSE_ISSUANCE_DISABLED_MESSAGE,
+  NFSE_ISSUANCE_ENABLED,
+} from "@/lib/nfse/issuancePolicy";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -32,6 +36,13 @@ export async function getNfsePreviewAction(serviceOrderId: string) {
 export async function confirmAndIssueNfseAction(serviceOrderId: string, confirmationToken: string) {
   try {
     const session = await requirePermission("faturamento.read");
+    if (!NFSE_ISSUANCE_ENABLED) {
+      return {
+        success: false as const,
+        status: "DESATIVADA",
+        error: NFSE_ISSUANCE_DISABLED_MESSAGE,
+      };
+    }
     const preview = await prepareNfsePreview(serviceOrderId);
 
     if (!preview.isValid) {

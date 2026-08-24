@@ -6,6 +6,10 @@ import { validateNfseXmlStructure } from "../infrastructure/xsdValidator";
 import { signDpsXml } from "../infrastructure/xmlSigner";
 import { CertificateProvider, CertificateInfo } from "../infrastructure/certProvider";
 import { DuqueDeCaxiasSoapClient } from "../infrastructure/duqueDeCaxiasSoapClient";
+import {
+  NFSE_ISSUANCE_DISABLED_MESSAGE,
+  NFSE_ISSUANCE_ENABLED,
+} from "../issuancePolicy";
 
 export interface IssueNfseResult {
   success: boolean;
@@ -24,6 +28,10 @@ export interface IssueNfseResult {
  * ESTE MÉTODO É EXECUTADO EXCLUSIVAMENTE APÓS A 2ª CONFIRMAÇÃO DO USUÁRIO.
  */
 export async function issueNfse(preview: NfsePreview, userId: string, confirmationToken: string): Promise<IssueNfseResult> {
+  if (!NFSE_ISSUANCE_ENABLED) {
+    throw new Error(NFSE_ISSUANCE_DISABLED_MESSAGE);
+  }
+
   if (!confirmationToken || confirmationToken !== `CONFIRM-EMITIR-OS-${preview.serviceOrderId}`) {
     throw new Error("Confirmação de emissão inválida ou expirada. Confirme novamente na tela.");
   }

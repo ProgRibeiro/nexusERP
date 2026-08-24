@@ -22,6 +22,10 @@ import { getNfsePreviewAction } from "@/app/actions/nfseActions";
 import { NfsePreviewModal } from "@/components/nfse/NfsePreviewModal";
 import { NfseDetailsModal } from "@/components/nfse/NfseDetailsModal";
 import { printExecutiveReport, ReportModelType } from "@/lib/reportPdfGenerator";
+import {
+  NFSE_ISSUANCE_DISABLED_MESSAGE,
+  NFSE_ISSUANCE_ENABLED,
+} from "@/lib/nfse/issuancePolicy";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
@@ -1228,9 +1232,11 @@ export default function OrdemServicoDetailTab({
               variant="secondary"
               onClick={handleOpenNfsePreview}
               loading={nfsePreviewLoading}
-              className="flex-1 border-emerald-400/40 bg-emerald-500 text-white font-bold hover:bg-emerald-400 sm:flex-none"
+              disabled={!NFSE_ISSUANCE_ENABLED}
+              title={!NFSE_ISSUANCE_ENABLED ? NFSE_ISSUANCE_DISABLED_MESSAGE : "Emitir NFS-e"}
+              className="flex-1 border-amber-300/50 bg-amber-100 text-amber-800 font-bold hover:bg-amber-100 sm:flex-none dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-300"
             >
-              <FileText size={15} /> Emitir NFS-e (Duque de Caxias)
+              <AlertTriangle size={15} /> {NFSE_ISSUANCE_ENABLED ? "Emitir NFS-e (Duque de Caxias)" : "Emissão de NFS-e desativada"}
             </Button>
             <Button
               variant="secondary"

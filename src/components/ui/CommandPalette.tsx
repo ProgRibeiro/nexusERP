@@ -148,10 +148,10 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
           },
           {
             id: "goto-faturamento",
-            name: "Ir para Emitir NFS-e (Fiscal)",
+            name: "Ir para o Painel Fiscal",
             icon: <Receipt size={16} className="text-zinc-500" />,
             permission: "faturamento.read",
-            action: () => openTab("faturamento", "Painel Fiscal", { action: "emitir" }),
+            action: () => openTab("faturamento", "Painel Fiscal"),
           },
           {
             id: "goto-estoque",
