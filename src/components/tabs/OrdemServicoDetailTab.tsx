@@ -38,7 +38,10 @@ import ServiceVisitsPanel from "@/components/os/ServiceVisitsPanel";
 import ServiceOrderAssetsPanel from "@/components/os/ServiceOrderAssetsPanel";
 import {
   getServiceChecklistTemplate,
+  normalizeChecklistStatus,
   SERVICE_MODALITIES,
+  type ChecklistStatus,
+  type ServiceChecklistItem,
 } from "@/lib/serviceChecklistTemplates";
 import {
   Loader2,
@@ -250,9 +253,7 @@ export default function OrdemServicoDetailTab({
     technicalDiagnosis: "",
     notes: "",
   });
-  const [checklist, setChecklist] = useState<
-    { label: string; checked: boolean; modality?: string }[]
-  >([]);
+  const [checklist, setChecklist] = useState<ServiceChecklistItem[]>([]);
 
   // Materiais Form
   const [materialForm, setMaterialForm] = useState({
@@ -380,13 +381,17 @@ export default function OrdemServicoDetailTab({
           const rawChecklist = JSON.parse(data.checklistJson || "[]");
           parsedChecklist = Array.isArray(rawChecklist)
             ? rawChecklist
-                .map((item: any) => ({
-                  ...item,
-                  label: String(
-                    item.label || item.task || item.name || "",
-                  ).trim(),
-                  checked: Boolean(item.checked),
-                }))
+                .map((item: any) => {
+                  const label = String(item.label || item.task || item.name || "").trim();
+                  const status = normalizeChecklistStatus({ status: item.status, checked: Boolean(item.checked) });
+                  return {
+                    ...item,
+                    label,
+                    status,
+                    observation: String(item.observation || ""),
+                    checked: status !== "PENDENTE",
+                  };
+                })
                 .filter((item: any) => item.label)
             : [];
         } catch (e) {
@@ -473,11 +478,7 @@ export default function OrdemServicoDetailTab({
     }
   };
 
-  const handleToggleChecklist = async (index: number) => {
-    const updated = checklist.map((item, idx) => {
-      if (idx !== index) return item;
-      return { ...item, checked: !item.checked };
-    });
+  const persistChecklist = async (updated: ServiceChecklistItem[], successMessage?: string) => {
     setChecklist(updated);
     try {
       const res = await updateOSDetails(
@@ -485,12 +486,25 @@ export default function OrdemServicoDetailTab({
         { checklistJson: JSON.stringify(updated) },
         currentUser?.id || "",
       );
-      if (res.success) {
-        toast("Checklist atualizado!", "success");
-      }
+      if (res.success && successMessage) toast(successMessage, "success");
     } catch (e) {
       toast("Erro de conexão ao atualizar checklist", "error");
     }
+  };
+
+  const handleChecklistStatus = async (index: number, status: ChecklistStatus) => {
+    const updated = checklist.map((item, idx) => idx === index
+      ? { ...item, status, checked: status !== "PENDENTE" }
+      : item);
+    await persistChecklist(updated, "Resultado do checklist salvo.");
+  };
+
+  const handleChecklistObservation = (index: number, observation: string) => {
+    setChecklist((current) => current.map((item, idx) => idx === index ? { ...item, observation } : item));
+  };
+
+  const saveChecklistObservation = async () => {
+    await persistChecklist(checklist);
   };
 
   const handleApplyChecklistModality = async (
@@ -1094,9 +1108,16 @@ export default function OrdemServicoDetailTab({
         Math.round((1 - pendingOptimizedBytes / pendingOriginalBytes) * 100),
       )
     : 0;
-  const completedChecklistItems = checklist.filter(
-    (item) => item.checked,
-  ).length;
+  const completedChecklistItems = checklist.filter((item) => normalizeChecklistStatus(item) !== "PENDENTE").length;
+  const nonConformingChecklistItems = checklist.filter((item) => normalizeChecklistStatus(item) === "NAO_CONFORME").length;
+  const pendingChecklistItems = checklist.length - completedChecklistItems;
+  const checklistGroups = checklist.reduce<Array<{ name: string; items: Array<{ item: ServiceChecklistItem; index: number }> }>>((groups, item, index) => {
+    const name = item.group || "Verificações gerais";
+    const existing = groups.find((group) => group.name === name);
+    if (existing) existing.items.push({ item, index });
+    else groups.push({ name, items: [{ item, index }] });
+    return groups;
+  }, []);
   const reportPhotos = details.photos || [];
   const reportPhotoCounts = {
     ANTES: reportPhotos.filter((photo: any) => photo.step === "ANTES").length,
@@ -1888,25 +1909,51 @@ export default function OrdemServicoDetailTab({
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  {checklist.map((item, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => handleToggleChecklist(idx)}
-                      className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3.5 text-xs transition-all ${item.checked ? "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/20" : "border-zinc-200 bg-white hover:border-teal-300 hover:bg-teal-50/30 dark:border-zinc-800 dark:bg-zinc-900"}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.checked}
-                        onChange={() => {}} // Handled by container onClick
-                        className="w-4 h-4 rounded text-primary border-zinc-300 focus:ring-primary cursor-pointer"
-                      />
-                      <span
-                        className={`font-semibold leading-relaxed ${item.checked ? "text-emerald-800 dark:text-emerald-300" : "text-zinc-800 dark:text-zinc-200"}`}
-                      >
-                        {item.label}
-                      </span>
-                    </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900"><p className="text-[9px] font-black uppercase text-zinc-400">Pendentes</p><p className="mt-1 text-xl font-black text-zinc-900 dark:text-white">{pendingChecklistItems}</p></div>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20"><p className="text-[9px] font-black uppercase text-emerald-600">Respondidos</p><p className="mt-1 text-xl font-black text-emerald-700 dark:text-emerald-300">{completedChecklistItems}</p></div>
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/20"><p className="text-[9px] font-black uppercase text-red-600">Não conformidades</p><p className="mt-1 text-xl font-black text-red-700 dark:text-red-300">{nonConformingChecklistItems}</p></div>
+                </div>
+
+                <div className="space-y-5">
+                  {checklistGroups.map((group) => (
+                    <section key={group.name} className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+                      <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+                        <div><p className="text-xs font-black text-zinc-900 dark:text-white">{group.name}</p><p className="mt-0.5 text-[10px] text-zinc-500">{group.items.length} verificações técnicas</p></div>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[9px] font-black text-zinc-500 shadow-sm dark:bg-zinc-900">{group.items.filter(({ item }) => normalizeChecklistStatus(item) !== "PENDENTE").length}/{group.items.length}</span>
+                      </div>
+                      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                        {group.items.map(({ item, index }) => {
+                          const status = normalizeChecklistStatus(item);
+                          return (
+                            <div key={item.id || `${group.name}-${index}`} className={`p-4 ${status === "NAO_CONFORME" ? "bg-red-50/70 dark:bg-red-950/15" : status === "CONFORME" ? "bg-emerald-50/30 dark:bg-emerald-950/10" : ""}`}>
+                              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-xs font-bold leading-relaxed text-zinc-800 dark:text-zinc-100">{item.label}</p>
+                                    {item.criticality === "CRITICO" && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[8px] font-black uppercase text-red-700 dark:bg-red-950 dark:text-red-300">Crítico</span>}
+                                    {item.evidenceRequired && <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[8px] font-black uppercase text-blue-700 dark:bg-blue-950 dark:text-blue-300"><Camera size={9} /> Evidência</span>}
+                                  </div>
+                                  {status === "NAO_CONFORME" && <p className="mt-1 text-[10px] font-semibold text-red-600">Descreva a anomalia, localização e ação recomendada.</p>}
+                                </div>
+                                <div className="grid shrink-0 grid-cols-3 gap-1.5">
+                                  {([
+                                    ["CONFORME", "Conforme", "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"],
+                                    ["NAO_CONFORME", "Não conforme", "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"],
+                                    ["NAO_APLICAVEL", "N/A", "border-zinc-300 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"],
+                                  ] as const).map(([value, label, activeClass]) => (
+                                    <button key={value} type="button" disabled={actionLoading} onClick={() => void handleChecklistStatus(index, value)} className={`rounded-lg border px-2.5 py-2 text-[9px] font-black transition ${status === value ? activeClass : "border-zinc-200 bg-white text-zinc-400 hover:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900"}`}>{label}</button>
+                                  ))}
+                                </div>
+                              </div>
+                              {(status === "NAO_CONFORME" || item.observation) && (
+                                <textarea value={item.observation || ""} onChange={(event) => handleChecklistObservation(index, event.target.value)} onBlur={() => void saveChecklistObservation()} rows={2} placeholder="Informe condição encontrada, medição, localização, risco e providência recomendada..." className={`mt-3 w-full rounded-xl border p-3 text-xs outline-none ${status === "NAO_CONFORME" && !item.observation?.trim() ? "border-red-300 bg-white focus:border-red-500" : "border-zinc-200 bg-zinc-50 focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950"}`} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
                   ))}
                 </div>
               </div>
@@ -3039,14 +3086,14 @@ export default function OrdemServicoDetailTab({
                   {checklist.map((item, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center gap-2 border-b border-zinc-100 pb-1"
+                      className="flex items-start gap-2 border-b border-zinc-100 pb-1"
                     >
                       <span
-                        className={`font-mono font-bold ${item.checked ? "text-emerald-600" : "text-zinc-400"}`}
+                        className={`shrink-0 font-mono font-bold ${normalizeChecklistStatus(item) === "CONFORME" ? "text-emerald-600" : normalizeChecklistStatus(item) === "NAO_CONFORME" ? "text-red-600" : "text-zinc-400"}`}
                       >
-                        {item.checked ? "[✔] CONFORME" : "[ ] NÃO CONFORME"}
+                        {normalizeChecklistStatus(item) === "CONFORME" ? "[✔] CONFORME" : normalizeChecklistStatus(item) === "NAO_CONFORME" ? "[✕] NÃO CONFORME" : normalizeChecklistStatus(item) === "NAO_APLICAVEL" ? "[—] N/A" : "[ ] PENDENTE"}
                       </span>
-                      <span className="text-zinc-700">{item.label}</span>
+                      <span className="text-zinc-700">{item.group && <b className="block text-[9px] uppercase text-zinc-500">{item.group}</b>}{item.label}{item.observation && <small className="mt-0.5 block text-zinc-500">Obs.: {item.observation}</small>}</span>
                     </div>
                   ))}
                 </div>

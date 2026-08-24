@@ -10,6 +10,7 @@ import { osScheduleSchema } from "@/lib/schemas";
 import { nextServiceOrderCode } from "@/lib/sequences";
 import { createInitialVisit, nextVisitNumber, visitStatusFromLegacyOS } from "@/lib/visits";
 import { getServiceChecklistTemplate, inferServiceModality, SERVICE_MODALITIES } from "@/lib/serviceChecklistTemplates";
+import type { ServiceChecklistItem } from "@/lib/serviceChecklistTemplates";
 import type { Prisma } from "@prisma/client";
 import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
@@ -1325,12 +1326,21 @@ export async function applyOSChecklistTemplate(osId: string, serviceCategory: st
     const os = await prisma.serviceOrder.findUnique({ where: { id: osId }, select: { checklistJson: true } });
     if (!os) throw new Error("Ordem de serviço não encontrada.");
 
-    let existing: Array<{ label?: string; checked?: boolean }> = [];
+    let existing: ServiceChecklistItem[] = [];
     try { existing = JSON.parse(os.checklistJson || "[]"); } catch { existing = []; }
-    const completedLabels = new Set(existing.filter((item) => item.checked).map((item) => item.label?.trim()).filter(Boolean));
     const generated = getServiceChecklistTemplate(serviceCategory).map((item) => ({
       ...item,
-      checked: preserveCompleted && completedLabels.has(item.label),
+      ...(() => {
+        if (!preserveCompleted) return {};
+        const previous = existing.find((entry) => (entry.id && entry.id === item.id) || entry.label?.trim() === item.label);
+        return previous
+          ? {
+              checked: Boolean(previous.checked),
+              status: previous.status || (previous.checked ? "CONFORME" : "PENDENTE"),
+              observation: previous.observation || "",
+            }
+          : {};
+      })(),
     }));
 
     const formCodeByCategory: Record<string, string> = {
@@ -1340,6 +1350,7 @@ export async function applyOSChecklistTemplate(osId: string, serviceCategory: st
       HIDRAULICA: "CHECKLIST_HIDRAULICA",
       CIVIL: "CHECKLIST_CIVIL",
       REFRIGERACAO: "CHECKLIST_REFRIGERACAO",
+      INCENDIO: "CHECKLIST_INCENDIO",
       GERAL: "CHECKLIST_GERAL",
     };
     const publishedVersion = await prisma.formVersion.findFirst({

@@ -470,6 +470,17 @@ export default function ExecucaoTecnicaPage() {
       alert(`Responda o campo obrigatório: ${missingRequired.label}.`);
       return;
     }
+    const undocumentedNonConformity = visitForm.sections.find((section) => {
+      const hasNonConformity = section.questions.some((question) => question.type === "SELECT"
+        && question.options.includes("NAO_CONFORME")
+        && formAnswers[question.id] === "NAO_CONFORME");
+      const observationQuestion = section.questions.find((question) => question.code === "OBSERVACOES");
+      return hasNonConformity && (!observationQuestion || !String(formAnswers[observationQuestion.id] || "").trim());
+    });
+    if (undocumentedNonConformity) {
+      alert(`Descreva a não conformidade e a ação recomendada na etapa: ${undocumentedNonConformity.title}.`);
+      return;
+    }
 
     const signatureBase64 = signatureData || canvasRef.current?.toDataURL("image/png") || "";
     if (!signatureBase64) {
@@ -495,9 +506,27 @@ export default function ExecucaoTecnicaPage() {
         : rawValue ?? null;
       return { questionId: question.id, value };
     });
-    const checklist = questions
-      .filter((question) => question.type === "CHECKBOX" && question.required)
-      .map((question) => ({ label: question.label, checked: formAnswers[question.id] === true }));
+    const checklist = visitForm.sections.flatMap((section) => {
+      const observationQuestion = section.questions.find((question) => question.code === "OBSERVACOES");
+      const sectionObservation = observationQuestion ? String(formAnswers[observationQuestion.id] || "").trim() : "";
+      return section.questions
+        .filter((question) => (question.type === "CHECKBOX" && question.required)
+          || (question.type === "SELECT" && question.options.includes("NAO_CONFORME")))
+        .map((question) => {
+        const value = formAnswers[question.id];
+        const status = question.type === "CHECKBOX"
+          ? (value === true ? "CONFORME" : "PENDENTE")
+          : String(value || "PENDENTE");
+        return {
+          id: question.code,
+          label: question.label,
+          group: section.title,
+          status,
+          checked: status !== "PENDENTE",
+          observation: status === "NAO_CONFORME" ? sectionObservation : "",
+        };
+        });
+    });
     const payload: Parameters<typeof submitTechnicalExecution>[1] = {
       technicalDiagnosis: diagnosis,
       checklistJson: JSON.stringify(checklist),

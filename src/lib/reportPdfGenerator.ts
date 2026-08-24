@@ -28,7 +28,16 @@ export interface PrintReportParams {
     clientRepresentative?: string;
     approvedByClient?: boolean;
   };
-  checklist?: Array<{ id?: string; label: string; group?: string; checked: boolean; modality?: string }>;
+  checklist?: Array<{ id?: string; label: string; group?: string; checked: boolean; modality?: string; status?: string; observation?: string; criticality?: string }>;
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 export function printExecutiveReport({
@@ -70,7 +79,7 @@ export function printExecutiveReport({
     const items = details.items || [];
     const materials = (details.materials || []).filter((m: any) => m.status === "UTILIZADO" || m.usedQuantity > 0);
     const photos = details.photos || [];
-    const completedChecklist = checklist.filter((item) => item.checked);
+    const completedChecklist = checklist.filter((item) => item.status ? item.status !== "PENDENTE" : item.checked);
 
     const isShowValues = modelType === "COMERCIAL_COMPLETO";
     const isPhotoExpress = modelType === "FOTOGRAFICO_EXPRESS";
@@ -440,14 +449,20 @@ ${reportForm.executedServices || "Fotos e evidências de atendimento operacional
     </thead>
     <tbody>
       ${completedChecklist
-        .map(
-          (chk) => `
+        .map((chk) => {
+          const status = chk.status || (chk.checked ? "CONFORME" : "PENDENTE");
+          const result = status === "NAO_CONFORME"
+            ? { label: "✕ NÃO CONFORME", color: "#dc2626" }
+            : status === "NAO_APLICAVEL"
+              ? { label: "— NÃO APLICÁVEL", color: "#52525b" }
+              : { label: "✔ CONFORME", color: "#16a34a" };
+          return `
         <tr>
-          <td>${chk.group ? `[${chk.group}] ` : ""}${chk.label}</td>
-          <td style="text-align: center; font-weight: bold; color: #16a34a;">✔ CONFORME</td>
+          <td>${chk.group ? `<strong>${escapeHtml(chk.group)}</strong><br>` : ""}${escapeHtml(chk.label)}${chk.observation ? `<br><small><strong>Observação:</strong> ${escapeHtml(chk.observation)}</small>` : ""}</td>
+          <td style="text-align: center; font-weight: bold; color: ${result.color};">${result.label}</td>
         </tr>
-      `,
-        )
+      `;
+        })
         .join("")}
     </tbody>
   </table>

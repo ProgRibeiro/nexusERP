@@ -43,6 +43,7 @@ function recommendedTemplateCode(
   const terms = [serviceCategory, serviceType, ...links.flatMap((link) => [link.storeAsset?.category || "", link.clientEquipment?.type || ""])]
     .join(" ")
     .toUpperCase();
+  if (/INCENDIO|EXTINTOR|HIDRANTE|ALARME|ROTA DE FUGA/.test(terms)) return "CHECKLIST_INCENDIO";
   if (/ILUMINA|LAMPADA|LUMINARIA|DRIVER|REATOR/.test(terms)) return "CHECKLIST_ILUMINACAO";
   if (/ELETR|QUADRO|ILUMINA|DISJUNTOR/.test(terms)) return "CHECKLIST_ELETRICA";
   if (/HIDRAUL|VAZAMENTO|TORNEIRA|REGISTRO|TUBULAC|RALO/.test(terms)) return "CHECKLIST_HIDRAULICA";
