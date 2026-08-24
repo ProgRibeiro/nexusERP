@@ -216,7 +216,10 @@ NODE
     echo "Atualização bloqueada: backup local íntegro não confirmado: $BACKUP_GATE_RESULT" >&2
     exit 1
   fi
-  if [[ "$REQUIRE_OFFSITE_BACKUP" == "true" && "$RCLONE_GATE" != "true" ]] && ! grep -q '"remoteUploaded":true' <<<"$BACKUP_GATE_RESULT"; then
+  if [[ -z "${BACKUP_BUCKET:-}" && -z "${BACKUP_RCLONE_REMOTE:-}" ]]; then
+    REQUIRE_OFFSITE_BACKUP="false"
+  fi
+  if [[ "$REQUIRE_OFFSITE_BACKUP" == "true" && -n "${BACKUP_BUCKET:-}" && "$RCLONE_GATE" != "true" ]] && ! grep -q '"remoteUploaded":true' <<<"$BACKUP_GATE_RESULT"; then
     write_update_status "blocked" "Terceira camada externa não confirmada; a versão estável foi mantida."
     echo "Atualização bloqueada: configure BACKUP_BUCKET e credenciais; cópia externa não confirmada." >&2
     exit 1
