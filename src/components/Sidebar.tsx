@@ -133,7 +133,7 @@ export default function Sidebar() {
     { title: "Clientes", href: "/clientes", icon: Users, permission: "clients.read" },
     { title: "Orçamentos", href: "/orcamentos", icon: FileText, permission: "quotes.read" },
     { title: "Serviços", href: "/ordens-servico", icon: Wrench, permission: "os.read", indicator: "os" },
-    { title: "Central de Preventivas", href: "/preventivas", icon: ClipboardCheck, permission: "quotes.read", openInNewPage: true },
+    { title: "Preventiva das Lojas", href: "/preventivas", icon: ClipboardCheck, permission: "quotes.read", openInNewPage: true },
     { title: "Agenda", href: "/agenda", icon: Calendar, permission: "os.read" },
     { title: "Financeiro", href: "/financeiro", icon: DollarSign, permission: "financeiro.read", indicator: "overdue" },
   ];
