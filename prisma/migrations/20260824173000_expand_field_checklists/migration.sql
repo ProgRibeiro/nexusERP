@@ -2,6 +2,10 @@
 -- possuir quatro etapas, respostas Conforme/Não conforme/Não aplicável,
 -- observações por etapa e medições estruturadas quando aplicáveis.
 
+-- As tabelas de formulários são protegidas por RLS. A migração declara o
+-- tenant operacional explicitamente durante esta sessão e o remove ao final.
+SELECT set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', false);
+
 INSERT INTO "FormTemplate" ("id", "code", "name", "description", "category", "assetCategory", "active", "updatedAt", "tenantId") VALUES
   (md5('nx-form-hvac-v2'), 'CHECKLIST_HVAC', 'Preventiva completa de climatização e PMOC', 'Segurança, cadastro, higienização, componentes, medições, teste final e atualização do PMOC.', 'HVAC', 'CLIMATIZACAO', true, CURRENT_TIMESTAMP, '00000000-0000-4000-8000-000000000001'::uuid),
   (md5('nx-form-refrigeracao-v2'), 'CHECKLIST_REFRIGERACAO', 'Preventiva completa de refrigeração', 'Câmaras, expositores, circuito frigorífico, degelo, controles, temperaturas e condição operacional.', 'REFRIGERACAO', 'REFRIGERACAO', true, CURRENT_TIMESTAMP, '00000000-0000-4000-8000-000000000001'::uuid),
@@ -241,3 +245,5 @@ ON CONFLICT ("sectionId", "code") DO UPDATE SET
   "helpText" = EXCLUDED."helpText",
   "type" = EXCLUDED."type",
   "measurementDefinitionId" = EXCLUDED."measurementDefinitionId";
+
+RESET app.tenant_id;
