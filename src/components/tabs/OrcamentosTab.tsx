@@ -35,7 +35,7 @@ import {
   preserveFormDraft,
   takePreservedFormDraft,
 } from "@/lib/actionRecovery";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCpfCnpj, formatCurrency, formatDate, formatPhone } from "@/lib/utils";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
@@ -1456,9 +1456,18 @@ export default function OrcamentosTab({
         )
       : 15;
 
+  const quoteAddress =
+    quoteDetails?.client?.addresses?.find(
+      (address: { id: string }) => address.id === quoteDetails.addressId,
+    ) || quoteDetails?.client?.addresses?.[0];
+  const quoteContact =
+    quoteDetails?.client?.contacts?.find(
+      (contact: { id: string }) => contact.id === quoteDetails.contactId,
+    ) || quoteDetails?.client?.contacts?.[0];
+
   let clientAddressStr = "Não informado";
-  if (quoteDetails?.client?.addresses?.[0]) {
-    const addr = quoteDetails.client.addresses[0];
+  if (quoteAddress) {
+    const addr = quoteAddress;
     clientAddressStr = `${addr.street}, ${addr.number}${addr.complement ? ` - ${addr.complement}` : ""} - ${addr.neighborhood} - ${addr.city}/${addr.state}`;
   } else if (quoteDetails?.client?.notes) {
     const match = quoteDetails.client.notes.match(
@@ -1540,26 +1549,28 @@ export default function OrcamentosTab({
             <title>Orçamento ${quoteDetails?.code || ""}</title>
             ${styles}
             <style>
-              @page { size: ${printPageSize}; margin: 0; }
+              @page { size: ${printPageSize}; margin: 8mm 6mm; }
               html, body {
-                width: ${printWidthMm}mm !important;
-                height: ${printHeightMm - 1}mm !important;
-                min-width: ${printWidthMm}mm !important;
-                min-height: ${printHeightMm - 1}mm !important;
+                width: 100% !important;
+                height: auto !important;
+                min-width: 0 !important;
+                min-height: 0 !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                overflow: hidden !important;
+                overflow: visible !important;
                 background: white !important;
               }
               .a4-page {
-                width: ${printWidthMm}mm;
-                height: ${printHeightMm - 1}mm;
-                padding: 7mm 8mm;
+                width: 100%;
+                height: auto;
+                padding: 0;
                 box-sizing: border-box;
-                overflow: hidden;
+                overflow: visible;
                 background: white;
-                break-after: avoid;
-                page-break-after: avoid;
+              }
+              .print-keep-together, .quote-proposal-header, tr, .quote-print-responsive-grid {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
               }
               .proposal-content {
                 width: 100%;
@@ -1588,7 +1599,7 @@ export default function OrcamentosTab({
               .proposal-density-compact { font-size: 0.94em !important; }
               .proposal-density-ultra { font-size: 0.88em !important; }
               .proposal-density-ultra > * + * { margin-top: 1.7mm !important; }
-              .proposal-density-ultra header { padding: 3mm !important; }
+              .proposal-density-ultra .quote-proposal-header { padding: 3mm !important; }
               .proposal-density-ultra .quote-print-responsive-grid { gap: 1.8mm !important; }
               .proposal-density-ultra .print-items-table table { font-size: 6.25pt !important; }
               .proposal-density-compact .print-items-table th,
@@ -1712,7 +1723,7 @@ export default function OrcamentosTab({
         .proposal-density-compact { font-size: 0.94em; }
         .proposal-density-ultra { font-size: 0.88em; }
         .proposal-density-ultra > * + * { margin-top: 7px !important; }
-        .proposal-density-ultra header { padding: 12px !important; }
+        .proposal-density-ultra .quote-proposal-header { padding: 12px !important; }
         .proposal-density-ultra .quote-print-responsive-grid { gap: 7px !important; }
         .proposal-density-ultra .print-items-table th,
         .proposal-density-ultra .print-items-table td { padding-top: 3px !important; padding-bottom: 3px !important; line-height: 1.08 !important; }
@@ -3193,7 +3204,7 @@ export default function OrcamentosTab({
                   aria-label={`Orçamento ${quoteDetails.code}`}
                 >
                   {/* HEADER ROW */}
-                  <header className="quote-print-responsive-grid print-keep-together relative grid grid-cols-1 overflow-hidden rounded-2xl bg-gradient-to-br from-[#061638] via-[#0b2a66] to-[#155eef] p-4 text-white sm:grid-cols-12 sm:gap-5 sm:p-5">
+                  <div role="banner" className="quote-proposal-header quote-print-responsive-grid print-keep-together relative grid grid-cols-1 overflow-hidden rounded-2xl bg-gradient-to-br from-[#061638] via-[#0b2a66] to-[#155eef] p-4 text-white sm:grid-cols-12 sm:gap-5 sm:p-5">
                     <div className="absolute inset-x-0 top-0 h-1 bg-[#4fa3ff]" />
                     <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-white/10" />
                     {/* Logo and company profile details */}
@@ -3258,7 +3269,7 @@ export default function OrcamentosTab({
                         </strong>
                       </div>
                     </div>
-                  </header>
+                  </div>
 
                   {/* DADOS DO CLIENTE & PROPOSTA BOXES */}
                   <div className="quote-print-responsive-grid print-keep-together grid grid-cols-1 gap-3 sm:grid-cols-12">
@@ -3273,32 +3284,60 @@ export default function OrcamentosTab({
                         </span>
                       </div>
                       <div className="grid grid-cols-3 gap-y-1.5 gap-x-1 text-[8.5px] font-medium text-zinc-650">
-                        <span className="font-semibold text-zinc-800">
-                          Cliente:
-                        </span>
+                        <span className="font-semibold text-zinc-800">Cliente:</span>
                         <span className="col-span-2 font-bold text-zinc-900">
-                          {quoteDetails.client?.name || quoteDetails.clientName}
+                          {quoteDetails.client?.fancyName || quoteDetails.client?.name || quoteDetails.clientName}
                         </span>
 
-                        <span className="font-semibold text-zinc-800">
-                          CNPJ/CPF:
-                        </span>
+                        {quoteDetails.client?.socialName &&
+                          quoteDetails.client.socialName !==
+                            (quoteDetails.client.fancyName || quoteDetails.client.name) && (
+                            <>
+                              <span className="font-semibold text-zinc-800">Razão social:</span>
+                              <span className="col-span-2 font-semibold text-zinc-800">
+                                {quoteDetails.client.socialName}
+                              </span>
+                            </>
+                          )}
+
+                        {quoteDetails.storeName && (
+                          <>
+                            <span className="font-semibold text-zinc-800">Unidade / loja:</span>
+                            <span className="col-span-2 font-semibold text-zinc-800">
+                              {quoteDetails.storeName}
+                            </span>
+                          </>
+                        )}
+
+                        <span className="font-semibold text-zinc-800">CNPJ/CPF:</span>
                         <span className="col-span-2 font-semibold">
-                          {quoteDetails.client?.cpfCnpj}
+                          {formatCpfCnpj(quoteDetails.client?.cpfCnpj)}
                         </span>
 
-                        <span className="font-semibold text-zinc-800">
-                          Endereço:
-                        </span>
+                        <span className="font-semibold text-zinc-800">Endereço:</span>
                         <span className="col-span-2 font-semibold leading-normal">
                           {clientAddressStr}
                         </span>
 
-                        <span className="font-semibold text-zinc-850">
-                          Contato:
+                        <span className="font-semibold text-zinc-800">E-mail:</span>
+                        <span className="col-span-2 break-all font-semibold">
+                          {quoteDetails.client?.email || quoteContact?.email || "Não informado"}
                         </span>
+
+                        <span className="font-semibold text-zinc-800">Telefone:</span>
                         <span className="col-span-2 font-semibold">
-                          {quoteDetails.client?.contacts?.[0]?.name || "N/A"}
+                          {quoteDetails.client?.phone
+                            ? formatPhone(quoteDetails.client.phone)
+                            : quoteContact?.phone
+                              ? formatPhone(quoteContact.phone)
+                              : "Não informado"}
+                        </span>
+
+                        <span className="font-semibold text-zinc-850">Contato:</span>
+                        <span className="col-span-2 font-semibold">
+                          {quoteContact
+                            ? `${quoteContact.name}${quoteContact.role ? ` - ${quoteContact.role}` : ""}`
+                            : "Não informado"}
                         </span>
                       </div>
                     </div>
@@ -3344,6 +3383,41 @@ export default function OrcamentosTab({
                       </div>
                     </div>
                   </div>
+
+                  {/* BLOCO DE EDITAL E LICITAÇÃO SE HOUVER */}
+                  {(quoteDetails.proposalType === "LICITACAO" ||
+                    quoteDetails.biddingNumber ||
+                    quoteDetails.procurementNumber ||
+                    quoteDetails.contractingAgency ||
+                    quoteDetails.referenceBase) && (
+                    <div className="print-keep-together space-y-2 rounded-xl border border-blue-200 bg-blue-50/50 p-3">
+                      <div className="flex items-center gap-2 border-b border-blue-100 pb-1.5">
+                        <span className="flex h-4 w-4 items-center justify-center rounded bg-blue-600 text-[7px] font-black text-white">
+                          ★
+                        </span>
+                        <span className="text-[8px] font-black uppercase tracking-[0.15em] text-blue-950">
+                          Dados do Edital e Licitação
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-y-1.5 gap-x-2 text-[8.5px] font-medium text-zinc-700 sm:grid-cols-4">
+                        {quoteDetails.biddingNumber && (
+                          <div><span className="font-semibold text-zinc-500">Modalidade/Nº:</span> <strong className="text-zinc-900">{quoteDetails.biddingNumber}</strong></div>
+                        )}
+                        {quoteDetails.procurementNumber && (
+                          <div><span className="font-semibold text-zinc-500">Processo:</span> <strong className="text-zinc-900">{quoteDetails.procurementNumber}</strong></div>
+                        )}
+                        {quoteDetails.contractingAgency && (
+                          <div><span className="font-semibold text-zinc-500">Órgão Contratante:</span> <strong className="text-zinc-900">{quoteDetails.contractingAgency}</strong></div>
+                        )}
+                        {quoteDetails.referenceBase && (
+                          <div><span className="font-semibold text-zinc-500">Base Referência:</span> <strong className="text-zinc-900">{quoteDetails.referenceBase} {quoteDetails.referenceMonth ? `(${quoteDetails.referenceMonth})` : ""}</strong></div>
+                        )}
+                        {quoteDetails.deliveryTerm && (
+                          <div><span className="font-semibold text-zinc-500">Prazo Licitação:</span> <strong className="text-zinc-900">{quoteDetails.deliveryTerm}</strong></div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* OBJETO DA PROPOSTA */}
                   <div className="print-keep-together flex items-start gap-3 rounded-xl border-l-4 border-blue-600 bg-blue-50/60 px-3 py-2.5">
@@ -3514,14 +3588,14 @@ export default function OrcamentosTab({
                     </div>
                   </div>
 
-                  <footer className="print-keep-together flex flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-center text-[7px] font-semibold text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+                  <div role="contentinfo" className="quote-proposal-footer print-keep-together flex flex-col gap-1 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-center text-[7px] font-semibold text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
                     <span>
                       {companyParams.phone} &nbsp;•&nbsp; {companyParams.email}
                     </span>
                     <span className="font-black uppercase tracking-[0.14em] text-blue-950">
                       {companyParams.tradeName || "NEXUS AR"}
                     </span>
-                  </footer>
+                  </div>
                 </article>
               ) : (
                 <div className="py-24 text-center text-zinc-400 border border-dashed border-zinc-200 rounded-xl">

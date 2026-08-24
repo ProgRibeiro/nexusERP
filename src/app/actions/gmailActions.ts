@@ -149,7 +149,7 @@ export async function sendQuoteByGmail(input: {
     const [quote, integration] = await Promise.all([
       prisma.quote.findUnique({
         where: { id: input.quoteId },
-        include: { client: { include: { addresses: true } }, contact: true, items: true },
+        include: { client: { include: { addresses: true } }, address: true, contact: true, items: true },
       }),
       prisma.emailIntegration.findUnique({ where: { provider: "GMAIL" } }),
     ]);
@@ -205,6 +205,25 @@ export async function sendQuoteByGmail(input: {
       total: Number(quote.total),
       notes: quote.notes,
       preventivePlanJson: quote.preventivePlanJson,
+      proposalType: quote.proposalType,
+      storeName: quote.storeName,
+      procurementNumber: quote.procurementNumber,
+      contractingAgency: quote.contractingAgency,
+      biddingNumber: quote.biddingNumber,
+      referenceBase: quote.referenceBase,
+      referenceMonth: quote.referenceMonth,
+      publicBudgetSource: quote.publicBudgetSource,
+      deliveryTerm: quote.deliveryTerm,
+      finalValueOverride: quote.finalValueOverride ? Number(quote.finalValueOverride) : null,
+      address: quote.address ? {
+        street: quote.address.street,
+        number: quote.address.number,
+        complement: quote.address.complement,
+        neighborhood: quote.address.neighborhood,
+        city: quote.address.city,
+        state: quote.address.state,
+        cep: quote.address.cep,
+      } : null,
       client: {
         name: quote.client.name,
         socialName: quote.client.socialName,

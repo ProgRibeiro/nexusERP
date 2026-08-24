@@ -1,0 +1,6 @@
+$ORIGIN oprestador.tech.
+$TTL 300
+
+app     IN A 46.202.146.168
+vendas  IN A 46.202.146.168
+dev     IN A 46.202.146.168

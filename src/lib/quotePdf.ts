@@ -26,6 +26,25 @@ export interface QuotePdfData {
   total: number;
   notes?: string | null;
   preventivePlanJson?: string | null;
+  proposalType?: string | null;
+  storeName?: string | null;
+  procurementNumber?: string | null;
+  contractingAgency?: string | null;
+  biddingNumber?: string | null;
+  referenceBase?: string | null;
+  referenceMonth?: string | null;
+  publicBudgetSource?: string | null;
+  deliveryTerm?: string | null;
+  finalValueOverride?: number | null;
+  address?: {
+    street: string;
+    number: string;
+    complement?: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+    cep?: string | null;
+  } | null;
   client: {
     name: string;
     socialName?: string | null;
@@ -182,7 +201,7 @@ function drawLines(page: PDFPage, lines: string[], options: { x: number; y: numb
 }
 
 function addressOf(quote: QuotePdfData) {
-  const address = quote.client.addresses?.[0];
+  const address = quote.address || quote.client.addresses?.[0];
   if (!address) return "Endereco nao informado";
   return [
     `${address.street}, ${address.number}`,
@@ -616,18 +635,20 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
     drawPreventiveExecutive({ document, quote, company, plan: preventivePlan, regular, bold });
   }
 
-  const page = document.addPage([A4_WIDTH, A4_HEIGHT]);
+  const standardPages: PDFPage[] = [];
+  let currentPage = document.addPage([A4_WIDTH, A4_HEIGHT]);
+  standardPages.push(currentPage);
 
   // Cabeçalho empresarial e identificação da proposta.
   const proposalHeaderHeight = 98;
-  page.drawRectangle({ x: MARGIN, y: y - proposalHeaderHeight, width: contentWidth, height: proposalHeaderHeight, color: NAVY });
-  page.drawRectangle({ x: MARGIN, y: y - 5, width: contentWidth, height: 5, color: BLUE });
+  currentPage.drawRectangle({ x: MARGIN, y: y - proposalHeaderHeight, width: contentWidth, height: proposalHeaderHeight, color: NAVY });
+  currentPage.drawRectangle({ x: MARGIN, y: y - 5, width: contentWidth, height: 5, color: BLUE });
   const logoCardX = MARGIN + 16;
   const logoCardY = y - 79;
   const logoCardSize = 58;
   const companyTextX = MARGIN + (logo ? 88 : 18);
   if (logo) {
-    page.drawRectangle({
+    currentPage.drawRectangle({
       x: logoCardX,
       y: logoCardY,
       width: logoCardSize,
@@ -637,7 +658,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
       borderWidth: 0.8,
     });
     const dimensions = logo.scaleToFit(46, 46);
-    page.drawImage(logo, {
+    currentPage.drawImage(logo, {
       x: logoCardX + (logoCardSize - dimensions.width) / 2,
       y: logoCardY + (logoCardSize - dimensions.height) / 2,
       width: dimensions.width,
@@ -649,7 +670,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   const companyTextWidth = proposalPanelX - companyTextX - 18;
   const brand = pdfText((company.tradeName || company.corporateName || "EMPRESA CONTRATANTE").toUpperCase());
   const brandLines = wrap(brand, bold, logo ? 11.5 : 14, companyTextWidth).slice(0, 2);
-  drawLines(page, brandLines, {
+  drawLines(currentPage, brandLines, {
     x: companyTextX,
     y: y - 25,
     font: bold,
@@ -659,7 +680,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
     maxLines: 2,
   });
   const legalNameY = y - 29 - brandLines.length * (logo ? 13 : 15);
-  drawLines(page, wrap(company.corporateName || "Serviços técnicos e manutenção empresarial", regular, 7.1, companyTextWidth), {
+  drawLines(currentPage, wrap(company.corporateName || "Serviços técnicos e manutenção empresarial", regular, 7.1, companyTextWidth), {
     x: companyTextX,
     y: legalNameY,
     font: regular,
@@ -668,7 +689,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
     lineHeight: 8.5,
     maxLines: 2,
   });
-  drawLines(page, wrap([company.cnpj && `CNPJ ${company.cnpj}`, company.phone, company.email].filter(Boolean).join("  |  "), regular, 6.4, companyTextWidth), {
+  drawLines(currentPage, wrap([company.cnpj && `CNPJ ${company.cnpj}`, company.phone, company.email].filter(Boolean).join("  |  "), regular, 6.4, companyTextWidth), {
     x: companyTextX,
     y: y - 78,
     font: regular,
@@ -677,127 +698,186 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
     lineHeight: 7.8,
     maxLines: 2,
   });
-  page.drawRectangle({ x: proposalPanelX, y: y - 78, width: proposalPanelWidth, height: 58, color: rgb(0.08, 0.18, 0.43), borderColor: rgb(0.25, 0.45, 0.86), borderWidth: 0.8 });
-  page.drawText("PROPOSTA COMERCIAL", { x: proposalPanelX + 14, y: y - 36, font: bold, size: 6.8, color: rgb(0.73, 0.83, 1) });
-  page.drawText(pdfText(quote.code), { x: proposalPanelX + 14, y: y - 54, font: bold, size: 14, color: rgb(1, 1, 1) });
-  page.drawText(pdfText(`Versao ${quote.version || 1}  |  Emissao ${date(quote.createdAt)}`), { x: proposalPanelX + 14, y: y - 69, font: regular, size: 6.2, color: rgb(0.73, 0.83, 1) });
+  currentPage.drawRectangle({ x: proposalPanelX, y: y - 78, width: proposalPanelWidth, height: 58, color: rgb(0.08, 0.18, 0.43), borderColor: rgb(0.25, 0.45, 0.86), borderWidth: 0.8 });
+  currentPage.drawText("PROPOSTA COMERCIAL", { x: proposalPanelX + 14, y: y - 36, font: bold, size: 6.8, color: rgb(0.73, 0.83, 1) });
+  currentPage.drawText(pdfText(quote.code), { x: proposalPanelX + 14, y: y - 54, font: bold, size: 14, color: rgb(1, 1, 1) });
+  currentPage.drawText(pdfText(`Versao ${quote.version || 1}  |  Emissao ${date(quote.createdAt)}`), { x: proposalPanelX + 14, y: y - 69, font: regular, size: 6.2, color: rgb(0.73, 0.83, 1) });
   y -= 116;
 
   const boxGap = 10;
   const boxWidth = (contentWidth - boxGap) / 2;
-  const detailsBoxHeight = 104;
-  page.drawRectangle({ x: MARGIN, y: y - detailsBoxHeight, width: boxWidth, height: detailsBoxHeight, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
-  page.drawRectangle({ x: MARGIN + boxWidth + boxGap, y: y - detailsBoxHeight, width: boxWidth, height: detailsBoxHeight, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
-  page.drawCircle({ x: MARGIN + 14, y: y - 15, size: 3.2, color: BLUE });
-  page.drawText("DADOS DO CLIENTE", { x: MARGIN + 23, y: y - 18, font: bold, size: 7, color: NAVY });
+  const detailsBoxHeight = 118;
+  currentPage.drawRectangle({ x: MARGIN, y: y - detailsBoxHeight, width: boxWidth, height: detailsBoxHeight, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
+  currentPage.drawRectangle({ x: MARGIN + boxWidth + boxGap, y: y - detailsBoxHeight, width: boxWidth, height: detailsBoxHeight, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
+  currentPage.drawCircle({ x: MARGIN + 14, y: y - 15, size: 3.2, color: BLUE });
+  currentPage.drawText("DADOS DO CLIENTE", { x: MARGIN + 23, y: y - 18, font: bold, size: 7, color: NAVY });
   const clientNameLines = wrap(quote.client.socialName || quote.client.name, bold, 8.5, boxWidth - 28).slice(0, 2);
-  drawLines(page, clientNameLines, { x: MARGIN + 14, y: y - 34, font: bold, size: 8.5, color: TEXT, lineHeight: 10.5, maxLines: 2 });
+  drawLines(currentPage, clientNameLines, { x: MARGIN + 14, y: y - 34, font: bold, size: 8.5, color: TEXT, lineHeight: 10.5, maxLines: 2 });
   const clientDetailsOffset = (clientNameLines.length - 1) * 10.5;
-  page.drawText(pdfText(`CPF/CNPJ: ${quote.client.cpfCnpj || "Nao informado"}`), { x: MARGIN + 14, y: y - 49 - clientDetailsOffset, font: regular, size: 7, color: MUTED });
-  drawLines(page, wrap(addressOf(quote), regular, 6.8, boxWidth - 28), { x: MARGIN + 14, y: y - 63 - clientDetailsOffset, font: regular, size: 6.8, color: MUTED, lineHeight: 8.4, maxLines: 2 });
+  currentPage.drawText(pdfText(`CPF/CNPJ: ${quote.client.cpfCnpj || "Nao informado"}`), { x: MARGIN + 14, y: y - 49 - clientDetailsOffset, font: regular, size: 7, color: MUTED });
+  drawLines(currentPage, wrap(addressOf(quote), regular, 6.8, boxWidth - 28), { x: MARGIN + 14, y: y - 63 - clientDetailsOffset, font: regular, size: 6.8, color: MUTED, lineHeight: 8.4, maxLines: 2 });
+  const clientCommunication = [quote.client.email, quote.client.phone]
+    .filter(Boolean)
+    .join("  |  ");
+  if (clientCommunication) {
+    drawLines(currentPage, wrap(clientCommunication, regular, 6.2, boxWidth - 28), {
+      x: MARGIN + 14,
+      y: y - 85 - clientDetailsOffset,
+      font: regular,
+      size: 6.2,
+      color: MUTED,
+      lineHeight: 7.5,
+      maxLines: 1,
+    });
+  }
   if (quote.contact) {
     const contactText = pdfText(`Contato: ${quote.contact.name}${quote.contact.email ? ` - ${quote.contact.email}` : ""}`);
-    drawLines(page, wrap(contactText, regular, 6.2, boxWidth - 28), { x: MARGIN + 14, y: y - 86 - clientDetailsOffset, font: regular, size: 6.2, color: MUTED, lineHeight: 7.5, maxLines: 1 });
+    drawLines(currentPage, wrap(contactText, regular, 6.2, boxWidth - 28), { x: MARGIN + 14, y: y - 99 - clientDetailsOffset, font: regular, size: 6.2, color: MUTED, lineHeight: 7.5, maxLines: 1 });
   }
 
   const rightX = MARGIN + boxWidth + boxGap;
-  page.drawCircle({ x: rightX + 14, y: y - 15, size: 3.2, color: BLUE });
-  page.drawText("DADOS DA PROPOSTA", { x: rightX + 23, y: y - 18, font: bold, size: 7.6, color: NAVY });
-  page.drawText(pdfText(`Validade: ${date(quote.validUntil)}`), { x: rightX + 14, y: y - 35, font: bold, size: 7.5, color: TEXT });
-  page.drawText(pdfText(`Pagamento: ${quote.paymentTerms || "A combinar"}`), { x: rightX + 14, y: y - 50, font: regular, size: 6.9, color: MUTED });
-  page.drawText(pdfText(`Execucao: ${quote.executionTerm || "A combinar"}`), { x: rightX + 14, y: y - 64, font: regular, size: 6.9, color: MUTED });
-  page.drawText(pdfText(`Garantia: ${quote.warrantyDays || 90} dias`), { x: rightX + 14, y: y - 78, font: regular, size: 6.9, color: MUTED });
-  y -= detailsBoxHeight + 18;
+  currentPage.drawCircle({ x: rightX + 14, y: y - 15, size: 3.2, color: BLUE });
+  currentPage.drawText("DADOS DA PROPOSTA", { x: rightX + 23, y: y - 18, font: bold, size: 7.6, color: NAVY });
+  currentPage.drawText(pdfText(`Validade: ${date(quote.validUntil)}`), { x: rightX + 14, y: y - 35, font: bold, size: 7.5, color: TEXT });
+  currentPage.drawText(pdfText(`Pagamento: ${quote.paymentTerms || "A combinar"}`), { x: rightX + 14, y: y - 50, font: regular, size: 6.9, color: MUTED });
+  currentPage.drawText(pdfText(`Execucao: ${quote.executionTerm || "A combinar"}`), { x: rightX + 14, y: y - 64, font: regular, size: 6.9, color: MUTED });
+  currentPage.drawText(pdfText(`Garantia: ${quote.warrantyDays || 90} dias`), { x: rightX + 14, y: y - 78, font: regular, size: 6.9, color: MUTED });
+  if (quote.storeName) {
+    currentPage.drawText(pdfText(`Unidade: ${quote.storeName}`), { x: rightX + 14, y: y - 92, font: regular, size: 6.8, color: BLUE });
+  }
+  y -= detailsBoxHeight + 14;
 
-  page.drawText("OBJETO DA PROPOSTA", { x: MARGIN, y, font: bold, size: 8, color: NAVY });
-  y -= 14;
-  drawLines(page, wrap(quote.notes || "Fornecimento de materiais e execucao dos servicos descritos abaixo, conforme condicoes desta proposta.", regular, 7.4, contentWidth), { x: MARGIN, y, font: regular, size: 7.4, color: MUTED, lineHeight: 9.5, maxLines: 3 });
-  y -= 32;
-
-  const tableTop = y;
-  const footerReserve = preventivePlan ? 194 : 170;
-  const availableRowsHeight = Math.max(180, tableTop - footerReserve);
-  const descriptionWidth = 260;
-  let itemFontSize = 8;
-  let itemLineHeight = 9.6;
-  let rowLayouts = quote.items.map((item) => ({ item, lines: wrap(item.description, regular, itemFontSize, descriptionWidth) }));
-  const neededHeight = () => rowLayouts.reduce((total, row) => total + Math.max(26, row.lines.length * itemLineHeight + 10), 0);
-  while (neededHeight() > availableRowsHeight && itemFontSize > 5.2) {
-    itemFontSize -= 0.35;
-    itemLineHeight = itemFontSize * 1.18;
-    rowLayouts = quote.items.map((item) => ({ item, lines: wrap(item.description, regular, itemFontSize, descriptionWidth) }));
+  // Bloco de Licitação / Processo Se Existir
+  const hasLicitation = Boolean(
+    quote.proposalType === "LICITACAO" ||
+    quote.biddingNumber ||
+    quote.procurementNumber ||
+    quote.contractingAgency ||
+    quote.referenceBase
+  );
+  if (hasLicitation) {
+    const licitationHeight = 46;
+    currentPage.drawRectangle({ x: MARGIN, y: y - licitationHeight, width: contentWidth, height: licitationHeight, color: LIGHT_BLUE, borderColor: rgb(0.68, 0.79, 0.96), borderWidth: 0.8 });
+    currentPage.drawText("DADOS DO EDITAL E PROCESSO LICITATÓRIO", { x: MARGIN + 12, y: y - 14, font: bold, size: 6.8, color: BLUE });
+    const licitationInfo = [
+      quote.biddingNumber && `Modalidade/Nº: ${quote.biddingNumber}`,
+      quote.procurementNumber && `Processo: ${quote.procurementNumber}`,
+      quote.contractingAgency && `Órgão: ${quote.contractingAgency}`,
+      quote.referenceBase && `Base: ${quote.referenceBase} ${quote.referenceMonth ? `(${quote.referenceMonth})` : ""}`,
+      quote.deliveryTerm && `Prazo Edital: ${quote.deliveryTerm}`,
+    ].filter(Boolean).join("  |  ");
+    drawLines(currentPage, wrap(licitationInfo, regular, 6.6, contentWidth - 24), { x: MARGIN + 12, y: y - 30, font: regular, size: 6.6, color: TEXT, lineHeight: 8.5, maxLines: 2 });
+    y -= licitationHeight + 12;
   }
 
-  const headerHeight = 24;
-  page.drawRectangle({ x: MARGIN, y: y - headerHeight, width: contentWidth, height: headerHeight, color: NAVY });
+  currentPage.drawText("OBJETO DA PROPOSTA", { x: MARGIN, y, font: bold, size: 8, color: NAVY });
+  y -= 14;
+  drawLines(currentPage, wrap(quote.notes || "Fornecimento de materiais e execucao dos servicos descritos abaixo, conforme condicoes desta proposta.", regular, 7.4, contentWidth), { x: MARGIN, y, font: regular, size: 7.4, color: MUTED, lineHeight: 9.5, maxLines: 3 });
+  y -= 26;
+
+  const headerHeight = 22;
   const columns = [MARGIN + 10, MARGIN + 40, MARGIN + 310, MARGIN + 360, MARGIN + 405, MARGIN + 468];
-  ["ITEM", "DESCRICAO DOS SERVICOS / MATERIAIS", "QTDE", "UNID", "VALOR UNIT.", "VALOR TOTAL"].forEach((label, index) => {
-    page.drawText(label, { x: columns[index], y: y - 15, font: bold, size: index === 1 ? 6.6 : 6.1, color: rgb(1, 1, 1) });
-  });
+  const descriptionWidth = 260;
+
+  const drawTableHeader = (p: PDFPage, topY: number) => {
+    p.drawRectangle({ x: MARGIN, y: topY - headerHeight, width: contentWidth, height: headerHeight, color: NAVY });
+    ["ITEM", "DESCRICAO DOS SERVICOS / MATERIAIS", "QTDE", "UNID", "VALOR UNIT.", "VALOR TOTAL"].forEach((label, index) => {
+      p.drawText(label, { x: columns[index], y: topY - 14, font: bold, size: index === 1 ? 6.6 : 6.1, color: rgb(1, 1, 1) });
+    });
+  };
+
+  drawTableHeader(currentPage, y);
   y -= headerHeight;
 
-  const forceCompactRows = rowLayouts.length > 0 && neededHeight() > availableRowsHeight;
-  const compactRowHeight = forceCompactRows ? availableRowsHeight / rowLayouts.length : null;
+  const fontItemSize = 7.5;
+  const fontItemLineHeight = 9.2;
 
-  rowLayouts.forEach((row, index) => {
-    const rowHeight = compactRowHeight || Math.max(26, row.lines.length * itemLineHeight + 10);
-    const effectiveFontSize = compactRowHeight
-      ? Math.max(5.2, Math.min(itemFontSize, compactRowHeight * 0.42))
-      : itemFontSize;
-    const effectiveLineHeight = Math.max(6.2, effectiveFontSize * 1.18);
-    const wrappedLines = wrap(row.item.description, regular, effectiveFontSize, descriptionWidth);
-    const maxLines = compactRowHeight
-      ? Math.max(1, Math.floor((rowHeight - 4) / effectiveLineHeight))
-      : wrappedLines.length;
-    const visibleLines = wrappedLines.slice(0, maxLines);
-    if (wrappedLines.length > visibleLines.length && visibleLines.length) {
-      const lastIndex = visibleLines.length - 1;
-      visibleLines[lastIndex] = `${visibleLines[lastIndex].slice(0, Math.max(1, visibleLines[lastIndex].length - 3))}...`;
+  quote.items.forEach((item, index) => {
+    const wrappedLines = wrap(item.description, regular, fontItemSize, descriptionWidth);
+    const rowHeight = Math.max(22, wrappedLines.length * fontItemLineHeight + 8);
+
+    // Se o item não couber na página atual, abre nova página
+    if (y - rowHeight < 75) {
+      currentPage = document.addPage([A4_WIDTH, A4_HEIGHT]);
+      standardPages.push(currentPage);
+      y = A4_HEIGHT - MARGIN;
+
+      // Cabeçalho de continuação
+      currentPage.drawRectangle({ x: MARGIN, y: y - 24, width: contentWidth, height: 24, color: LIGHT_BLUE, borderColor: BORDER, borderWidth: 0.5 });
+      currentPage.drawText(pdfText(`PROPOSTA COMERCIAL ${quote.code} - CONTINUAÇÃO`), { x: MARGIN + 12, y: y - 16, font: bold, size: 7.5, color: NAVY });
+      currentPage.drawText(pdfText(company.tradeName || company.corporateName || ""), { x: A4_WIDTH - MARGIN - 12 - regular.widthOfTextAtSize(pdfText(company.tradeName || company.corporateName || ""), 7), y: y - 16, font: regular, size: 7, color: MUTED });
+      y -= 34;
+
+      drawTableHeader(currentPage, y);
+      y -= headerHeight;
     }
-    page.drawRectangle({ x: MARGIN, y: y - rowHeight, width: contentWidth, height: rowHeight, color: index % 2 ? rgb(0.985, 0.988, 0.995) : rgb(1, 1, 1), borderColor: BORDER, borderWidth: 0.45 });
-    const textY = y - Math.max(5, Math.min(14, rowHeight * 0.62));
-    page.drawText(String(index + 1), { x: columns[0] + 4, y: textY, font: regular, size: effectiveFontSize, color: MUTED });
-    drawLines(page, visibleLines, { x: columns[1], y: textY, font: regular, size: effectiveFontSize, color: TEXT, lineHeight: effectiveLineHeight });
-    page.drawText(pdfText(row.item.quantity), { x: columns[2] + 5, y: textY, font: regular, size: effectiveFontSize, color: TEXT });
-    page.drawText(pdfText(row.item.unit), { x: columns[3] + 4, y: textY, font: regular, size: effectiveFontSize, color: TEXT });
-    page.drawText(money(row.item.unitPrice), { x: columns[4], y: textY, font: regular, size: Math.max(5.2, effectiveFontSize - 0.35), color: TEXT });
-    page.drawText(money(row.item.total), { x: columns[5], y: textY, font: bold, size: Math.max(5.2, effectiveFontSize - 0.35), color: TEXT });
+
+    currentPage.drawRectangle({
+      x: MARGIN,
+      y: y - rowHeight,
+      width: contentWidth,
+      height: rowHeight,
+      color: index % 2 ? rgb(0.985, 0.988, 0.995) : rgb(1, 1, 1),
+      borderColor: BORDER,
+      borderWidth: 0.45,
+    });
+    const textY = y - 13;
+    currentPage.drawText(String(index + 1), { x: columns[0] + 4, y: textY, font: regular, size: fontItemSize, color: MUTED });
+    drawLines(currentPage, wrappedLines, { x: columns[1], y: textY, font: regular, size: fontItemSize, color: TEXT, lineHeight: fontItemLineHeight });
+    currentPage.drawText(pdfText(item.quantity), { x: columns[2] + 5, y: textY, font: regular, size: fontItemSize, color: TEXT });
+    currentPage.drawText(pdfText(item.unit), { x: columns[3] + 4, y: textY, font: regular, size: fontItemSize, color: TEXT });
+    currentPage.drawText(money(item.unitPrice), { x: columns[4], y: textY, font: regular, size: fontItemSize - 0.3, color: TEXT });
+    currentPage.drawText(money(item.total), { x: columns[5], y: textY, font: bold, size: fontItemSize - 0.3, color: TEXT });
     y -= rowHeight;
   });
 
   y -= 12;
+
+  // Verifica se o bloco de resumo financeiro e aceite cabe na página atual
+  const summaryBlockHeight = 150;
+  if (y - summaryBlockHeight < 65) {
+    currentPage = document.addPage([A4_WIDTH, A4_HEIGHT]);
+    standardPages.push(currentPage);
+    y = A4_HEIGHT - MARGIN;
+
+    currentPage.drawRectangle({ x: MARGIN, y: y - 24, width: contentWidth, height: 24, color: LIGHT_BLUE, borderColor: BORDER, borderWidth: 0.5 });
+    currentPage.drawText(pdfText(`PROPOSTA COMERCIAL ${quote.code} - RESUMO E CONDIÇÕES`), { x: MARGIN + 12, y: y - 16, font: bold, size: 7.5, color: NAVY });
+    y -= 38;
+  }
+
   const totalBoxWidth = 210;
   const totalBoxX = A4_WIDTH - MARGIN - totalBoxWidth;
-  const totalBoxHeight = preventivePlan ? 96 : 76;
-  page.drawRectangle({ x: totalBoxX, y: y - totalBoxHeight, width: totalBoxWidth, height: totalBoxHeight, color: LIGHT_BLUE, borderColor: rgb(0.68, 0.79, 0.96), borderWidth: 0.8 });
+  const hasOverride = Boolean(quote.finalValueOverride && quote.finalValueOverride !== quote.total);
+  const totalBoxHeight = preventivePlan ? 96 : (hasOverride ? 88 : 74);
+  currentPage.drawRectangle({ x: totalBoxX, y: y - totalBoxHeight, width: totalBoxWidth, height: totalBoxHeight, color: LIGHT_BLUE, borderColor: rgb(0.68, 0.79, 0.96), borderWidth: 0.8 });
+
   const totalRows: Array<[string, string, boolean]> = [
     ["Subtotal", money(quote.subtotal), false],
     ["Desconto", `- ${money(quote.discount)}`, false],
     ...(preventivePlan ? [["Base após desconto", money(Math.max(0, quote.subtotal - quote.discount)), false] as [string, string, boolean]] : []),
     ["Impostos / acrescimos", money(quote.tax), false],
+    ...(hasOverride ? [["Valor Negociado Fechado", money(quote.finalValueOverride!), true] as [string, string, boolean]] : []),
     ["TOTAL DA PROPOSTA", money(quote.total), true],
   ];
   totalRows.forEach(([label, value, strong], index) => {
-    const lineY = y - 15 - index * (preventivePlan ? 15 : 16);
-    page.drawText(label, { x: totalBoxX + 12, y: lineY, font: strong ? bold : regular, size: strong ? 8.5 : 7.1, color: strong ? NAVY : MUTED });
+    const lineY = y - 14 - index * (preventivePlan ? 14 : 14.5);
+    currentPage.drawText(label, { x: totalBoxX + 10, y: lineY, font: strong ? bold : regular, size: strong ? 8.2 : 6.8, color: strong ? NAVY : MUTED });
     const valueFont = strong ? bold : regular;
-    const valueSize = strong ? 11 : 7.1;
-      page.drawText(value, { x: totalBoxX + totalBoxWidth - 12 - valueFont.widthOfTextAtSize(value, valueSize), y: lineY, font: valueFont, size: valueSize, color: strong ? GREEN : TEXT });
+    const valueSize = strong ? 10.5 : 6.8;
+    currentPage.drawText(value, { x: totalBoxX + totalBoxWidth - 10 - valueFont.widthOfTextAtSize(value, valueSize), y: lineY, font: valueFont, size: valueSize, color: strong ? GREEN : TEXT });
   });
-  if (preventivePlan) {
-    const taxInfo = pdfText(`Tributação estimada: ${taxLabel(preventivePlan)}`);
-    page.drawText(taxInfo, { x: totalBoxX + 12, y: y - 89, font: regular, size: 5.8, color: MUTED });
-  }
 
-  page.drawText("ACEITE DA PROPOSTA", { x: MARGIN, y: y - 14, font: bold, size: 7.6, color: NAVY });
-  page.drawText("Nome: __________________________________________", { x: MARGIN, y: y - 34, font: regular, size: 7, color: MUTED });
-  page.drawText("Data: ____/____/________    Assinatura: ____________________", { x: MARGIN, y: y - 51, font: regular, size: 7, color: MUTED });
-  y -= preventivePlan ? 112 : 92;
+  currentPage.drawText("ACEITE DA PROPOSTA", { x: MARGIN, y: y - 14, font: bold, size: 7.6, color: NAVY });
+  currentPage.drawText("Nome: __________________________________________", { x: MARGIN, y: y - 34, font: regular, size: 7, color: MUTED });
+  currentPage.drawText("Data: ____/____/________    Assinatura: ____________________", { x: MARGIN, y: y - 51, font: regular, size: 7, color: MUTED });
 
-  page.drawRectangle({ x: MARGIN, y: 28, width: contentWidth, height: 28, color: NAVY });
-  page.drawText(pdfText(company.tradeName || "NEXUS ERP"), { x: MARGIN + 12, y: 39, font: bold, size: 6.5, color: rgb(1, 1, 1) });
-  const footer = pdfText(`${quote.code} - Documento gerado pelo O Prestador`);
-  page.drawText(footer, { x: A4_WIDTH - MARGIN - 12 - regular.widthOfTextAtSize(footer, 6.2), y: 39, font: regular, size: 6.2, color: rgb(0.72, 0.82, 1) });
+  // Rodapé e Numeração de Páginas em todas as folhas da proposta padrão
+  standardPages.forEach((p, pageIdx) => {
+    p.drawRectangle({ x: MARGIN, y: 28, width: contentWidth, height: 25, color: NAVY });
+    p.drawText(pdfText(company.tradeName || "NEXUS ERP"), { x: MARGIN + 12, y: 37, font: bold, size: 6.5, color: rgb(1, 1, 1) });
+    const footerPageText = pdfText(`${quote.code} - Página ${pageIdx + 1} de ${standardPages.length}`);
+    p.drawText(footerPageText, { x: A4_WIDTH - MARGIN - 12 - regular.widthOfTextAtSize(footerPageText, 6.2), y: 37, font: regular, size: 6.2, color: rgb(0.72, 0.82, 1) });
+  });
 
   if (preventivePlan) {
     drawPreventiveTechnicalAppendix({ document, quote, company, plan: preventivePlan, regular, bold });
