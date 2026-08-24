@@ -26,6 +26,7 @@ import {
 import { getClients, getClientDetails, syncClientFromCNPJ, ClientDTO, ClientDetailsDTO } from "@/app/actions/clientActions";
 import {
   createPreventiveProposal,
+  generatePreventiveProposalPreview,
   getPreventiveProposals,
   PreventiveProposalInput,
   PreventiveProposalListItem,
@@ -132,6 +133,7 @@ export default function PreventiveProposalsTab() {
   const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [customScope, setCustomScope] = useState("");
   const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastCreated, setLastCreated] = useState<{ id: string; code: string } | null>(null);
   const [taxProfile, setTaxProfile] = useState<TaxProfile>({ regime: "SIMPLES_NACIONAL", rate: 6, label: "Simples Nacional", configured: false });
@@ -297,6 +299,43 @@ export default function PreventiveProposalsTab() {
     if (subtotal <= 0) return "Informe o valor por visita, materiais ou deslocamento.";
     if (total <= 0) return "O valor final da proposta deve ser maior que zero.";
     return null;
+  };
+
+  const validateDocument = () => {
+    if (!form.clientId) return "Selecione o cliente da proposta.";
+    if (!form.addressId) return "Selecione o endereço onde a preventiva será executada.";
+    if (form.scope.length === 0) return "Selecione ao menos uma atividade do escopo.";
+    if (form.deliverables.length === 0) return "Informe ao menos uma entrega técnica.";
+    return null;
+  };
+
+  const openPrintPreview = async () => {
+    const error = validateDocument();
+    if (error) return toast(error, "warning");
+    const previewWindow = window.open("about:blank", "_blank");
+    if (!previewWindow) {
+      toast("O navegador bloqueou a nova aba. Permita pop-ups para abrir o PDF.", "warning");
+      return;
+    }
+    previewWindow.opener = null;
+    previewWindow.document.title = "Gerando proposta preventiva...";
+    previewWindow.document.body.textContent = "Gerando o PDF completo para impressão...";
+    previewWindow.document.body.style.cssText = "font: 600 16px system-ui; padding: 40px; color: #344054;";
+    setPreviewing(true);
+    const result = await generatePreventiveProposalPreview({ ...form, tax: calculatedTax });
+    setPreviewing(false);
+    if (!result.success) {
+      previewWindow.close();
+      toast(result.error || "Não foi possível gerar a prévia para impressão.", "error");
+      return;
+    }
+    const binary = window.atob(result.pdfBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    const pdfUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    previewWindow.location.replace(pdfUrl);
+    window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 5 * 60_000);
+    toast("PDF aberto em uma nova aba. Use o botão de imprimir do visualizador.", "success");
   };
 
   const saveProposal = async () => {
@@ -517,7 +556,7 @@ export default function PreventiveProposalsTab() {
                 </div>
                 {lastCreated && <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 font-bold text-emerald-700"><CheckCircle2 size={16} /> Salva como {lastCreated.code}</div>}
                 <div className="print:hidden grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                  <Button variant="secondary" onClick={() => window.print()}><Printer size={15} /> Visualizar impressão</Button>
+                  <Button variant="secondary" onClick={() => void openPrintPreview()} loading={previewing}><Printer size={15} /> Abrir PDF / imprimir</Button>
                   <Button onClick={() => void saveProposal()} loading={saving}><FileText size={15} /> Criar proposta</Button>
                 </div>
                 {lastCreated && <Button className="print:hidden w-full" variant="success" onClick={() => openTab("orcamentos", lastCreated.code, { id: lastCreated.id })}>Abrir para enviar/aprovar <ChevronRight size={15} /></Button>}

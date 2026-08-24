@@ -8,6 +8,8 @@ import { logger } from "@/lib/logger";
 import { calculateProposalTax } from "@/lib/tax";
 import { loadTaxProfile } from "@/lib/taxProfile";
 import { getPreventiveTemplate } from "@/lib/preventiveTemplates";
+import { buildQuotePdf } from "@/lib/quotePdf";
+import { getCompanySettingsAction } from "@/app/actions/settingsActions";
 
 const preventiveDisciplineSchema = z.enum(["CLIMATIZACAO", "REFRIGERACAO", "ELETRICA", "HIDRAULICA", "CIVIL", "INCENDIO"]);
 const preventiveTemplateSchema = z.enum(["CLIMATIZACAO", "REFRIGERACAO", "ELETRICA", "HIDRAULICA", "CIVIL", "INCENDIO", "INTEGRADO", "PERSONALIZADO"]);
@@ -299,6 +301,145 @@ export async function createPreventiveProposal(rawInput: PreventiveProposalInput
       : error instanceof Error
         ? error.message
         : "Não foi possível criar a proposta preventiva.";
+    return { success: false as const, error: message };
+  }
+}
+
+export async function generatePreventiveProposalPreview(rawInput: PreventiveProposalInput) {
+  try {
+    await requirePermission("quotes.write");
+    const input = preventiveProposalSchema.parse(rawInput);
+    const client = await prisma.client.findUnique({
+      where: { id: input.clientId },
+      include: {
+        addresses: true,
+        contacts: true,
+        equipments: { where: { id: { in: input.equipmentIds } } },
+      },
+    });
+    if (!client) throw new Error("Cliente não encontrado.");
+    const address = client.addresses.find((item) => item.id === input.addressId);
+    if (!address) throw new Error("Selecione um endereço de execução válido do cliente.");
+    const contact = input.contactId ? client.contacts.find((item) => item.id === input.contactId) : null;
+    if (input.contactId && !contact) throw new Error("O contato selecionado não pertence ao cliente.");
+    if (client.equipments.length !== input.equipmentIds.length) throw new Error("Um ou mais equipamentos selecionados não pertencem ao cliente.");
+
+    const disciplineIds = Array.from(new Set(input.disciplineIds));
+    const disciplinePrices = disciplineIds.map((disciplineId) => ({
+      disciplineId,
+      pricePerVisit: input.disciplinePrices.find((line) => line.disciplineId === disciplineId)?.pricePerVisit || 0,
+    }));
+    const packagePricePerVisit = disciplinePrices.reduce((sum, line) => sum + line.pricePerVisit, 0) || input.pricePerVisit;
+    const serviceTotal = packagePricePerVisit * input.visitsPerYear;
+    const materialTotal = input.materialsPerVisit * input.visitsPerYear;
+    const travelTotal = input.travelPerVisit * input.visitsPerYear;
+    const subtotal = serviceTotal + materialTotal + travelTotal;
+    if (input.discount > subtotal) throw new Error("O desconto não pode superar o valor da proposta.");
+    const taxProfile = await loadTaxProfile();
+    const taxCalculation = calculateProposalTax(subtotal, input.discount, taxProfile.rate);
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + input.validityDays);
+
+    const equipmentSnapshots = client.equipments.map((equipment) => ({
+      id: equipment.id,
+      type: equipment.type,
+      brand: equipment.brand,
+      model: equipment.model,
+      serialNumber: equipment.serialNumber,
+      capacity: equipment.capacity,
+      tag: equipment.tag,
+      location: equipment.location,
+    }));
+    const plan = {
+      schemaVersion: 2,
+      templateId: input.templateId,
+      disciplineIds,
+      title: input.title,
+      frequency: input.frequency,
+      visitsPerYear: input.visitsPerYear,
+      durationHours: input.durationHours,
+      technicians: input.technicians,
+      slaHours: input.slaHours,
+      startDate: input.startDate,
+      scope: input.scope,
+      deliverables: input.deliverables,
+      inclusions: input.inclusions,
+      exclusions: input.exclusions,
+      equipments: equipmentSnapshots,
+      pricing: {
+        packagePricePerVisit,
+        disciplinePrices,
+        materialsPerVisit: input.materialsPerVisit,
+        travelPerVisit: input.travelPerVisit,
+        discount: input.discount,
+        tax: taxCalculation.tax,
+        taxRegime: taxProfile.regime,
+        taxRate: taxProfile.rate,
+      },
+    };
+    const serviceItems = disciplinePrices.map((line) => {
+      const template = getPreventiveTemplate(line.disciplineId);
+      return {
+        description: `Manutenção preventiva - ${template.shortName}`,
+        quantity: input.visitsPerYear,
+        unit: "VISITA",
+        unitPrice: line.pricePerVisit,
+        total: line.pricePerVisit * input.visitsPerYear,
+      };
+    });
+    const pdfItems = [
+      ...serviceItems,
+      ...(input.materialsPerVisit > 0 ? [{ description: "Materiais e insumos previstos por visita", quantity: input.visitsPerYear, unit: "VISITA", unitPrice: input.materialsPerVisit, total: materialTotal }] : []),
+      ...(input.travelPerVisit > 0 ? [{ description: "Deslocamento técnico programado", quantity: input.visitsPerYear, unit: "VISITA", unitPrice: input.travelPerVisit, total: travelTotal }] : []),
+    ];
+    const company = await getCompanySettingsAction();
+    const pdf = await buildQuotePdf({
+      code: "PREVIA-PREVENTIVA",
+      version: 1,
+      createdAt: new Date(),
+      validUntil,
+      warrantyDays: input.warrantyDays,
+      executionTerm: `Início previsto em ${input.startDate}; ${input.visitsPerYear} visita(s) por ano`,
+      paymentTerms: input.paymentTerms,
+      subtotal,
+      discount: input.discount,
+      tax: taxCalculation.tax,
+      total: taxCalculation.total,
+      notes: input.notes || "Prestação continuada de manutenção preventiva conforme plano técnico anexo.",
+      preventivePlanJson: JSON.stringify(plan),
+      client: {
+        name: client.name,
+        socialName: client.socialName,
+        cpfCnpj: client.cpfCnpj,
+        email: client.email,
+        phone: client.phone,
+        addresses: [address],
+      },
+      contact: contact ? { name: contact.name, email: contact.email, phone: contact.phone } : null,
+      items: pdfItems,
+    }, {
+      corporateName: company.corporateName,
+      tradeName: company.tradeName,
+      cnpj: company.cnpj,
+      stateRegistration: company.stateRegistration,
+      municipalRegistration: company.municipalRegistration,
+      email: company.email,
+      phone: company.phone,
+      address: [company.address, company.number, company.neighborhood, company.city, company.state].filter(Boolean).join(" - "),
+      logoUrl: company.logoUrl,
+    });
+    return {
+      success: true as const,
+      fileName: "Previa-Proposta-Preventiva.pdf",
+      pdfBase64: Buffer.from(pdf).toString("base64"),
+    };
+  } catch (error) {
+    logger.error("Erro ao gerar prévia da proposta preventiva:", error);
+    const message = error instanceof z.ZodError
+      ? error.issues[0]?.message
+      : error instanceof Error
+        ? error.message
+        : "Não foi possível gerar a prévia para impressão.";
     return { success: false as const, error: message };
   }
 }
