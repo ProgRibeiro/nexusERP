@@ -3622,7 +3622,7 @@ export default function OrcamentosTab({
                       {companyParams.phone} &nbsp;•&nbsp; {companyParams.email}
                     </span>
                     <span className="font-black uppercase tracking-[0.14em] text-blue-950">
-                      {companyParams.tradeName || "NEXUS AR"}
+                      {companyParams.tradeName || "O PRESTADOR"}
                     </span>
                   </div>
                 </article>

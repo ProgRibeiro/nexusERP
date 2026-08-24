@@ -874,7 +874,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   // Rodapé e Numeração de Páginas em todas as folhas da proposta padrão
   standardPages.forEach((p, pageIdx) => {
     p.drawRectangle({ x: MARGIN, y: 28, width: contentWidth, height: 25, color: NAVY });
-    p.drawText(pdfText(company.tradeName || "NEXUS ERP"), { x: MARGIN + 12, y: 37, font: bold, size: 6.5, color: rgb(1, 1, 1) });
+    p.drawText(pdfText(company.tradeName || "O PRESTADOR"), { x: MARGIN + 12, y: 37, font: bold, size: 6.5, color: rgb(1, 1, 1) });
     const footerPageText = pdfText(`${quote.code} - Página ${pageIdx + 1} de ${standardPages.length}`);
     p.drawText(footerPageText, { x: A4_WIDTH - MARGIN - 12 - regular.widthOfTextAtSize(footerPageText, 6.2), y: 37, font: regular, size: 6.2, color: rgb(0.72, 0.82, 1) });
   });
