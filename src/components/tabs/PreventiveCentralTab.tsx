@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  BarChart3,
   Box,
   Building2,
   CalendarClock,
@@ -13,6 +14,7 @@ import {
   Download,
   FileText,
   FileImage,
+  Filter,
   ExternalLink,
   LampCeiling,
   LayoutDashboard,
@@ -64,6 +66,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { PreventiveStoreOverview } from "@/components/preventive/PreventiveStoreOverview";
 
 const categoryOptions = [
   { value: "ELETRICA", label: "Elétrica / quadros e circuitos" },
@@ -351,6 +354,9 @@ const assetTypeLabel = (category: string, assetType?: string | null) =>
   || assetType?.replaceAll("_", " ").toLowerCase()
   || "Item técnico";
 
+const isResolvedPreventiveOrder = (status?: string) =>
+  ["CONCLUIDA", "CONCLUIDO", "RELATORIO_ENVIADO", "FATURADA", "CANCELADA"].includes(status || "");
+
 export default function PreventiveCentralTab() {
   const { toast } = useToast();
   const { openTab } = useWorkspace();
@@ -362,8 +368,14 @@ export default function PreventiveCentralTab() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [query, setQuery] = useState("");
   const [contractedOnly, setContractedOnly] = useState(false);
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [healthFilter, setHealthFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
   const [assetDisciplineFilter, setAssetDisciplineFilter] = useState("");
-  const [workspaceView, setWorkspaceView] = useState<"pendencias" | "map" | "assets" | "history" | "reports">("pendencias");
+  const [workspaceView, setWorkspaceView] = useState<"overview" | "pendencias" | "map" | "assets" | "history" | "reports">("overview");
   const [loading, setLoading] = useState(true);
   const [storeLoading, setStoreLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -425,12 +437,40 @@ export default function PreventiveCentralTab() {
     const normalized = query.trim().toLowerCase();
     return stores.filter((item) => {
       if (contractedOnly && !item.hasAssignedStore) return false;
+      if (companyFilter && item.clientId !== companyFilter) return false;
+      if (categoryFilter && !item.categories?.includes(categoryFilter)) return false;
+      if (priorityFilter && !item.priorities?.includes(priorityFilter)) return false;
+      if ((periodStart || periodEnd) && !(item.activityDates || []).some((value: Date | string) => {
+        const date = new Date(value);
+        const start = periodStart ? new Date(`${periodStart}T00:00:00`) : null;
+        const end = periodEnd ? new Date(`${periodEnd}T23:59:59`) : null;
+        return (!start || date >= start) && (!end || date <= end);
+      })) return false;
+      if (healthFilter === "EM_DIA" && (item.healthScore === null || item.healthScore < 80)) return false;
+      if (healthFilter === "ATENCAO" && (item.healthScore === null || item.healthScore < 70 || item.healthScore >= 80)) return false;
+      if (healthFilter === "CRITICO" && (item.healthScore === null || item.healthScore >= 70)) return false;
       if (!normalized) return true;
       return [item.name, item.fancyName, item.socialName, item.cpfCnpj]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalized));
     });
-  }, [stores, query, contractedOnly]);
+  }, [stores, query, contractedOnly, companyFilter, categoryFilter, priorityFilter, healthFilter, periodStart, periodEnd]);
+
+  const companyOptions = useMemo(() => {
+    const unique = new globalThis.Map<string, string>();
+    stores.forEach((item) => unique.set(item.clientId, item.name));
+    return Array.from(unique, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  }, [stores]);
+
+  const overviewMetrics = useMemo(() => {
+    const totalAssets = filteredStores.reduce((sum, item) => sum + (item.assetCount || 0), 0);
+    const criticalAssets = filteredStores.reduce((sum, item) => sum + (item.criticalAssetCount || 0), 0);
+    const attentionAssets = filteredStores.reduce((sum, item) => sum + (item.attentionAssetCount || 0), 0);
+    const evaluated = filteredStores.filter((item) => item.healthScore !== null);
+    const average = evaluated.length ? evaluated.reduce((sum, item) => sum + item.healthScore, 0) / evaluated.length : null;
+    const healthyAssets = Math.max(0, totalAssets - criticalAssets - attentionAssets);
+    return { totalAssets, criticalAssets, attentionAssets, healthyAssets, evaluated: evaluated.length, average, openOrders: filteredStores.reduce((sum, item) => sum + (item.openOrderCount || 0), 0) };
+  }, [filteredStores]);
 
   const project = store?.storeProjects.find((item: any) => item.id === selectedProjectId) || null;
   const assets = project?.assets || [];
@@ -829,7 +869,43 @@ export default function PreventiveCentralTab() {
   }
 
   return (
-    <div className="grid min-h-[calc(100vh-168px)] overflow-hidden rounded-[22px] border border-zinc-200 bg-white shadow-[0_2px_12px_rgba(15,23,42,0.08)] dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[320px_minmax(0,1fr)]">
+    <div className="space-y-4">
+      <section className="space-y-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-[#101828] dark:text-white">Preventiva das Lojas</h1>
+            <p className="mt-1 text-xs text-[#667085]">Controle de patrimônios, equipamentos e manutenções preventivas por unidade.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => setWorkspaceView("reports")}><BarChart3 size={14} /> Relatórios</Button>
+            <Button variant="secondary" disabled={!selectedStoreId} onClick={() => window.open(`/relatorios/loja/${selectedStoreId}`, "_blank", "noopener,noreferrer")}><Download size={14} /> Exportar</Button>
+            <Button variant="secondary" onClick={openNewStore}><Plus size={14} /> Nova Loja</Button>
+            <Button onClick={() => openTab("ordens-servico", "Nova Preventiva", { new: "true", requestId: String(Date.now()), clientId: store?.id || "", contractId: selectedStoreId, type: "PREVENTIVA" })}><Plus size={14} /> Nova Preventiva</Button>
+          </div>
+        </div>
+
+        <div className="grid gap-2 rounded-xl border border-[#E4E7EC] bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:grid-cols-2 xl:grid-cols-[1.2fr_1.2fr_1fr_1fr_1fr_1.3fr_auto]">
+          <label className="block"><span className="mb-1 block text-[9px] font-black text-[#667085]">Empresa / CNPJ</span><select value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)} className="h-9 w-full rounded-lg border border-[#E4E7EC] bg-white px-2 text-[10px] font-bold text-[#344054] outline-none focus:border-[#155EEF] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"><option value="">Todas</option>{companyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label className="block"><span className="mb-1 block text-[9px] font-black text-[#667085]">Loja / Unidade</span><select value={selectedStoreId} onChange={(event) => void loadStore(event.target.value)} className="h-9 w-full rounded-lg border border-[#E4E7EC] bg-white px-2 text-[10px] font-bold text-[#344054] outline-none focus:border-[#155EEF] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">{filteredStores.map((item) => <option key={item.id} value={item.id}>{item.storeLabel || item.fancyName || item.name}</option>)}</select></label>
+          <label className="block"><span className="mb-1 block text-[9px] font-black text-[#667085]">Categoria</span><select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="h-9 w-full rounded-lg border border-[#E4E7EC] bg-white px-2 text-[10px] font-bold text-[#344054] outline-none focus:border-[#155EEF] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"><option value="">Todas</option>{categoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label.split(" / ")[0]}</option>)}</select></label>
+          <label className="block"><span className="mb-1 block text-[9px] font-black text-[#667085]">Status</span><select value={healthFilter} onChange={(event) => setHealthFilter(event.target.value)} className="h-9 w-full rounded-lg border border-[#E4E7EC] bg-white px-2 text-[10px] font-bold text-[#344054] outline-none focus:border-[#155EEF] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"><option value="">Todos</option><option value="EM_DIA">Em dia</option><option value="ATENCAO">Atenção</option><option value="CRITICO">Crítico</option></select></label>
+          <label className="block"><span className="mb-1 block text-[9px] font-black text-[#667085]">Prioridade</span><select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="h-9 w-full rounded-lg border border-[#E4E7EC] bg-white px-2 text-[10px] font-bold text-[#344054] outline-none focus:border-[#155EEF] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"><option value="">Todas</option><option value="BAIXA">Baixa</option><option value="MEDIA">Média</option><option value="ALTA">Alta</option><option value="URGENTE">Crítica</option></select></label>
+          <div><span className="mb-1 block text-[9px] font-black text-[#667085]">Período</span><div className="flex gap-1"><input aria-label="Data inicial" type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} className="h-9 min-w-0 flex-1 rounded-lg border border-[#E4E7EC] px-1 text-[9px] dark:border-zinc-700 dark:bg-zinc-800" /><input aria-label="Data final" type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} className="h-9 min-w-0 flex-1 rounded-lg border border-[#E4E7EC] px-1 text-[9px] dark:border-zinc-700 dark:bg-zinc-800" /></div></div>
+          <div className="flex items-end gap-1"><Button size="sm" variant="secondary"><Filter size={13} /> Filtros</Button><button type="button" onClick={() => { setCompanyFilter(""); setCategoryFilter(""); setHealthFilter(""); setPriorityFilter(""); setPeriodStart(""); setPeriodEnd(""); setContractedOnly(false); }} className="h-9 px-2 text-[9px] font-black text-[#667085] hover:text-[#155EEF]">Limpar</button></div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {[
+            { label: "Pontuação Geral das Lojas", value: overviewMetrics.average === null ? "—" : overviewMetrics.average.toFixed(1).replace(".", ","), detail: overviewMetrics.average === null ? "Sem avaliações" : "/ 100 · situação atual", color: "text-[#155EEF]" },
+            { label: "Lojas Avaliadas", value: overviewMetrics.evaluated, detail: `de ${filteredStores.length} lojas`, color: "text-[#101828]" },
+            { label: "Equipamentos Cadastrados", value: overviewMetrics.totalAssets.toLocaleString("pt-BR"), detail: "ativos mapeados", color: "text-[#101828]" },
+            { label: "Preventivas em Dia", value: overviewMetrics.totalAssets ? `${Math.round((overviewMetrics.healthyAssets / overviewMetrics.totalAssets) * 100)}%` : "—", detail: `${overviewMetrics.healthyAssets.toLocaleString("pt-BR")} de ${overviewMetrics.totalAssets.toLocaleString("pt-BR")}`, color: "text-emerald-600" },
+            { label: "Pendências", value: overviewMetrics.openOrders, detail: `${overviewMetrics.criticalAssets} itens críticos`, color: overviewMetrics.criticalAssets ? "text-red-600" : "text-amber-600" },
+          ].map((metric) => <div key={metric.label} className="rounded-xl border border-[#E4E7EC] bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"><span className="text-[9px] font-black text-[#667085]">{metric.label}</span><strong className={`mt-2 block text-2xl font-black ${metric.color}`}>{metric.value}</strong><span className="mt-1 block text-[9px] text-[#667085]">{metric.detail}</span></div>)}
+        </div>
+      </section>
+
+      <div className="grid min-h-[calc(100vh-168px)] overflow-hidden rounded-xl border border-[#E4E7EC] bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[270px_minmax(0,1fr)]">
       <aside className="border-b border-zinc-200 bg-zinc-50/80 dark:border-zinc-800 dark:bg-zinc-950/50 lg:border-b-0 lg:border-r">
         <div className="border-b border-zinc-200 p-5 dark:border-zinc-800">
           <div className="flex items-start justify-between gap-3">
@@ -856,13 +932,13 @@ export default function PreventiveCentralTab() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-zinc-900 dark:text-zinc-100">{item.storeLabel || item.fancyName || item.name}</p>
-                  <p className="mt-1 truncate text-xs text-zinc-500">{item.contracts[0].code} · {item.name}</p>
+                  <p className="mt-1 truncate text-[10px] text-zinc-500">{item.cpfCnpj || "CNPJ não informado"}</p>
                 </div>
-                {item.hasAssignedStore ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" /> : <AlertTriangle size={15} className="shrink-0 text-amber-500" />}
+                <span className={`shrink-0 rounded-md px-2 py-1 text-[9px] font-black ${item.healthScore === null ? "bg-zinc-100 text-zinc-500" : item.healthScore >= 80 ? "bg-emerald-50 text-emerald-700" : item.healthScore >= 70 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{item.healthScore === null ? "—" : item.healthScore.toFixed(1).replace(".", ",")}</span>
               </div>
               <div className="mt-3 flex gap-4 text-[9px] font-black uppercase tracking-wide text-zinc-400">
-                <span>{item.isProvisional ? "Loja provisória" : item.hasAssignedStore ? "Loja definida" : "Definir loja"}</span>
-                <span>{item._count.storeProjects} ambiente(s)</span>
+                <span>{item.isProvisional ? "Provisória" : item.hasAssignedStore ? "Ativa" : "Definir loja"}</span>
+                <span>{item.assetCount || 0} equipamento(s)</span>
               </div>
             </button>
           ))}
@@ -877,7 +953,7 @@ export default function PreventiveCentralTab() {
           <div className="flex min-h-[600px] flex-col items-center justify-center text-center"><Building2 size={36} className="text-zinc-300" /><p className="mt-3 text-sm font-bold text-zinc-600">Selecione uma loja para abrir a central.</p></div>
         ) : (
           <>
-            <header className="relative min-h-[250px] overflow-hidden bg-gradient-to-r from-[#07112d] via-[#0c1d4d] to-[#17356f] p-6 text-white sm:p-8">
+            {workspaceView !== "overview" && <header className="relative min-h-[250px] overflow-hidden bg-gradient-to-r from-[#07112d] via-[#0c1d4d] to-[#17356f] p-6 text-white sm:p-8">
               <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
               <div className="relative flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
                 <div>
@@ -916,7 +992,7 @@ export default function PreventiveCentralTab() {
                   <div className="flex h-24 min-w-24 flex-col items-center justify-center rounded-2xl border border-white/15 bg-white/[0.08] text-center"><p className="text-2xl font-black">{store.storeProjects.reduce((sum: number, item: any) => sum + item.assets.length, 0)}</p><p className="mt-1 text-[9px] font-black uppercase tracking-wide text-slate-400">Ativos</p></div>
                 </div>
               </div>
-            </header>
+            </header>}
 
             {!store.selectedContract?.addressId && (
               <div className="border-b border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/20 sm:px-6">
@@ -945,6 +1021,7 @@ export default function PreventiveCentralTab() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex gap-2 overflow-x-auto">
                   {[
+                    { id: "overview", label: "Resumo da Loja", icon: LayoutDashboard },
                     { id: "pendencias", label: "Pendências & Chamados", icon: AlertTriangle },
                     { id: "assets", label: "Patrimônio", icon: Package },
                     { id: "history", label: "Preventivas & Relatórios", icon: CalendarClock },
@@ -969,7 +1046,22 @@ export default function PreventiveCentralTab() {
             </div>
 
             <div className="flex-1 p-5 sm:p-7">
-              {!project ? (
+              {workspaceView === "overview" ? (
+                <PreventiveStoreOverview
+                  store={store}
+                  onNewAsset={() => {
+                    if (!selectedProjectId) {
+                      toast("Crie ou selecione um ambiente antes de cadastrar o equipamento.", "warning");
+                      setProjectModal(true);
+                      return;
+                    }
+                    openAssetCreation();
+                  }}
+                  onViewAsset={setAssetDetail}
+                  onNewOccurrence={openTicketCreation}
+                  onOpenOrder={(order) => openTab("ordens-servico", order.code, { id: order.id, section: isResolvedPreventiveOrder(order.status) ? "relatorio" : undefined })}
+                />
+              ) : !project ? (
                 <div className="flex min-h-[480px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-6 text-center dark:border-zinc-700">
                   <LayoutDashboard size={44} className="text-blue-300" />
                   <h3 className="mt-5 text-lg font-black text-zinc-900 dark:text-white">Crie o primeiro ambiente desta loja</h3>
@@ -1167,6 +1259,7 @@ export default function PreventiveCentralTab() {
           </>
         )}
       </main>
+      </div>
 
       <Modal isOpen={profileModal} onClose={() => setProfileModal(false)} title="Cadastro e responsável da loja">
         <form onSubmit={handleSaveProfile} className="space-y-5">

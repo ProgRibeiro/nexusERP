@@ -51,6 +51,16 @@ export async function getPreventiveStores() {
         },
       },
       address: true,
+      storeProjects: {
+        select: {
+          assets: {
+            select: { quantity: true, status: true, criticality: true, category: true, parentAssetId: true },
+          },
+        },
+      },
+      serviceOrders: {
+        select: { status: true, priority: true, type: true, createdAt: true, scheduledDate: true },
+      },
       _count: {
         select: {
           storeProjects: true,
@@ -61,7 +71,21 @@ export async function getPreventiveStores() {
     orderBy: [{ client: { name: "asc" } }, { code: "asc" }],
   });
 
-  return contracts.map((contract) => ({
+  return contracts.map((contract) => {
+    const assets = contract.storeProjects.flatMap((project) => project.assets).filter((asset) => !asset.parentAssetId);
+    const assetCount = assets.reduce((sum, asset) => sum + Math.max(1, asset.quantity), 0);
+    const criticalAssetCount = assets
+      .filter((asset) => ["CRITICA", "CRITICO", "VENCIDO", "INATIVO"].includes(asset.criticality) || ["CRITICO", "VENCIDO", "INATIVO"].includes(asset.status))
+      .reduce((sum, asset) => sum + Math.max(1, asset.quantity), 0);
+    const attentionAssetCount = assets
+      .filter((asset) => !(["CRITICA", "CRITICO", "VENCIDO", "INATIVO"].includes(asset.criticality) || ["CRITICO", "VENCIDO", "INATIVO"].includes(asset.status)))
+      .filter((asset) => ["ALTA", "ATENCAO", "MANUTENCAO"].includes(asset.criticality) || ["ATENCAO", "MANUTENCAO"].includes(asset.status))
+      .reduce((sum, asset) => sum + Math.max(1, asset.quantity), 0);
+    const openOrders = contract.serviceOrders.filter((order) => !["CONCLUIDA", "CONCLUIDO", "RELATORIO_ENVIADO", "FATURADA", "CANCELADA"].includes(order.status));
+    const healthScore = assetCount
+      ? Math.max(0, Math.min(100, Math.round((100 - (criticalAssetCount / assetCount) * 60 - (attentionAssetCount / assetCount) * 25 - Math.min(openOrders.length * 2, 20)) * 10) / 10))
+      : null;
+    return ({
     id: contract.id,
     clientId: contract.clientId,
     name: contract.client.name,
@@ -83,12 +107,22 @@ export async function getPreventiveStores() {
     hasActiveContract: contract.status === "ATIVO",
     isProvisional: contract.status === "PROVISORIO",
     hasAssignedStore: Boolean(contract.addressId),
+    assetCount,
+    criticalAssetCount,
+    attentionAssetCount,
+    openOrderCount: openOrders.length,
+    preventiveCount: contract.serviceOrders.filter((order) => order.type === "PREVENTIVA").length,
+    categories: Array.from(new Set(assets.map((asset) => asset.category))),
+    priorities: Array.from(new Set(openOrders.map((order) => order.priority))),
+    activityDates: contract.serviceOrders.map((order) => order.scheduledDate || order.createdAt),
+    healthScore,
     _count: {
       equipments: contract.client._count.equipments,
       storeProjects: contract._count.storeProjects,
       serviceOrders: contract._count.serviceOrders,
     },
-  }));
+    });
+  });
 }
 
 export async function getPreventiveStore(contractId: string) {

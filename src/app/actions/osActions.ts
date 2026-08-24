@@ -22,6 +22,28 @@ export interface OSPartsInput {
   acquisitionType?: string; // ESTOQUE or COMPRA_FUTURA
 }
 
+export interface ServiceOrderValueItemInput {
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+}
+
+function normalizeServiceOrderValueItems(items?: ServiceOrderValueItemInput[]) {
+  if (!items?.length) return [];
+  if (items.length > 100) throw new Error("A OS pode possuir no máximo 100 itens.");
+  return items.map((item, index) => {
+    const description = item.description?.trim();
+    const quantity = Number(item.quantity);
+    const unitPrice = Number(item.unitPrice);
+    const unit = item.unit?.trim().toUpperCase().slice(0, 12) || "UN";
+    if (!description) throw new Error(`Descreva o item ${index + 1}.`);
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error(`Informe uma quantidade válida no item ${index + 1}.`);
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error(`Informe um valor válido no item ${index + 1}.`);
+    return { description, quantity, unit, unitPrice, total: quantity * unitPrice };
+  });
+}
+
 const OS_STATUS_ALIASES: Record<string, string> = {
   ABERTO: "CRIADA",
   AGENDADO: "AGENDADA",
@@ -71,8 +93,10 @@ export async function createManualServiceOrder(data: {
   serviceCategory?: string;
   priority: string;
   problemReported: string;
+  purchaseOrder?: string;
   notes?: string;
   referenceMonth?: string;
+  items?: ServiceOrderValueItemInput[];
 }) {
   try {
     const session = await requirePermission("os.write");
@@ -90,6 +114,7 @@ export async function createManualServiceOrder(data: {
       : data.type === "PREVENTIVA"
         ? "CLIMATIZACAO"
         : inferServiceModality(data.problemReported);
+    const valueItems = normalizeServiceOrderValueItems(data.items);
 
     const client = await prisma.client.findUnique({
       where: { id: data.clientId },
@@ -148,10 +173,12 @@ export async function createManualServiceOrder(data: {
           priority: data.priority,
           status: "AGUARDANDO_AGENDAMENTO",
           problemReported: data.problemReported.trim(),
+          purchaseOrder: data.purchaseOrder?.trim() || null,
           checklistJson: JSON.stringify(getServiceChecklistTemplate(serviceCategory)),
           notes: data.notes?.trim() || null,
           operationKind: data.contractId ? (data.type === "PREVENTIVA" ? "VISITA_PREVENTIVA" : "CHAMADO_CONTRATO") : "AVULSA",
           referenceMonth: data.contractId ? (data.referenceMonth || new Date().toISOString().slice(0, 7)) : null,
+          items: valueItems.length ? { create: valueItems } : undefined,
         },
       });
       await tx.serviceOrderStatusHistory.create({
@@ -175,7 +202,7 @@ export async function createManualServiceOrder(data: {
           action: "CRIACAO",
           entity: "OrdemServico",
           entityId: created.id,
-          changesJson: JSON.stringify({ code: created.code, origin: "MANUAL", clientId: data.clientId }),
+          changesJson: JSON.stringify({ code: created.code, origin: "MANUAL", clientId: data.clientId, totalValue: valueItems.reduce((sum, item) => sum + item.total, 0), itemCount: valueItems.length }),
         },
       });
       return created;
@@ -206,14 +233,25 @@ export async function createQuickCompletedServiceOrder(data: {
   value: number;
   purchaseOrder?: string;
   notes?: string;
+  items?: ServiceOrderValueItemInput[];
 }) {
   try {
     const session = await requirePermission("os.write");
     if (!data.clientId) throw new Error("Selecione o cliente.");
     if (!data.serviceDescription?.trim()) throw new Error("Descreva o serviço executado.");
     if (!data.technicalDiagnosis?.trim()) throw new Error("Informe o diagnóstico ou resultado do atendimento.");
-    const value = Number(data.value);
-    if (!Number.isFinite(value) || value < 0) throw new Error("Informe um valor válido para o atendimento.");
+    const valueItems = normalizeServiceOrderValueItems(data.items);
+    const informedValue = Number(data.value);
+    if (!Number.isFinite(informedValue) || informedValue < 0) throw new Error("Informe um valor válido para o atendimento.");
+    const fallbackValue = valueItems.length ? 0 : informedValue;
+    const normalizedItems = valueItems.length ? valueItems : [{
+      description: data.serviceDescription.trim(),
+      quantity: 1,
+      unit: "SERVIÇO",
+      unitPrice: fallbackValue,
+      total: fallbackValue,
+    }];
+    const value = normalizedItems.reduce((sum, item) => sum + item.total, 0);
 
     const validTypes = ["INSTALACAO", "PREVENTIVA", "CORRETIVA", "VISITA_TECNICA", "GARANTIA", "RETORNO", "EMERGENCIA", "LAUDO_TECNICO"];
     const validCategories = new Set(SERVICE_MODALITIES.map((item) => item.value));
@@ -254,15 +292,7 @@ export async function createQuickCompletedServiceOrder(data: {
           purchaseOrder: data.purchaseOrder?.trim() || null,
           notes: data.notes?.trim() || null,
           completedAt: now,
-          items: {
-            create: {
-              description: data.serviceDescription.trim(),
-              quantity: 1,
-              unit: "SERVIÇO",
-              unitPrice: value,
-              total: value,
-            },
-          },
+          items: { create: normalizedItems },
           completionReport: {
             create: {
               executedServices: data.serviceDescription.trim(),
@@ -295,7 +325,7 @@ export async function createQuickCompletedServiceOrder(data: {
           action: "CRIACAO",
           entity: "OrdemServico",
           entityId: created.id,
-          changesJson: JSON.stringify({ code: created.code, origin: "ATENDIMENTO_RAPIDO", value, clientId: data.clientId }),
+          changesJson: JSON.stringify({ code: created.code, origin: "ATENDIMENTO_RAPIDO", value, itemCount: normalizedItems.length, clientId: data.clientId }),
         },
       });
       return created;

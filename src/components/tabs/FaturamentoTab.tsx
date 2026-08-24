@@ -15,6 +15,11 @@ import {
   updateBillingMirror,
   updateInvoiceProntuario,
 } from "@/app/actions/billingActions";
+import {
+  importIssuedInvoicesAction,
+  previewIssuedInvoicesFileAction,
+} from "@/app/actions/invoiceImportActions";
+import type { IssuedInvoiceImportPreview } from "@/app/actions/invoiceImportActions";
 import { ClientDTO, getClients } from "@/app/actions/clientActions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { buildBillingDescription } from "@/lib/billingDescription";
@@ -122,6 +127,11 @@ export default function FaturamentoTab() {
   const [directXmlDataUrl, setDirectXmlDataUrl] = useState<string>();
   const [directPdfName, setDirectPdfName] = useState("");
   const [directXmlName, setDirectXmlName] = useState("");
+
+  // Importação de notas já emitidas em outro sistema / planilha de controle
+  const [isInvoiceImportOpen, setIsInvoiceImportOpen] = useState(false);
+  const [invoiceImportBusy, setInvoiceImportBusy] = useState(false);
+  const [invoiceImportPreview, setInvoiceImportPreview] = useState<IssuedInvoiceImportPreview | null>(null);
 
   // Estados de Prontuário / Edição de Nota Emitida & Baixa de Pagamento
   const [prontuarioInvoice, setProntuarioInvoice] = useState<InvoiceRecord | null>(null);
@@ -665,6 +675,80 @@ export default function FaturamentoTab() {
     }
   };
 
+  const openInvoiceImport = () => {
+    setInvoiceImportPreview(null);
+    setIsInvoiceImportOpen(true);
+  };
+
+  const previewInvoiceImport = async (file?: File) => {
+    if (!file) return;
+    setInvoiceImportBusy(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const result = await previewIssuedInvoicesFileAction(formData);
+      if (!result.success || !result.preview) {
+        toast(result.error || "Não foi possível analisar a planilha.", "error");
+        return;
+      }
+      setInvoiceImportPreview(result.preview);
+      if (!result.preview.ready) {
+        toast("Nenhuma nota está pronta. Confira os erros mostrados na prévia.", "warning");
+      }
+    } finally {
+      setInvoiceImportBusy(false);
+    }
+  };
+
+  const confirmInvoiceImport = async () => {
+    if (!invoiceImportPreview?.ready) return;
+    setInvoiceImportBusy(true);
+    try {
+      const rowsToImport = invoiceImportPreview.rows.filter((row) => row.state === "PRONTA");
+      const result = await importIssuedInvoicesAction(invoiceImportPreview.fileName, rowsToImport);
+      if (!result.success) {
+        toast(result.error || "Não foi possível importar as notas.", "error");
+        return;
+      }
+      const details = result.summary.skipped || result.summary.errors
+        ? ` ${result.summary.skipped} ignorada(s) e ${result.summary.errors} com erro.`
+        : "";
+      toast(`${result.summary.created} nota(s) importada(s) com sucesso.${details}`, result.summary.created ? "success" : "warning");
+      setIsInvoiceImportOpen(false);
+      setInvoiceImportPreview(null);
+      setActiveTab("history");
+      await loadData();
+    } finally {
+      setInvoiceImportBusy(false);
+    }
+  };
+
+  const downloadInvoiceImportTemplate = () => {
+    const headers = [
+      "numero_nota",
+      "cnpj_cpf",
+      "cliente",
+      "data_emissao",
+      "valor_total",
+      "valor_imposto",
+      "status_nota",
+      "data_vencimento",
+      "status_pagamento",
+      "data_pagamento",
+      "forma_pagamento",
+      "ordem_servico",
+      "observacoes",
+    ];
+    const example = ["NF-0001", "00000000000000", "Cliente Exemplo", "24/08/2026", "1500,00", "0,00", "EMITIDA", "23/09/2026", "ABERTO", "", "PIX", "", "Serviço já faturado"];
+    const blob = new Blob([`\uFEFF${headers.join(";")}\n${example.join(";")}\n`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "modelo-importacao-notas.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading && !rows.length && !invoices.length)
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
@@ -684,13 +768,18 @@ export default function FaturamentoTab() {
               </div>
               <h2 className="mt-2 text-2xl font-black text-zinc-950 dark:text-white">Prontuário de Faturamento & Baixa de Notas</h2>
               <p className="mt-1 max-w-3xl text-sm text-zinc-400">
-                Fature OS concluídas ou registre **Faturamento Avulso (sem OS)** para terceirização e vendas. Gerencie prontuários, altere vencimentos e dê baixa de pagamento.
+                Fature OS concluídas ou registre faturamento avulso para terceirização e vendas. Gerencie prontuários, vencimentos e baixas de pagamento.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               {hasPermission("faturamento.write") && (
                 <Button variant="success" onClick={openDirectBilling}>
                   <PlusCircle size={15} /> Faturamento Avulso (sem OS)
+                </Button>
+              )}
+              {hasPermission("faturamento.write") && (
+                <Button variant="secondary" onClick={openInvoiceImport}>
+                  <Upload size={15} /> Importar notas da planilha
                 </Button>
               )}
               <Button variant="secondary" onClick={() => void loadData()}>
@@ -1207,6 +1296,101 @@ export default function FaturamentoTab() {
           )}
         </Card>
       )}
+
+      {/* Importação de notas que já foram emitidas fora do ERP */}
+      <Modal
+        isOpen={isInvoiceImportOpen}
+        onClose={() => !invoiceImportBusy && setIsInvoiceImportOpen(false)}
+        title="Importar notas já emitidas"
+        size="xl"
+      >
+        <div className="space-y-5">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+            <strong>Esta opção não emite nota fiscal.</strong>
+            <p className="mt-1">
+              Ela traz para o ERP as notas que você já emitiu e controla em planilha, criando também o contas a receber e a baixa quando a linha estiver marcada como paga.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <label className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 p-5 transition hover:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800">
+              {invoiceImportBusy ? <Loader2 className="animate-spin text-blue-600" size={22} /> : <FileSpreadsheet className="text-blue-600" size={22} />}
+              <span>
+                <span className="block text-xs font-black">Selecionar CSV, TSV ou XLSX</span>
+                <span className="block text-[10px] text-zinc-500">Até 5.000 notas e 10 MB</span>
+              </span>
+              <input
+                className="hidden"
+                type="file"
+                accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                disabled={invoiceImportBusy}
+                onChange={(event) => void previewInvoiceImport(event.target.files?.[0])}
+              />
+            </label>
+            <Button type="button" variant="secondary" onClick={downloadInvoiceImportTemplate}>
+              <Download size={14} /> Baixar modelo
+            </Button>
+          </div>
+
+          <div className="rounded-xl border border-zinc-200 p-3 text-[11px] text-zinc-600 dark:border-zinc-800 dark:text-zinc-400">
+            <strong className="text-zinc-900 dark:text-white">Colunas obrigatórias:</strong> número da nota, CNPJ/CPF ou cliente, data de emissão e valor total.
+            <span className="mt-1 block">Também reconhecemos vencimento, situação do pagamento, data do pagamento, imposto, forma de pagamento, OS e observações. O cliente precisa existir no cadastro do ERP.</span>
+          </div>
+
+          {invoiceImportPreview && (
+            <>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-xl bg-zinc-100 p-3 dark:bg-zinc-800"><span className="block text-[10px] font-bold uppercase text-zinc-500">Linhas</span><strong>{invoiceImportPreview.total}</strong></div>
+                <div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-950/30"><span className="block text-[10px] font-bold uppercase">Prontas</span><strong>{invoiceImportPreview.ready}</strong></div>
+                <div className="rounded-xl bg-amber-50 p-3 text-amber-700 dark:bg-amber-950/30"><span className="block text-[10px] font-bold uppercase">Duplicadas</span><strong>{invoiceImportPreview.duplicates}</strong></div>
+                <div className="rounded-xl bg-rose-50 p-3 text-rose-700 dark:bg-rose-950/30"><span className="block text-[10px] font-bold uppercase">Com erro</span><strong>{invoiceImportPreview.errors}</strong></div>
+              </div>
+
+              <div className="max-h-72 overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+                <table className="w-full min-w-[760px] text-left text-[11px]">
+                  <thead className="sticky top-0 bg-zinc-100 text-[10px] uppercase text-zinc-500 dark:bg-zinc-800">
+                    <tr>
+                      <th className="px-3 py-2">Linha</th>
+                      <th className="px-3 py-2">Nota</th>
+                      <th className="px-3 py-2">Cliente identificado</th>
+                      <th className="px-3 py-2">Emissão</th>
+                      <th className="px-3 py-2 text-right">Valor</th>
+                      <th className="px-3 py-2">Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {invoiceImportPreview.rows.slice(0, 50).map((row) => (
+                      <tr key={`${row.rowNumber}-${row.invoiceCode}`}>
+                        <td className="px-3 py-2">{row.rowNumber}</td>
+                        <td className="px-3 py-2 font-bold">{row.invoiceCode || "—"}</td>
+                        <td className="px-3 py-2">{row.matchedClientName || row.clientName || row.clientDocument || "—"}</td>
+                        <td className="px-3 py-2">{row.issueDate || "—"}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{formatCurrency(row.totalValue)}</td>
+                        <td className="px-3 py-2">
+                          <span className={`rounded-full px-2 py-1 text-[9px] font-black ${row.state === "PRONTA" ? "bg-emerald-100 text-emerald-700" : row.state === "DUPLICADA" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>
+                            {row.state}
+                          </span>
+                          {row.error && <span className="ml-2 text-rose-600">{row.error}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {invoiceImportPreview.rows.length > 50 && <p className="text-[10px] text-zinc-500">Mostrando as primeiras 50 linhas de {invoiceImportPreview.rows.length}.</p>}
+            </>
+          )}
+
+          <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+            <Button type="button" variant="secondary" disabled={invoiceImportBusy} onClick={() => setIsInvoiceImportOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="success" loading={invoiceImportBusy} disabled={!invoiceImportPreview?.ready} onClick={() => void confirmInvoiceImport()}>
+              <Upload size={14} /> Importar {invoiceImportPreview?.ready || 0} nota(s)
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal de Faturamento Avulso / Direto (sem OS) */}
       <Modal

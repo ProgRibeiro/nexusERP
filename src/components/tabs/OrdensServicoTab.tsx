@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { useToast } from "@/components/ui/Toast";
@@ -12,6 +12,7 @@ import {
   getContractOperationsOverview,
   getServiceOrders,
 } from "@/app/actions/osActions";
+import type { ServiceOrderValueItemInput } from "@/app/actions/osActions";
 import { getClientDetails, getClients } from "@/app/actions/clientActions";
 import { getInsightsForModule } from "@/app/actions/insightsActions";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -63,6 +64,22 @@ interface OrdensServicoTabProps {
   statusFilter?: string;
 }
 
+interface ServiceItemDraft {
+  id: string;
+  description: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+}
+
+const newServiceItemDraft = (): ServiceItemDraft => ({
+  id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  description: "",
+  quantity: "1",
+  unit: "UN",
+  unitPrice: "",
+});
+
 export default function OrdensServicoTab({
   newRecord = false,
   requestId,
@@ -94,6 +111,7 @@ export default function OrdensServicoTab({
   );
   const [showAdvancedFields, setShowAdvancedFields] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [serviceItems, setServiceItems] = useState<ServiceItemDraft[]>(() => [newServiceItemDraft()]);
   const [clients, setClients] = useState<any[]>([]);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
@@ -114,6 +132,20 @@ export default function OrdensServicoTab({
     notes: "",
     referenceMonth: new Date().toISOString().slice(0, 7),
   });
+
+  const serviceItemsTotal = useMemo(
+    () => serviceItems.reduce((total, item) => total + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0),
+    [serviceItems],
+  );
+
+  const normalizedServiceItems = (): ServiceOrderValueItemInput[] => serviceItems
+    .filter((item) => item.description.trim())
+    .map((item) => ({
+      description: item.description.trim(),
+      quantity: Number(item.quantity) || 0,
+      unit: item.unit.trim() || "UN",
+      unitPrice: Number(item.unitPrice) || 0,
+    }));
 
   useEffect(() => {
     setIsCreateOpen(newRecord);
@@ -220,11 +252,12 @@ export default function OrdensServicoTab({
               priority: form.priority,
               serviceDescription: form.problemReported,
               technicalDiagnosis: form.technicalDiagnosis,
-              value: Number(form.value || 0),
+              value: serviceItemsTotal,
               purchaseOrder: form.purchaseOrder,
               notes: form.notes,
+              items: normalizedServiceItems(),
             })
-          : await createManualServiceOrder(form);
+          : await createManualServiceOrder({ ...form, items: normalizedServiceItems() });
       if (!result.success || !result.os) {
         toast(result.error || "Não foi possível criar a OS.", "error");
         return;
@@ -236,6 +269,7 @@ export default function OrdensServicoTab({
         "success",
       );
       setIsCreateOpen(false);
+      setServiceItems([newServiceItemDraft()]);
       await loadOrders();
       openTab("ordens-servico", result.os.code, {
         id: result.os.id,
@@ -1230,36 +1264,83 @@ export default function OrdensServicoTab({
                 }
                 placeholder="Informe o problema encontrado, testes realizados e condição final..."
               />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Input
-                  label="Valor do atendimento (R$) *"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  required
-                  value={form.value}
-                  onChange={(e) =>
-                    setForm((current) => ({
-                      ...current,
-                      value: e.target.value,
-                    }))
-                  }
-                  placeholder="0,00"
-                />
+            </>
+          )}
+          <section className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black text-blue-950 dark:text-blue-200">Itens e valores da Ordem de Serviço</p>
+                <p className="mt-0.5 text-[10px] text-blue-700/70 dark:text-blue-300/70">Informe os serviços e materiais já na abertura. O total seguirá para o faturamento.</p>
+              </div>
+              <Button type="button" size="sm" variant="secondary" onClick={() => setServiceItems((current) => [...current, newServiceItemDraft()])}>
+                <Plus size={14} /> Adicionar item
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {serviceItems.map((item, index) => {
+                const itemTotal = (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                return (
+                  <div key={item.id} className="grid gap-3 rounded-xl border border-blue-100 bg-white p-3 dark:border-blue-900/50 dark:bg-zinc-900 sm:grid-cols-[minmax(0,1fr)_90px_90px_130px_105px_40px] sm:items-end">
+                    <Input
+                      label={`Descrição do item ${index + 1}`}
+                      value={item.description}
+                      onChange={(event) => setServiceItems((current) => current.map((row) => row.id === item.id ? { ...row, description: event.target.value } : row))}
+                      placeholder="Ex.: Manutenção preventiva do equipamento"
+                    />
+                    <Input
+                      label="Quantidade"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={item.quantity}
+                      onChange={(event) => setServiceItems((current) => current.map((row) => row.id === item.id ? { ...row, quantity: event.target.value } : row))}
+                    />
+                    <Input
+                      label="Unidade"
+                      value={item.unit}
+                      onChange={(event) => setServiceItems((current) => current.map((row) => row.id === item.id ? { ...row, unit: event.target.value } : row))}
+                      placeholder="UN"
+                    />
+                    <Input
+                      label="Valor unitário"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.unitPrice}
+                      onChange={(event) => setServiceItems((current) => current.map((row) => row.id === item.id ? { ...row, unitPrice: event.target.value } : row))}
+                      placeholder="0,00"
+                    />
+                    <div className="h-10 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-right text-xs font-black text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+                      {formatCurrency(itemTotal)}
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Remover item ${index + 1}`}
+                      disabled={serviceItems.length === 1}
+                      onClick={() => setServiceItems((current) => current.filter((row) => row.id !== item.id))}
+                      className="flex h-10 items-center justify-center rounded-xl border border-rose-100 text-rose-500 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-30 dark:border-rose-950 dark:hover:bg-rose-950/30"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-col gap-3 border-t border-blue-100 pt-3 sm:flex-row sm:items-end sm:justify-between dark:border-blue-900/50">
+              <div className="w-full sm:max-w-sm">
                 <Input
                   label="Pedido de compra / referência"
                   value={form.purchaseOrder}
-                  onChange={(e) =>
-                    setForm((current) => ({
-                      ...current,
-                      purchaseOrder: e.target.value,
-                    }))
-                  }
+                  onChange={(event) => setForm((current) => ({ ...current, purchaseOrder: event.target.value }))}
                   placeholder="Ex.: PC-12345"
                 />
               </div>
-            </>
-          )}
+              <div className="text-right">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500">Total da OS</span>
+                <strong className="text-xl font-black text-emerald-600">{formatCurrency(serviceItemsTotal)}</strong>
+              </div>
+            </div>
+          </section>
           {(createMode === "RAPIDO" || showAdvancedFields) && <Input
             label="Observações internas"
             value={form.notes}
