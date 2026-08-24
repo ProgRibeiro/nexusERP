@@ -101,12 +101,16 @@ on_error() {
 }
 trap 'on_error "$LINENO"' ERR
 
+CLI_REQUIRE_OFFSITE="${REQUIRE_OFFSITE_BACKUP:-}"
+
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
 
-if [[ -z "${BACKUP_BUCKET:-}" && -z "${BACKUP_RCLONE_REMOTE:-}" ]]; then
+if [[ -n "$CLI_REQUIRE_OFFSITE" ]]; then
+  REQUIRE_OFFSITE_BACKUP="$CLI_REQUIRE_OFFSITE"
+elif [[ -z "${BACKUP_BUCKET:-}" && -z "${BACKUP_RCLONE_REMOTE:-}" ]]; then
   REQUIRE_OFFSITE_BACKUP="false"
 else
   REQUIRE_OFFSITE_BACKUP="${REQUIRE_OFFSITE_BACKUP:-true}"
@@ -138,6 +142,8 @@ if [[ ! -d "$SOURCE/.git" ]]; then
 fi
 
 git_nexus fetch --prune origin "$BRANCH"
+git_nexus checkout -B "$BRANCH" "origin/$BRANCH" 2>/dev/null || true
+git_nexus reset --hard "origin/$BRANCH" 2>/dev/null || true
 NEW_COMMIT="$(git_nexus rev-parse "origin/$BRANCH")"
 OLD_COMMIT=""
 [[ -f "$SLOTS/$ACTIVE/.release-commit" ]] && OLD_COMMIT="$(cat "$SLOTS/$ACTIVE/.release-commit")"
