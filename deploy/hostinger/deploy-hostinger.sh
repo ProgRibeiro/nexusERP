@@ -8,7 +8,7 @@ REPO_DIR="${REPO_DIR:-$APP_ROOT/repo}"
 CURRENT_LINK="${CURRENT_LINK:-$APP_ROOT/current}"
 RELEASES_DIR="${RELEASES_DIR:-$APP_ROOT/releases}"
 KEEP_RELEASES="${KEEP_RELEASES:-5}"
-BRANCH="${BRANCH:-agent/erp-beta-linux}"
+BRANCH="${BRANCH:-${DEPLOY_BRANCH:-main}}"
 PM2_APP_NAME="${PM2_APP_NAME:-nexus-erp}"
 APP_DOMAIN="${APP_DOMAIN:-erp.seudominio.com.br}"
 
