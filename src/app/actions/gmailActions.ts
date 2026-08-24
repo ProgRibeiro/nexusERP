@@ -196,6 +196,7 @@ export async function sendQuoteByGmail(input: {
       tax: Number(quote.tax),
       total: Number(quote.total),
       notes: quote.notes,
+      preventivePlanJson: quote.preventivePlanJson,
       client: {
         name: quote.client.name,
         socialName: quote.client.socialName,

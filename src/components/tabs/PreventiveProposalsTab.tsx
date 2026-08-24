@@ -3,20 +3,25 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   CalendarClock,
+  Building2,
   Check,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
   Clock3,
+  Droplets,
   FileText,
+  Flame,
+  Layers3,
   PackageCheck,
   Plus,
   Printer,
   Search,
   ShieldCheck,
+  Snowflake,
   Sparkles,
   Trash2,
-  Wrench,
+  Zap,
 } from "lucide-react";
 import { getClients, getClientDetails, syncClientFromCNPJ, ClientDTO, ClientDetailsDTO } from "@/app/actions/clientActions";
 import {
@@ -26,10 +31,12 @@ import {
   PreventiveProposalListItem,
 } from "@/app/actions/preventiveActions";
 import {
+  buildPreventivePackage,
   getPreventiveTemplate,
-  preventiveTemplates,
+  preventiveDisciplineIds,
+  preventiveDisciplineTemplates,
+  PreventiveDisciplineId,
   PreventiveScopeItem,
-  PreventiveTemplateId,
 } from "@/lib/preventiveTemplates";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
@@ -59,6 +66,15 @@ const nextMonth = () => {
 const lines = (value: string) => value.split("\n").map((item) => item.trim()).filter(Boolean);
 const lineText = (value: string[]) => value.join("\n");
 
+const disciplineIcons: Record<PreventiveDisciplineId, React.ComponentType<{ size?: number; className?: string }>> = {
+  CLIMATIZACAO: Snowflake,
+  REFRIGERACAO: Snowflake,
+  ELETRICA: Zap,
+  HIDRAULICA: Droplets,
+  CIVIL: Building2,
+  INCENDIO: Flame,
+};
+
 function initialForm(): PreventiveProposalInput {
   const template = getPreventiveTemplate("CLIMATIZACAO");
   return {
@@ -66,6 +82,8 @@ function initialForm(): PreventiveProposalInput {
     addressId: "",
     contactId: "",
     templateId: template.id,
+    disciplineIds: ["CLIMATIZACAO"],
+    disciplinePrices: [{ disciplineId: "CLIMATIZACAO", pricePerVisit: 0 }],
     title: template.title,
     frequency: "MENSAL",
     visitsPerYear: 12,
@@ -95,8 +113,8 @@ function SectionTitle({ number, title, description }: { number: number; title: s
     <div className="flex items-start gap-3 border-b border-[#155eef]/15 pb-4">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#155eef] text-xs font-black text-[#0b0c0e]">{number}</span>
       <div>
-        <h2 className="text-sm font-black text-white">{title}</h2>
-        <p className="mt-0.5 text-xs text-[#aaa69d]">{description}</p>
+        <h2 className="text-sm font-black text-zinc-900 dark:text-white">{title}</h2>
+        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{description}</p>
       </div>
     </div>
   );
@@ -154,8 +172,8 @@ export default function PreventiveProposalsTab() {
   const selectedClient = clients.find((client) => client.id === form.clientId);
   const selectedAddress = clientDetails?.addresses.find((address) => address.id === form.addressId);
   const selectedContact = clientDetails?.contacts.find((contact) => contact.id === form.contactId);
-  const selectedEquipments = clientDetails?.equipments.filter((equipment) => form.equipmentIds.includes(equipment.id)) || [];
-  const subtotal = (form.pricePerVisit + form.materialsPerVisit + form.travelPerVisit) * form.visitsPerYear;
+  const servicePerVisit = form.disciplinePrices.reduce((sum, line) => sum + line.pricePerVisit, 0);
+  const subtotal = (servicePerVisit + form.materialsPerVisit + form.travelPerVisit) * form.visitsPerYear;
   const taxCalculation = calculateProposalTax(subtotal, form.discount, taxProfile.rate);
   const calculatedTax = taxCalculation.tax;
   const total = taxCalculation.total;
@@ -203,19 +221,44 @@ export default function PreventiveProposalsTab() {
     }
   };
 
-  const applyTemplate = (templateId: PreventiveTemplateId) => {
-    const template = getPreventiveTemplate(templateId);
+  const applyDisciplines = (disciplineIds: PreventiveDisciplineId[]) => {
+    const packagePlan = buildPreventivePackage(disciplineIds);
     setForm((current) => ({
       ...current,
-      templateId,
-      title: template.title,
-      durationHours: template.durationHours,
-      technicians: template.technicians,
-      scope: template.scope,
-      deliverables: template.deliverables,
-      inclusions: template.inclusions,
-      exclusions: template.exclusions,
+      templateId: packagePlan.templateId,
+      disciplineIds,
+      disciplinePrices: disciplineIds.map((disciplineId) => ({
+        disciplineId,
+        pricePerVisit: current.disciplinePrices.find((line) => line.disciplineId === disciplineId)?.pricePerVisit || 0,
+      })),
+      pricePerVisit: disciplineIds.reduce((sum, disciplineId) => sum + (current.disciplinePrices.find((line) => line.disciplineId === disciplineId)?.pricePerVisit || 0), 0),
+      title: disciplineIds.length === preventiveDisciplineIds.length ? "Mega pacote integrado de manutenção preventiva predial" : packagePlan.title,
+      durationHours: packagePlan.durationHours,
+      technicians: packagePlan.technicians,
+      scope: [...packagePlan.scope, ...current.scope.filter((item) => item.group === "Personalizado")],
+      deliverables: packagePlan.deliverables,
+      inclusions: packagePlan.inclusions,
+      exclusions: packagePlan.exclusions,
     }));
+  };
+
+  const toggleDiscipline = (disciplineId: PreventiveDisciplineId) => {
+    const selected = form.disciplineIds.includes(disciplineId);
+    if (selected && form.disciplineIds.length === 1) {
+      toast("A proposta precisa manter ao menos uma disciplina.", "warning");
+      return;
+    }
+    const next = selected
+      ? form.disciplineIds.filter((id) => id !== disciplineId)
+      : [...form.disciplineIds, disciplineId];
+    applyDisciplines(next);
+  };
+
+  const updateDisciplinePrice = (disciplineId: PreventiveDisciplineId, pricePerVisit: number) => {
+    setForm((current) => {
+      const disciplinePrices = current.disciplinePrices.map((line) => line.disciplineId === disciplineId ? { ...line, pricePerVisit } : line);
+      return { ...current, disciplinePrices, pricePerVisit: disciplinePrices.reduce((sum, line) => sum + line.pricePerVisit, 0) };
+    });
   };
 
   const toggleScope = (item: PreventiveScopeItem) => {
@@ -274,13 +317,13 @@ export default function PreventiveProposalsTab() {
     setProposals(await getPreventiveProposals());
   };
 
+  const availableScope = useMemo(() => buildPreventivePackage(form.disciplineIds).scope, [form.disciplineIds]);
   const scopeGroups = useMemo(() => {
-    const template = getPreventiveTemplate(form.templateId);
-    return template.scope.reduce<Record<string, PreventiveScopeItem[]>>((groups, item) => {
+    return availableScope.reduce<Record<string, PreventiveScopeItem[]>>((groups, item) => {
       groups[item.group] = [...(groups[item.group] || []), item];
       return groups;
     }, {});
-  }, [form.templateId]);
+  }, [availableScope]);
 
   if (loading) {
     return <Card className="flex min-h-96 items-center justify-center text-sm font-semibold text-zinc-500">Carregando modelos de preventiva...</Card>;
@@ -294,8 +337,8 @@ export default function PreventiveProposalsTab() {
           <div className="rounded-2xl bg-[#155eef]/10 p-3 text-[#e3bd50] ring-1 ring-[#155eef]/25"><ClipboardCheck size={24} /></div>
           <div>
             <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#155eef]"><Sparkles size={12} /> Operação recorrente</div>
-            <h1 className="text-xl font-black sm:text-2xl">Central de manutenção preventiva</h1>
-            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">Escolha a loja, acompanhe contratos, organize projetos e mapeie todo o patrimônio técnico em uma planta 2D.</p>
+            <h1 className="text-xl font-black sm:text-2xl">Propostas de manutenção preventiva</h1>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">Monte um contrato técnico por disciplina ou reúna climatização, refrigeração, elétrica, hidráulica, civil e incêndio em um único Mega Pacote.</p>
           </div>
         </div>
         <div className="relative flex rounded-xl bg-zinc-100 p-1 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-[#155eef]/20">
@@ -318,7 +361,7 @@ export default function PreventiveProposalsTab() {
                 <button key={proposal.id} type="button" onClick={() => openTab("orcamentos", proposal.code, { id: proposal.id })} className="grid w-full grid-cols-2 items-center gap-3 p-4 text-left transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50 sm:grid-cols-[120px_1fr_140px_120px_130px_24px]">
                   <span className="font-mono text-xs font-black text-blue-600">{proposal.code}</span>
                   <div className="min-w-0"><p className="truncate text-sm font-bold text-zinc-850 dark:text-zinc-100">{proposal.clientName}</p><p className="text-[11px] text-zinc-500">Criada em {formatDate(proposal.createdAt)}</p></div>
-                  <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">{proposal.frequency} · {proposal.visitsPerYear} visitas</span>
+                  <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300"><span className="block truncate">{proposal.disciplines.map((id) => getPreventiveTemplate(id as PreventiveDisciplineId).shortName).join(" + ") || "Plano preventivo"}</span><span className="text-[10px] font-medium text-zinc-400">{proposal.frequency} · {proposal.visitsPerYear} visitas</span></span>
                   <StatusBadge status={proposal.status} />
                   <span className="text-right text-sm font-black text-zinc-900 dark:text-white">{formatCurrency(proposal.total)}</span>
                   <ChevronRight className="text-zinc-400" size={16} />
@@ -331,14 +374,21 @@ export default function PreventiveProposalsTab() {
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,0.75fr)]">
           <div className="print:hidden space-y-5">
             <Card className="space-y-5 border-zinc-200 bg-white text-zinc-900 dark:border-[#155eef]/15 dark:bg-zinc-900 dark:text-white">
-              <SectionTitle number={1} title="Escolha um modelo técnico" description="O modelo preenche escopo, entregas, inclusões e exclusões. Tudo continua editável." />
-              <div className="grid gap-3 sm:grid-cols-2">
-                {preventiveTemplates.map((template) => {
-                  const active = form.templateId === template.id;
+              <SectionTitle number={1} title="Monte o pacote técnico" description="Selecione uma ou várias disciplinas. O sistema consolida o escopo, as entregas e os valores na mesma proposta." />
+              <button type="button" onClick={() => applyDisciplines(preventiveDisciplineIds)} className={`group flex w-full flex-col gap-4 rounded-2xl border p-5 text-left transition sm:flex-row sm:items-center sm:justify-between ${form.disciplineIds.length === preventiveDisciplineIds.length ? "border-indigo-500 bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-blue-600/20" : "border-indigo-200 bg-indigo-50 text-indigo-950 hover:border-indigo-400 dark:border-indigo-900 dark:bg-indigo-950/25 dark:text-indigo-100"}`}>
+                <div className="flex items-start gap-3"><span className={`rounded-xl p-2.5 ${form.disciplineIds.length === preventiveDisciplineIds.length ? "bg-white/15" : "bg-indigo-600 text-white"}`}><Layers3 size={20} /></span><div><p className="text-sm font-black">Mega Pacote Integrado</p><p className={`mt-1 text-xs leading-relaxed ${form.disciplineIds.length === preventiveDisciplineIds.length ? "text-blue-100" : "text-indigo-700 dark:text-indigo-300"}`}>Todas as seis disciplinas em uma única proposta, cronograma, checklist e relatório gerencial.</p></div></div>
+                <span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wide ${form.disciplineIds.length === preventiveDisciplineIds.length ? "bg-white text-indigo-700" : "bg-indigo-600 text-white"}`}>{form.disciplineIds.length === preventiveDisciplineIds.length ? "Pacote selecionado" : "Selecionar tudo"}</span>
+              </button>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {preventiveDisciplineTemplates.map((template) => {
+                  const disciplineId = template.id as PreventiveDisciplineId;
+                  const active = form.disciplineIds.includes(disciplineId);
+                  const Icon = disciplineIcons[disciplineId];
                   return (
-                    <button key={template.id} type="button" onClick={() => applyTemplate(template.id)} className={`relative rounded-xl border p-4 text-left transition ${active ? "border-[#155eef] bg-[#155eef]/10 ring-1 ring-[#155eef]/35" : "border-zinc-200 bg-zinc-50 hover:border-[#155eef]/35 hover:bg-blue-50 dark:border-white/10 dark:bg-zinc-800 dark:hover:bg-zinc-800/80"}`}>
+                    <button key={template.id} type="button" onClick={() => toggleDiscipline(disciplineId)} className={`relative rounded-xl border p-4 text-left transition ${active ? "border-[#155eef] bg-[#155eef]/10 ring-1 ring-[#155eef]/35" : "border-zinc-200 bg-zinc-50 hover:border-[#155eef]/35 hover:bg-blue-50 dark:border-white/10 dark:bg-zinc-800 dark:hover:bg-zinc-800/80"}`}>
                       {active && <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-[#155eef] text-[#0b0c0e]"><Check size={12} /></span>}
-                      <p className="pr-7 text-sm font-black text-zinc-950 dark:text-white">{template.name}</p>
+                      <Icon size={18} className={active ? "text-blue-600" : "text-zinc-400"} />
+                      <p className="mt-3 pr-7 text-sm font-black text-zinc-950 dark:text-white">{template.name}</p>
                       <p className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{template.description}</p>
                       <p className="mt-3 text-[10px] font-bold uppercase tracking-wide text-[#155eef]">{template.scope.length} atividades prontas</p>
                     </button>
@@ -406,7 +456,7 @@ export default function PreventiveProposalsTab() {
                 {Object.entries(scopeGroups).map(([group, items]) => (
                   <div key={group}><p className="mb-2 text-[10px] font-black uppercase tracking-wider text-zinc-400">{group}</p><div className="grid gap-2 sm:grid-cols-2">{items.map((item) => { const checked = form.scope.some((scope) => scope.id === item.id); return <label key={item.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-xs transition ${checked ? "border-blue-300 bg-blue-50 text-zinc-800 dark:border-blue-900 dark:bg-blue-950/20 dark:text-zinc-100" : "border-zinc-200 text-zinc-500 dark:border-zinc-700"}`}><input type="checkbox" checked={checked} onChange={() => toggleScope(item)} className="mt-0.5 accent-blue-600" /><span className="font-semibold leading-relaxed">{item.label}</span></label>; })}</div></div>
                 ))}
-                {form.scope.filter((item) => item.group === "Personalizado" && !getPreventiveTemplate(form.templateId).scope.some((preset) => preset.id === item.id)).map((item) => <div key={item.id} className="flex items-center justify-between rounded-lg bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800 dark:bg-violet-950/30 dark:text-violet-200"><span>{item.label}</span><button type="button" onClick={() => setField("scope", form.scope.filter((scope) => scope.id !== item.id))}><Trash2 size={14} /></button></div>)}
+                {form.scope.filter((item) => item.group === "Personalizado" && !availableScope.some((preset) => preset.id === item.id)).map((item) => <div key={item.id} className="flex items-center justify-between rounded-lg bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800 dark:bg-violet-950/30 dark:text-violet-200"><span>{item.label}</span><button type="button" onClick={() => setField("scope", form.scope.filter((scope) => scope.id !== item.id))}><Trash2 size={14} /></button></div>)}
                 <div className="flex gap-2"><Input value={customScope} onChange={(event) => setCustomScope(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomScope(); } }} placeholder="Adicionar atividade personalizada ao escopo" /><Button type="button" variant="secondary" onClick={addCustomScope}><Plus size={15} /> Adicionar</Button></div>
               </div>
             </Card>
@@ -422,8 +472,17 @@ export default function PreventiveProposalsTab() {
 
             <Card className="space-y-5">
               <SectionTitle number={6} title="Valores e condições comerciais" description="O sistema calcula o contrato anual e apresenta o equivalente mensal." />
+              <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-zinc-900 dark:text-white">Serviço por disciplina e por visita</p><p className="mt-0.5 text-[10px] text-zinc-500">Cada área vira um item separado no orçamento e permanece dentro do mesmo pacote.</p></div><span className="rounded-full bg-blue-600 px-3 py-1 text-[10px] font-black text-white">Total por visita: {formatCurrency(servicePerVisit)}</span></div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {form.disciplinePrices.map((line) => {
+                    const template = getPreventiveTemplate(line.disciplineId);
+                    const Icon = disciplineIcons[line.disciplineId];
+                    return <label key={line.disciplineId} className="rounded-xl border border-blue-100 bg-white p-3 dark:border-blue-900/60 dark:bg-zinc-900"><span className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-wide text-zinc-600 dark:text-zinc-300"><Icon size={13} className="text-blue-600" /> {template.shortName}</span><input aria-label={`Valor por visita de ${template.shortName}`} type="number" min={0} step={0.01} value={line.pricePerVisit} onChange={(event) => updateDisciplinePrice(line.disciplineId, Number(event.target.value))} className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm font-bold text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white" /></label>;
+                  })}
+                </div>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <Input label="Serviço por visita (R$)" type="number" min={0} step={0.01} value={form.pricePerVisit} onChange={(event) => setField("pricePerVisit", Number(event.target.value))} />
                 <Input label="Materiais por visita (R$)" type="number" min={0} step={0.01} value={form.materialsPerVisit} onChange={(event) => setField("materialsPerVisit", Number(event.target.value))} />
                 <Input label="Deslocamento por visita (R$)" type="number" min={0} step={0.01} value={form.travelPerVisit} onChange={(event) => setField("travelPerVisit", Number(event.target.value))} />
                 <Input label="Desconto total (R$)" type="number" min={0} step={0.01} value={form.discount} onChange={(event) => setField("discount", Number(event.target.value))} />
@@ -440,15 +499,16 @@ export default function PreventiveProposalsTab() {
             <Card className="print:rounded-none print:border-0 print:p-8 print:shadow-none overflow-hidden p-0">
               <div className="bg-slate-950 p-5 text-white print:bg-white print:p-0 print:text-zinc-900">
                 <div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-300 print:text-blue-700">Proposta técnica comercial</p><h2 className="mt-2 text-lg font-black leading-tight">{form.title}</h2></div><div className="rounded-xl bg-blue-600 p-2.5 print:text-white"><ShieldCheck size={20} /></div></div>
-                <p className="mt-4 text-xs text-slate-300 print:text-zinc-500">Plano {getPreventiveTemplate(form.templateId).shortName} · validade de {form.validityDays} dias</p>
+                <p className="mt-4 text-xs text-slate-300 print:text-zinc-500">{form.disciplineIds.length > 1 ? `Pacote integrado · ${form.disciplineIds.length} disciplinas` : `Plano ${getPreventiveTemplate(form.disciplineIds[0]).shortName}`} · validade de {form.validityDays} dias</p>
               </div>
               <div className="space-y-5 p-5 text-xs">
                 <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/60 print:border print:bg-white">
                   <p className="text-[9px] font-black uppercase tracking-wider text-zinc-400">Preparado para</p><p className="mt-1 text-sm font-black text-zinc-900 dark:text-white">{selectedClient?.name || "Selecione o cliente"}</p><p className="mt-1 text-zinc-500">{selectedAddress ? `${selectedAddress.street}, ${selectedAddress.number} — ${selectedAddress.city}/${selectedAddress.state}` : "Endereço de execução pendente"}</p>{selectedContact ? <p className="mt-1 text-zinc-500">A/C {selectedContact.name}</p> : selectedClient && <p className="mt-1 text-zinc-500">Contato: {selectedClient.email || selectedClient.phone}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {[{ icon: CalendarClock, label: "Periodicidade", value: form.frequency }, { icon: Clock3, label: "Carga por visita", value: `${form.durationHours}h · ${form.technicians} técnico(s)` }, { icon: Wrench, label: "Ativos", value: `${selectedEquipments.length} equipamento(s)` }, { icon: PackageCheck, label: "Atividades", value: `${form.scope.length} no checklist` }].map((item) => <div key={item.label} className="rounded-lg border border-zinc-100 p-3 dark:border-zinc-800"><item.icon size={14} className="mb-2 text-blue-600" /><p className="text-[9px] font-bold uppercase text-zinc-400">{item.label}</p><p className="mt-0.5 font-black text-zinc-800 dark:text-zinc-100">{item.value}</p></div>)}
+                  {[{ icon: CalendarClock, label: "Periodicidade", value: form.frequency }, { icon: Clock3, label: "Carga por visita", value: `${form.durationHours}h · ${form.technicians} técnico(s)` }, { icon: Layers3, label: "Disciplinas", value: `${form.disciplineIds.length} área(s)` }, { icon: PackageCheck, label: "Atividades", value: `${form.scope.length} no checklist` }].map((item) => <div key={item.label} className="rounded-lg border border-zinc-100 p-3 dark:border-zinc-800"><item.icon size={14} className="mb-2 text-blue-600" /><p className="text-[9px] font-bold uppercase text-zinc-400">{item.label}</p><p className="mt-0.5 font-black text-zinc-800 dark:text-zinc-100">{item.value}</p></div>)}
                 </div>
+                <div><p className="mb-2 font-black text-zinc-900 dark:text-white">Áreas contratadas</p><div className="flex flex-wrap gap-1.5">{form.disciplineIds.map((id) => <span key={id} className="rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-black text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">{getPreventiveTemplate(id).shortName}</span>)}</div></div>
                 <div><p className="mb-2 font-black text-zinc-900 dark:text-white">Escopo selecionado</p><div className="max-h-48 space-y-1.5 overflow-y-auto print:max-h-none print:overflow-visible">{form.scope.slice(0, 12).map((item) => <div key={item.id} className="flex items-start gap-2 text-zinc-600 dark:text-zinc-300"><CheckCircle2 size={12} className="mt-0.5 shrink-0 text-emerald-600" /><span>{item.label}</span></div>)}{form.scope.length > 12 && <p className="font-bold text-blue-600">+ {form.scope.length - 12} atividades adicionais</p>}</div></div>
                 <div><p className="mb-2 font-black text-zinc-900 dark:text-white">Entregas</p>{form.deliverables.map((item) => <p key={item} className="mb-1 text-zinc-500">• {item}</p>)}</div>
                 <div className="rounded-xl bg-blue-600 p-4 text-white print:border-2 print:border-blue-600 print:bg-white print:text-blue-800">

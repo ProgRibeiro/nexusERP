@@ -37,6 +37,7 @@ async function main() {
     tax: Number(quote.tax),
     total: Number(quote.total),
     notes: quote.notes,
+    preventivePlanJson: quote.preventivePlanJson,
     client: {
       name: quote.client.name,
       socialName: quote.client.socialName,
@@ -65,7 +66,14 @@ async function main() {
   });
 
   const parsedPdf = await PDFDocument.load(pdf);
-  assert(parsedPdf.getPageCount() === 1, `O PDF deveria ter 1 página, mas possui ${parsedPdf.getPageCount()}.`);
+  let minimumPages = 1;
+  try {
+    const preventivePlan = JSON.parse(quote.preventivePlanJson || "{}") as { scope?: unknown[] };
+    if (preventivePlan.scope?.length) minimumPages = 2;
+  } catch {
+    // Propostas legadas com JSON inválido continuam usando o PDF comercial simples.
+  }
+  assert(parsedPdf.getPageCount() >= minimumPages, `O PDF deveria ter ao menos ${minimumPages} página(s), mas possui ${parsedPdf.getPageCount()}.`);
   assert(pdf.byteLength > 2_000, "O PDF gerado parece estar vazio.");
 
   const raw = createProposalMimeMessage({

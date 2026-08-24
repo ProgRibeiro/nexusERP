@@ -25,6 +25,7 @@ export interface QuotePdfData {
   tax: number;
   total: number;
   notes?: string | null;
+  preventivePlanJson?: string | null;
   client: {
     name: string;
     socialName?: string | null;
@@ -55,6 +56,41 @@ export interface QuotePdfData {
   }>;
 }
 
+interface PreventivePlanPdf {
+  title?: string;
+  frequency?: string;
+  visitsPerYear?: number;
+  durationHours?: number;
+  technicians?: number;
+  slaHours?: number;
+  startDate?: string;
+  disciplineIds?: string[];
+  scope?: Array<{ id?: string; group?: string; label?: string }>;
+  deliverables?: string[];
+  inclusions?: string[];
+  exclusions?: string[];
+  equipments?: Array<{ type?: string; brand?: string; model?: string; tag?: string; location?: string }>;
+}
+
+const preventiveDisciplineLabels: Record<string, string> = {
+  CLIMATIZACAO: "Climatização e PMOC",
+  REFRIGERACAO: "Refrigeração comercial",
+  ELETRICA: "Elétrica e quadros",
+  HIDRAULICA: "Hidráulica e sanitária",
+  CIVIL: "Civil e conservação predial",
+  INCENDIO: "Combate a incêndio",
+};
+
+function parsePreventivePlan(value?: string | null): PreventivePlanPdf | null {
+  if (!value) return null;
+  try {
+    const plan = JSON.parse(value) as PreventivePlanPdf;
+    return plan.scope?.length ? plan : null;
+  } catch {
+    return null;
+  }
+}
+
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;
 const MARGIN = 38;
@@ -72,7 +108,7 @@ function pdfText(value: unknown) {
     .replace(/[–—−]/g, "-")
     .replace(/[“”]/g, '"')
     .replace(/[‘’]/g, "'")
-    .replace(/•/g, "-")
+    .replace(/[•·]/g, "-")
     .replace(/\u00a0/g, " ")
     .split("")
     .map((character) => character.charCodeAt(0) <= 255 ? character : "?")
@@ -280,6 +316,104 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   page.drawText(pdfText(company.tradeName || "NEXUS ERP"), { x: MARGIN + 12, y: 39, font: bold, size: 6.5, color: rgb(1, 1, 1) });
   const footer = pdfText(`${quote.code} - Documento gerado pelo O Prestador`);
   page.drawText(footer, { x: A4_WIDTH - MARGIN - 12 - regular.widthOfTextAtSize(footer, 6.2), y: 39, font: regular, size: 6.2, color: rgb(0.72, 0.82, 1) });
+
+  const preventivePlan = parsePreventivePlan(quote.preventivePlanJson);
+  if (preventivePlan) {
+    let detailPage: PDFPage = page;
+    let detailY = 0;
+    const detailWidth = contentWidth;
+
+    const addDetailPage = () => {
+      detailPage = document.addPage([A4_WIDTH, A4_HEIGHT]);
+      detailPage.drawRectangle({ x: 0, y: A4_HEIGHT - 74, width: A4_WIDTH, height: 74, color: NAVY });
+      detailPage.drawText("PLANO TÉCNICO DE MANUTENÇÃO PREVENTIVA", { x: MARGIN, y: A4_HEIGHT - 31, font: bold, size: 10, color: rgb(0.72, 0.83, 1) });
+      detailPage.drawText(pdfText(quote.code), { x: MARGIN, y: A4_HEIGHT - 51, font: bold, size: 16, color: rgb(1, 1, 1) });
+      const brand = pdfText(company.tradeName || company.corporateName || "O PRESTADOR");
+      detailPage.drawText(brand, { x: A4_WIDTH - MARGIN - bold.widthOfTextAtSize(brand, 8), y: A4_HEIGHT - 45, font: bold, size: 8, color: rgb(1, 1, 1) });
+      detailPage.drawRectangle({ x: MARGIN, y: 28, width: detailWidth, height: 25, color: NAVY });
+      detailPage.drawText(pdfText(`${quote.code} - Escopo técnico integrante da proposta comercial`), { x: MARGIN + 10, y: 37, font: regular, size: 6.2, color: rgb(0.78, 0.85, 1) });
+      detailY = A4_HEIGHT - 98;
+    };
+
+    const ensureDetailSpace = (height: number) => {
+      if (detailY - height < 72) addDetailPage();
+    };
+
+    const detailHeading = (title: string) => {
+      ensureDetailSpace(31);
+      detailPage.drawRectangle({ x: MARGIN, y: detailY - 22, width: detailWidth, height: 22, color: LIGHT_BLUE, borderColor: rgb(0.68, 0.79, 0.96), borderWidth: 0.5 });
+      detailPage.drawText(pdfText(title.toUpperCase()), { x: MARGIN + 10, y: detailY - 14, font: bold, size: 7.3, color: NAVY });
+      detailY -= 31;
+    };
+
+    const detailBullet = (text: string, color = TEXT) => {
+      const bulletLines = wrap(text, regular, 7, detailWidth - 26);
+      const height = Math.max(14, bulletLines.length * 9 + 4);
+      ensureDetailSpace(height);
+      detailPage.drawCircle({ x: MARGIN + 5, y: detailY - 5, size: 2, color: BLUE });
+      drawLines(detailPage, bulletLines, { x: MARGIN + 14, y: detailY - 8, font: regular, size: 7, color, lineHeight: 9 });
+      detailY -= height;
+    };
+
+    addDetailPage();
+    const planTitle = preventivePlan.title || "Plano de manutenção preventiva";
+    const titleLines = wrap(planTitle, bold, 15, detailWidth);
+    drawLines(detailPage, titleLines, { x: MARGIN, y: detailY, font: bold, size: 15, color: NAVY, lineHeight: 18 });
+    detailY -= titleLines.length * 18 + 12;
+
+    const disciplines = (preventivePlan.disciplineIds || []).map((id) => preventiveDisciplineLabels[id] || id);
+    const summaryRows = [
+      ["PACOTE CONTRATADO", disciplines.length ? disciplines.join(" + ") : "Plano preventivo personalizado"],
+      ["PERIODICIDADE", `${preventivePlan.frequency || "A definir"} · ${preventivePlan.visitsPerYear || 0} visita(s) por ano`],
+      ["MOBILIZAÇÃO", `${preventivePlan.durationHours || 0} hora(s) por visita · ${preventivePlan.technicians || 0} técnico(s)`],
+      ["ATENDIMENTO", `SLA de ${preventivePlan.slaHours || 0} hora(s) · início previsto ${preventivePlan.startDate ? date(`${preventivePlan.startDate}T12:00:00`) : "a definir"}`],
+    ];
+    summaryRows.forEach(([label, value], index) => {
+      const rowY = detailY - index * 28;
+      detailPage.drawRectangle({ x: MARGIN, y: rowY - 22, width: detailWidth, height: 24, color: index % 2 ? rgb(0.985, 0.988, 0.995) : rgb(0.96, 0.975, 1) });
+      detailPage.drawText(label, { x: MARGIN + 10, y: rowY - 13, font: bold, size: 6.4, color: BLUE });
+      const valueLines = wrap(value, regular, 6.8, detailWidth - 135);
+      drawLines(detailPage, valueLines, { x: MARGIN + 126, y: rowY - 13, font: regular, size: 6.8, color: TEXT, lineHeight: 8, maxLines: 2 });
+    });
+    detailY -= summaryRows.length * 28 + 12;
+
+    const scopeGroups = (preventivePlan.scope || []).reduce<Record<string, string[]>>((groups, item) => {
+      const label = item.label?.trim();
+      if (!label) return groups;
+      const group = item.group?.trim() || "Escopo geral";
+      groups[group] = [...(groups[group] || []), label];
+      return groups;
+    }, {});
+    detailHeading(`Escopo técnico detalhado · ${preventivePlan.scope?.length || 0} atividades`);
+    Object.entries(scopeGroups).forEach(([group, items]) => {
+      ensureDetailSpace(25);
+      detailPage.drawText(pdfText(group.toUpperCase()), { x: MARGIN, y: detailY - 7, font: bold, size: 7, color: BLUE });
+      detailY -= 17;
+      items.forEach((item) => detailBullet(item));
+      detailY -= 4;
+    });
+
+    const detailSections: Array<[string, string[] | undefined, ReturnType<typeof rgb>]> = [
+      ["Entregas ao cliente", preventivePlan.deliverables, TEXT],
+      ["Incluso no pacote", preventivePlan.inclusions, GREEN],
+      ["Não incluso / contratação à parte", preventivePlan.exclusions, rgb(0.72, 0.2, 0.14)],
+    ];
+    detailSections.forEach(([sectionTitle, items, color]) => {
+      if (!items?.length) return;
+      const estimatedHeight = 31 + items.reduce((sum, item) => sum + Math.max(14, wrap(item, regular, 7, detailWidth - 26).length * 9 + 4), 0);
+      if (estimatedHeight < 680 && detailY - estimatedHeight < 72) addDetailPage();
+      detailHeading(sectionTitle);
+      items.forEach((item) => detailBullet(item, color));
+      detailY -= 4;
+    });
+
+    if (preventivePlan.equipments?.length) {
+      detailHeading(`Ativos inicialmente vinculados · ${preventivePlan.equipments.length}`);
+      preventivePlan.equipments.forEach((equipment) => {
+        detailBullet([equipment.tag || equipment.type, equipment.brand, equipment.model, equipment.location].filter(Boolean).join(" · "));
+      });
+    }
+  }
 
   return document.save({ useObjectStreams: false });
 }

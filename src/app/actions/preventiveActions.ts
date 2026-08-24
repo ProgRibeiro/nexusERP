@@ -7,18 +7,28 @@ import { requireAuth, requirePermission } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { calculateProposalTax } from "@/lib/tax";
 import { loadTaxProfile } from "@/lib/taxProfile";
+import { getPreventiveTemplate } from "@/lib/preventiveTemplates";
+
+const preventiveDisciplineSchema = z.enum(["CLIMATIZACAO", "REFRIGERACAO", "ELETRICA", "HIDRAULICA", "CIVIL", "INCENDIO"]);
+const preventiveTemplateSchema = z.enum(["CLIMATIZACAO", "REFRIGERACAO", "ELETRICA", "HIDRAULICA", "CIVIL", "INCENDIO", "INTEGRADO", "PERSONALIZADO"]);
 
 const scopeItemSchema = z.object({
   id: z.string().min(1),
   group: z.string().min(1),
   label: z.string().min(2),
+  disciplineId: preventiveDisciplineSchema.optional(),
 });
 
 const preventiveProposalSchema = z.object({
   clientId: z.string().uuid(),
   addressId: z.string().uuid(),
   contactId: z.string().uuid().optional().or(z.literal("")),
-  templateId: z.enum(["CLIMATIZACAO", "ELETRICA", "REFRIGERACAO", "PERSONALIZADO"]),
+  templateId: preventiveTemplateSchema,
+  disciplineIds: z.array(preventiveDisciplineSchema).min(1).max(6),
+  disciplinePrices: z.array(z.object({
+    disciplineId: preventiveDisciplineSchema,
+    pricePerVisit: z.number().min(0).max(100_000_000),
+  })).min(1).max(6),
   title: z.string().trim().min(5).max(160),
   frequency: z.enum(["MENSAL", "BIMESTRAL", "TRIMESTRAL", "SEMESTRAL", "ANUAL"]),
   visitsPerYear: z.number().int().min(1).max(52),
@@ -54,6 +64,7 @@ export interface PreventiveProposalListItem {
   visitsPerYear: number;
   createdAt: Date;
   validUntil: Date;
+  disciplines: string[];
 }
 
 export async function getPreventiveProposals(): Promise<PreventiveProposalListItem[]> {
@@ -69,13 +80,17 @@ export async function getPreventiveProposals(): Promise<PreventiveProposalListIt
     return quotes.map((quote) => {
       let frequency = "—";
       let visitsPerYear = 0;
+      let disciplines: string[] = [];
       try {
         const plan = JSON.parse(quote.preventivePlanJson || "{}") as {
           frequency?: string;
           visitsPerYear?: number;
+          templateId?: string;
+          disciplineIds?: string[];
         };
         frequency = plan.frequency || frequency;
         visitsPerYear = plan.visitsPerYear || visitsPerYear;
+        disciplines = plan.disciplineIds?.length ? plan.disciplineIds : plan.templateId ? [plan.templateId] : [];
       } catch {
         // Mantém propostas legadas visíveis mesmo com plano inconsistente.
       }
@@ -89,6 +104,7 @@ export async function getPreventiveProposals(): Promise<PreventiveProposalListIt
         visitsPerYear,
         createdAt: quote.createdAt,
         validUntil: quote.validUntil,
+        disciplines,
       };
     });
   } catch (error) {
@@ -113,6 +129,10 @@ export async function createPreventiveProposal(rawInput: PreventiveProposalInput
   try {
     const session = await requirePermission("quotes.write");
     const input = preventiveProposalSchema.parse(rawInput);
+    const disciplineIds = Array.from(new Set(input.disciplineIds));
+    if (disciplineIds.length !== input.disciplineIds.length) throw new Error("Existem disciplinas duplicadas no pacote preventivo.");
+    const invalidPrice = input.disciplinePrices.find((line) => !disciplineIds.includes(line.disciplineId));
+    if (invalidPrice) throw new Error("A composição de valores possui uma disciplina que não está no escopo.");
     const client = await prisma.client.findUnique({
       where: { id: input.clientId },
       include: {
@@ -128,7 +148,12 @@ export async function createPreventiveProposal(rawInput: PreventiveProposalInput
       throw new Error("Um ou mais equipamentos selecionados não pertencem ao cliente.");
     }
 
-    const serviceTotal = input.pricePerVisit * input.visitsPerYear;
+    const disciplinePrices = disciplineIds.map((disciplineId) => ({
+      disciplineId,
+      pricePerVisit: input.disciplinePrices.find((line) => line.disciplineId === disciplineId)?.pricePerVisit || 0,
+    }));
+    const packagePricePerVisit = disciplinePrices.reduce((sum, line) => sum + line.pricePerVisit, 0) || input.pricePerVisit;
+    const serviceTotal = packagePricePerVisit * input.visitsPerYear;
     const materialTotal = input.materialsPerVisit * input.visitsPerYear;
     const travelTotal = input.travelPerVisit * input.visitsPerYear;
     const subtotal = serviceTotal + materialTotal + travelTotal;
@@ -153,8 +178,9 @@ export async function createPreventiveProposal(rawInput: PreventiveProposalInput
       location: equipment.location,
     }));
     const plan = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       templateId: input.templateId,
+      disciplineIds,
       title: input.title,
       frequency: input.frequency,
       visitsPerYear: input.visitsPerYear,
@@ -168,7 +194,9 @@ export async function createPreventiveProposal(rawInput: PreventiveProposalInput
       exclusions: input.exclusions,
       equipments: equipmentSnapshots,
       pricing: {
-        pricePerVisit: input.pricePerVisit,
+        pricePerVisit: packagePricePerVisit,
+        packagePricePerVisit,
+        disciplinePrices,
         materialsPerVisit: input.materialsPerVisit,
         travelPerVisit: input.travelPerVisit,
         discount: input.discount,
@@ -177,17 +205,32 @@ export async function createPreventiveProposal(rawInput: PreventiveProposalInput
         taxRate: taxProfile.rate,
       },
     };
+    const serviceItems = disciplinePrices.some((line) => line.pricePerVisit > 0)
+      ? disciplinePrices.map((line) => {
+          const template = getPreventiveTemplate(line.disciplineId);
+          return {
+            type: "SERVICO",
+            description: `Manutenção preventiva — ${template.shortName} — ${input.visitsPerYear} visita(s) ${input.frequency.toLowerCase()}`,
+            quantity: input.visitsPerYear,
+            unit: "VISITA",
+            unitPrice: line.pricePerVisit,
+            costPrice: 0,
+            discount: 0,
+            total: line.pricePerVisit * input.visitsPerYear,
+          };
+        })
+      : [{
+          type: "SERVICO",
+          description: `${input.title} — ${input.visitsPerYear} visita(s) ${input.frequency.toLowerCase()}`,
+          quantity: input.visitsPerYear,
+          unit: "VISITA",
+          unitPrice: packagePricePerVisit,
+          costPrice: 0,
+          discount: 0,
+          total: serviceTotal,
+        }];
     const items = [
-      {
-        type: "SERVICO",
-        description: `${input.title} — ${input.visitsPerYear} visita(s) ${input.frequency.toLowerCase()}`,
-        quantity: input.visitsPerYear,
-        unit: "VISITA",
-        unitPrice: input.pricePerVisit,
-        costPrice: 0,
-        discount: 0,
-        total: serviceTotal,
-      },
+      ...serviceItems,
       ...(input.materialsPerVisit > 0 ? [{
         type: "PRODUTO",
         description: "Materiais e insumos previstos por visita",
