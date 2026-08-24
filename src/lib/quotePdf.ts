@@ -245,30 +245,30 @@ function drawPreventiveCover(options: {
     });
   }
   const brandX = MARGIN + (logo ? 66 : 0);
-  cover.drawText(brand.toUpperCase(), { x: brandX, y: 792, font: bold, size: 13, color: rgb(1, 1, 1) });
-  cover.drawText("ENGENHARIA, MANUTENÇÃO E GESTÃO TÉCNICA", { x: brandX, y: 776, font: regular, size: 6.5, color: rgb(0.67, 0.79, 1) });
+  cover.drawText(brand.toUpperCase(), { x: brandX, y: 792, font: bold, size: 14, color: rgb(1, 1, 1) });
+  cover.drawText("ENGENHARIA, MANUTENÇÃO E GESTÃO TÉCNICA", { x: brandX, y: 775, font: regular, size: 7.2, color: rgb(0.67, 0.79, 1) });
 
   cover.drawRectangle({ x: MARGIN, y: 706, width: 153, height: 23, color: BLUE });
-  cover.drawText("PROPOSTA TÉCNICA E COMERCIAL", { x: MARGIN + 10, y: 714, font: bold, size: 6.8, color: rgb(1, 1, 1) });
+  cover.drawText("PROPOSTA TÉCNICA E COMERCIAL", { x: MARGIN + 10, y: 714, font: bold, size: 7.3, color: rgb(1, 1, 1) });
   const titleLines = wrap(coverTitle, bold, 25, 455).slice(0, 3);
   drawLines(cover, titleLines, { x: MARGIN, y: 674, font: bold, size: 25, color: rgb(1, 1, 1), lineHeight: 29 });
   const afterTitleY = 674 - titleLines.length * 29 - 8;
   const packageLabel = disciplines.length > 1 ? `PACOTE INTEGRADO - ${disciplines.length} DISCIPLINAS` : disciplines[0] || "PLANO PERSONALIZADO";
-  cover.drawText(pdfText(packageLabel), { x: MARGIN, y: afterTitleY, font: bold, size: 7.2, color: rgb(0.42, 0.77, 1) });
-  const disciplineLines = wrap(disciplines.join("  |  ") || "Escopo técnico personalizado", regular, 7.1, 465);
-  drawLines(cover, disciplineLines, { x: MARGIN, y: afterTitleY - 17, font: regular, size: 7.1, color: rgb(0.78, 0.86, 1), lineHeight: 10, maxLines: 2 });
+  cover.drawText(pdfText(packageLabel), { x: MARGIN, y: afterTitleY, font: bold, size: 7.8, color: rgb(0.42, 0.77, 1) });
+  const disciplineLines = wrap(disciplines.join("  |  ") || "Escopo técnico personalizado", regular, 7.6, 465);
+  drawLines(cover, disciplineLines, { x: MARGIN, y: afterTitleY - 18, font: regular, size: 7.6, color: rgb(0.78, 0.86, 1), lineHeight: 10.5, maxLines: 2 });
 
-  cover.drawText("PREPARADO ESPECIALMENTE PARA", { x: MARGIN, y: 377, font: bold, size: 6.8, color: BLUE });
+  cover.drawText("PREPARADO ESPECIALMENTE PARA", { x: MARGIN, y: 377, font: bold, size: 7.4, color: BLUE });
   const clientLines = wrap(clientName, bold, 17, 500).slice(0, 2);
   drawLines(cover, clientLines, { x: MARGIN, y: 349, font: bold, size: 17, color: NAVY, lineHeight: 20 });
   const clientBottomY = 349 - clientLines.length * 20;
-  drawLines(cover, wrap(addressOf(quote), regular, 7, 500), { x: MARGIN, y: clientBottomY - 2, font: regular, size: 7, color: MUTED, lineHeight: 9, maxLines: 2 });
+  drawLines(cover, wrap(addressOf(quote), regular, 7.6, 500), { x: MARGIN, y: clientBottomY - 2, font: regular, size: 7.6, color: MUTED, lineHeight: 9.5, maxLines: 2 });
 
   cover.drawRectangle({ x: MARGIN, y: 159, width: 330, height: 112, color: rgb(1, 1, 1), borderColor: BORDER, borderWidth: 0.8 });
-  cover.drawText("INVESTIMENTO DO PLANO", { x: MARGIN + 18, y: 245, font: bold, size: 6.7, color: BLUE });
+  cover.drawText("INVESTIMENTO DO PLANO", { x: MARGIN + 18, y: 245, font: bold, size: 7.2, color: BLUE });
   cover.drawText(money(quote.total), { x: MARGIN + 18, y: 211, font: bold, size: 23, color: NAVY });
-  cover.drawText(pdfText(`Equivalente mensal de ${money(monthlyEquivalent)}`), { x: MARGIN + 18, y: 190, font: regular, size: 7.5, color: MUTED });
-  cover.drawText(pdfText(`${plan.visitsPerYear || 0} visita(s) programada(s) por ano - tributos inclusos no total`), { x: MARGIN + 18, y: 174, font: regular, size: 6.2, color: MUTED });
+  cover.drawText(pdfText(`Equivalente mensal de ${money(monthlyEquivalent)}`), { x: MARGIN + 18, y: 190, font: regular, size: 8, color: MUTED });
+  cover.drawText(pdfText(`${plan.visitsPerYear || 0} visita(s) programada(s) por ano - tributos inclusos no total`), { x: MARGIN + 18, y: 174, font: regular, size: 6.8, color: MUTED });
 
   cover.drawRectangle({ x: MARGIN + 344, y: 159, width: 175, height: 112, color: LIGHT_BLUE, borderColor: rgb(0.68, 0.79, 0.96), borderWidth: 0.8 });
   const metaRows = [
@@ -279,13 +279,13 @@ function drawPreventiveCover(options: {
   ];
   metaRows.forEach(([label, value], index) => {
     const rowY = 244 - index * 22;
-    cover.drawText(label, { x: MARGIN + 358, y: rowY, font: bold, size: 5.8, color: BLUE });
+    cover.drawText(label, { x: MARGIN + 358, y: rowY, font: bold, size: 6.3, color: BLUE });
     const valueText = pdfText(value);
-    cover.drawText(valueText, { x: A4_WIDTH - MARGIN - 14 - regular.widthOfTextAtSize(valueText, 6.5), y: rowY, font: regular, size: 6.5, color: TEXT });
+    cover.drawText(valueText, { x: A4_WIDTH - MARGIN - 14 - regular.widthOfTextAtSize(valueText, 7.2), y: rowY, font: regular, size: 7.2, color: TEXT });
   });
 
-  cover.drawText("DOCUMENTO CONFIDENCIAL", { x: MARGIN, y: 91, font: bold, size: 6.2, color: NAVY });
-  cover.drawText("Esta proposta foi preparada conforme as necessidades e condições informadas pelo cliente.", { x: MARGIN, y: 76, font: regular, size: 6.4, color: MUTED });
+  cover.drawText("DOCUMENTO CONFIDENCIAL", { x: MARGIN, y: 91, font: bold, size: 6.8, color: NAVY });
+  cover.drawText("Esta proposta foi preparada conforme as necessidades e condições informadas pelo cliente.", { x: MARGIN, y: 75, font: regular, size: 7, color: MUTED });
   cover.drawRectangle({ x: 0, y: 0, width: A4_WIDTH, height: 38, color: NAVY });
   cover.drawText(pdfText(`${brand} - ${company.cnpj ? `CNPJ ${company.cnpj}` : "Proposta comercial"}`), { x: MARGIN, y: 15, font: regular, size: 6.2, color: rgb(0.72, 0.82, 1) });
 }
@@ -306,17 +306,17 @@ function drawPreventiveExecutive(options: {
 
   page.drawRectangle({ x: 0, y: A4_HEIGHT - 82, width: A4_WIDTH, height: 82, color: NAVY });
   page.drawText("VISÃO EXECUTIVA DA PROPOSTA", { x: MARGIN, y: A4_HEIGHT - 33, font: bold, size: 8, color: rgb(0.55, 0.78, 1) });
-  page.drawText("Uma manutenção previsível, documentada e orientada por criticidade", { x: MARGIN, y: A4_HEIGHT - 57, font: bold, size: 14, color: rgb(1, 1, 1) });
+  page.drawText("Uma manutenção previsível, documentada e orientada por criticidade", { x: MARGIN, y: A4_HEIGHT - 58, font: bold, size: 15, color: rgb(1, 1, 1) });
   const brand = pdfText(company.tradeName || company.corporateName || "O PRESTADOR");
   page.drawText(brand, { x: A4_WIDTH - MARGIN - bold.widthOfTextAtSize(brand, 7.5), y: A4_HEIGHT - 34, font: bold, size: 7.5, color: rgb(1, 1, 1) });
 
   let y = A4_HEIGHT - 112;
-  page.drawText("OBJETIVO E ENTENDIMENTO", { x: MARGIN, y, font: bold, size: 7.2, color: BLUE });
+  page.drawText("OBJETIVO E ENTENDIMENTO", { x: MARGIN, y, font: bold, size: 8, color: BLUE });
   y -= 18;
   const objective = quote.notes?.trim() || `Implantar um programa de manutenção preventiva para ${quote.client.socialName || quote.client.name}, com rotinas técnicas programadas, evidências por ativo e acompanhamento das pendências. O plano busca reduzir falhas inesperadas, aumentar a vida útil dos equipamentos e dar previsibilidade à operação.`;
-  const objectiveLines = wrap(objective, regular, 8.3, contentWidth);
-  drawLines(page, objectiveLines, { x: MARGIN, y, font: regular, size: 8.3, color: TEXT, lineHeight: 12, maxLines: 6 });
-  y -= Math.min(6, objectiveLines.length) * 12 + 20;
+  const objectiveLines = wrap(objective, regular, 9, contentWidth);
+  drawLines(page, objectiveLines, { x: MARGIN, y, font: regular, size: 9, color: TEXT, lineHeight: 12.5, maxLines: 6 });
+  y -= Math.min(6, objectiveLines.length) * 12.5 + 20;
 
   const metricGap = 8;
   const metricWidth = (contentWidth - metricGap * 3) / 4;
@@ -330,11 +330,11 @@ function drawPreventiveExecutive(options: {
     const x = MARGIN + index * (metricWidth + metricGap);
     page.drawRectangle({ x, y: y - 58, width: metricWidth, height: 58, color: index === 0 ? NAVY : LIGHT_BLUE, borderColor: index === 0 ? NAVY : rgb(0.68, 0.79, 0.96), borderWidth: 0.6 });
     page.drawText(pdfText(value), { x: x + 12, y: y - 27, font: bold, size: 16, color: index === 0 ? rgb(1, 1, 1) : NAVY });
-    page.drawText(label, { x: x + 12, y: y - 44, font: bold, size: 5.8, color: index === 0 ? rgb(0.67, 0.8, 1) : BLUE });
+    page.drawText(label, { x: x + 12, y: y - 44, font: bold, size: 6.4, color: index === 0 ? rgb(0.67, 0.8, 1) : BLUE });
   });
   y -= 82;
 
-  page.drawText("COMO O PLANO SERÁ EXECUTADO", { x: MARGIN, y, font: bold, size: 7.2, color: BLUE });
+  page.drawText("COMO O PLANO SERÁ EXECUTADO", { x: MARGIN, y, font: bold, size: 8, color: BLUE });
   y -= 18;
   const phases = [
     ["01", "PLANEJAMENTO", "Cronograma, ativos, responsáveis e janela de atendimento definidos antes da mobilização."],
@@ -351,12 +351,12 @@ function drawPreventiveExecutive(options: {
     page.drawRectangle({ x, y: cardY - 64, width: phaseWidth, height: 64, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.7 });
     page.drawCircle({ x: x + 20, y: cardY - 20, size: 11, color: BLUE });
     page.drawText(number, { x: x + 14.5, y: cardY - 23, font: bold, size: 7, color: rgb(1, 1, 1) });
-    page.drawText(title, { x: x + 39, y: cardY - 16, font: bold, size: 6.7, color: NAVY });
-    drawLines(page, wrap(description, regular, 6.4, phaseWidth - 52), { x: x + 39, y: cardY - 31, font: regular, size: 6.4, color: MUTED, lineHeight: 8.2, maxLines: 3 });
+    page.drawText(title, { x: x + 39, y: cardY - 16, font: bold, size: 7.3, color: NAVY });
+    drawLines(page, wrap(description, regular, 7, phaseWidth - 52), { x: x + 39, y: cardY - 31, font: regular, size: 7, color: MUTED, lineHeight: 8.8, maxLines: 3 });
   });
   y -= 172;
 
-  page.drawText("COBERTURA TÉCNICA CONTRATADA", { x: MARGIN, y, font: bold, size: 7.2, color: BLUE });
+  page.drawText("COBERTURA TÉCNICA CONTRATADA", { x: MARGIN, y, font: bold, size: 8, color: BLUE });
   y -= 19;
   disciplines.forEach((id, index) => {
     const col = index % 2;
@@ -365,9 +365,9 @@ function drawPreventiveExecutive(options: {
     const lineY = y - row * 42;
     page.drawRectangle({ x, y: lineY - 34, width: phaseWidth, height: 34, color: rgb(0.97, 0.98, 1) });
     page.drawCircle({ x: x + 10, y: lineY - 10, size: 2.6, color: GREEN });
-    page.drawText(pdfText(preventiveDisciplineLabels[id] || id), { x: x + 19, y: lineY - 9, font: bold, size: 6.3, color: TEXT });
+    page.drawText(pdfText(preventiveDisciplineLabels[id] || id), { x: x + 19, y: lineY - 9, font: bold, size: 7.3, color: TEXT });
     const description = preventiveDisciplineDescriptions[id] || "Rotina técnica conforme escopo detalhado.";
-    drawLines(page, wrap(description, regular, 5.2, phaseWidth - 29), { x: x + 19, y: lineY - 20, font: regular, size: 5.2, color: MUTED, lineHeight: 6.3, maxLines: 2 });
+    drawLines(page, wrap(description, regular, 6.1, phaseWidth - 29), { x: x + 19, y: lineY - 21, font: regular, size: 6.1, color: MUTED, lineHeight: 7, maxLines: 2 });
   });
   y -= Math.ceil(Math.max(1, disciplines.length) / 2) * 42 + 18;
 
@@ -381,10 +381,10 @@ function drawPreventiveExecutive(options: {
   ];
   financeColumns.forEach(([label, value], index) => {
     const x = MARGIN + 16 + index * 168;
-    page.drawText(pdfText(label), { x, y: y - 42, font: bold, size: index === 2 ? 5.9 : 5.4, color: rgb(0.68, 0.8, 1) });
-    page.drawText(pdfText(value), { x, y: y - 66, font: bold, size: index === 2 ? 14 : 11, color: index === 2 ? rgb(0.31, 0.88, 0.59) : rgb(1, 1, 1) });
+    page.drawText(pdfText(label), { x, y: y - 42, font: bold, size: index === 2 ? 6.5 : 6.2, color: rgb(0.68, 0.8, 1) });
+    page.drawText(pdfText(value), { x, y: y - 66, font: bold, size: index === 2 ? 15 : 12, color: index === 2 ? rgb(0.31, 0.88, 0.59) : rgb(1, 1, 1) });
   });
-  page.drawText("Os tributos são calculados sobre a base após desconto. Retenções legais do tomador, quando aplicáveis, seguem a legislação e o documento fiscal.", { x: MARGIN + 16, y: y - 82, font: regular, size: 5.4, color: rgb(0.69, 0.79, 0.94) });
+  page.drawText("Os tributos são calculados sobre a base após desconto. Retenções legais do tomador, quando aplicáveis, seguem a legislação e o documento fiscal.", { x: MARGIN + 16, y: y - 82, font: regular, size: 6, color: rgb(0.69, 0.79, 0.94) });
 
   page.drawRectangle({ x: MARGIN, y: 28, width: contentWidth, height: 25, color: NAVY });
   page.drawText(pdfText(`${quote.code} - Visão executiva integrante da proposta`), { x: MARGIN + 10, y: 37, font: regular, size: 6.2, color: rgb(0.78, 0.85, 1) });
@@ -395,30 +395,195 @@ function addPreventivePageNumbers(document: PDFDocument, regular: PDFFont) {
   pages.forEach((page, index) => {
     const value = pdfText(`Página ${index + 1} de ${pages.length}`);
     page.drawText(value, {
-      x: A4_WIDTH / 2 - regular.widthOfTextAtSize(value, 5.8) / 2,
-      y: index === 0 ? 15 : index < 3 ? 37 : 76,
+      x: A4_WIDTH / 2 - regular.widthOfTextAtSize(value, 6.2) / 2,
+      y: index === 0 ? 15 : 37,
       font: regular,
-      size: 5.8,
+      size: 6.2,
       color: index < 3 ? rgb(0.72, 0.82, 1) : MUTED,
     });
   });
 }
 
-function refreshPreventiveTechnicalPageChrome(
-  document: PDFDocument,
-  quote: QuotePdfData,
-  company: QuotePdfCompanyProfile,
-  regular: PDFFont,
-  bold: PDFFont,
-) {
+function drawPreventiveTechnicalAppendix(options: {
+  document: PDFDocument;
+  quote: QuotePdfData;
+  company: QuotePdfCompanyProfile;
+  plan: PreventivePlanPdf;
+  regular: PDFFont;
+  bold: PDFFont;
+}) {
+  const { document, quote, company, plan, regular, bold } = options;
+  const firstTechnicalPageIndex = document.getPageCount();
+  const contentWidth = A4_WIDTH - MARGIN * 2;
+  const columnGap = 18;
+  const columnWidth = (contentWidth - columnGap) / 2;
   const brand = pdfText(company.tradeName || company.corporateName || "O PRESTADOR");
-  document.getPages().slice(3).forEach((page) => {
-    page.drawText("PLANO TÉCNICO DE MANUTENÇÃO PREVENTIVA", { x: MARGIN, y: 738, font: bold, size: 8.5, color: BLUE });
-    page.drawText(pdfText(quote.code), { x: MARGIN, y: 714, font: bold, size: 15, color: NAVY });
-    page.drawText(brand, { x: A4_WIDTH - MARGIN - bold.widthOfTextAtSize(brand, 8), y: 717, font: bold, size: 8, color: NAVY });
-    page.drawRectangle({ x: MARGIN, y: 692, width: A4_WIDTH - MARGIN * 2, height: 2, color: BLUE });
-    page.drawRectangle({ x: MARGIN, y: 91, width: A4_WIDTH - MARGIN * 2, height: 1, color: BORDER });
-    page.drawText(pdfText(`${quote.code} - Escopo técnico integrante da proposta comercial`), { x: MARGIN, y: 76, font: regular, size: 6.2, color: MUTED });
+  let page: PDFPage = document.getPage(document.getPageCount() - 1);
+  let column = 0;
+  let columnTop = 730;
+  let y = columnTop;
+
+  const xForColumn = () => MARGIN + column * (columnWidth + columnGap);
+
+  const addPage = (label = "Caderno técnico") => {
+    page = document.addPage([A4_WIDTH, A4_HEIGHT]);
+    page.drawText(pdfText(label.toUpperCase()), { x: MARGIN, y: 796, font: bold, size: 7.2, color: BLUE });
+    page.drawText(pdfText(quote.code), { x: MARGIN, y: 773, font: bold, size: 15, color: NAVY });
+    page.drawText(brand, { x: A4_WIDTH - MARGIN - bold.widthOfTextAtSize(brand, 8.5), y: 779, font: bold, size: 8.5, color: NAVY });
+    page.drawRectangle({ x: MARGIN, y: 755, width: contentWidth, height: 2, color: BLUE });
+    page.drawRectangle({ x: MARGIN, y: 53, width: contentWidth, height: 1, color: BORDER });
+    page.drawText(pdfText(`${quote.code} - Anexo técnico integrante da proposta comercial`), { x: MARGIN, y: 37, font: regular, size: 6.4, color: MUTED });
+    column = 0;
+    columnTop = 730;
+    y = columnTop;
+  };
+
+  const nextColumn = (label = "Caderno técnico") => {
+    if (column === 0) {
+      column = 1;
+      y = columnTop;
+      return;
+    }
+    addPage(label);
+  };
+
+  const ensureColumnSpace = (height: number, label?: string) => {
+    if (y - height < 72) nextColumn(label);
+  };
+
+  const bulletLayout = (text: string, width = columnWidth - 25) => {
+    const lines = wrap(text, regular, 8.1, width);
+    return { lines, height: Math.max(15, lines.length * 10.4 + 4) };
+  };
+
+  const drawBullet = (text: string, color = TEXT, sectionLabel?: string) => {
+    const layout = bulletLayout(text);
+    ensureColumnSpace(layout.height, sectionLabel);
+    const x = xForColumn();
+    page.drawCircle({ x: x + 5, y: y - 6, size: 1.8, color: color === TEXT ? BLUE : color });
+    drawLines(page, layout.lines, { x: x + 14, y: y - 9, font: regular, size: 8.1, color, lineHeight: 10.4 });
+    y -= layout.height;
+  };
+
+  const groupHeightOf = (items: string[]) => 24 + items.reduce((sum, item) => sum + bulletLayout(item).height, 0) + 9;
+
+  const drawGroup = (title: string, items: string[]) => {
+    const itemLayouts = items.map((item) => bulletLayout(item));
+    const groupHeight = 24 + itemLayouts.reduce((sum, item) => sum + item.height, 0) + 9;
+    ensureColumnSpace(Math.min(groupHeight, 610), "Escopo técnico detalhado");
+    const x = xForColumn();
+    page.drawRectangle({ x, y: y - 19, width: columnWidth, height: 19, color: LIGHT_BLUE });
+    page.drawText(pdfText(title.toUpperCase()), { x: x + 9, y: y - 12.5, font: bold, size: 7.6, color: BLUE });
+    y -= 27;
+    items.forEach((item) => drawBullet(item, TEXT, "Escopo técnico detalhado"));
+    y -= 8;
+  };
+
+  const drawListSection = (title: string, items: string[], color: ReturnType<typeof rgb>) => {
+    if (!items.length) return;
+    const sectionLabel = "Composição do pacote";
+    const drawTitle = (continuation = false) => {
+      ensureColumnSpace(34, sectionLabel);
+      const x = xForColumn();
+      page.drawRectangle({ x, y: y - 23, width: columnWidth, height: 23, color: LIGHT_BLUE, borderColor: rgb(0.68, 0.79, 0.96), borderWidth: 0.5 });
+      page.drawText(pdfText(`${title}${continuation ? " - CONTINUAÇÃO" : ""}`.toUpperCase()), { x: x + 9, y: y - 15, font: bold, size: 7.6, color: NAVY });
+      y -= 33;
+    };
+    drawTitle();
+    items.forEach((item) => {
+      const layout = bulletLayout(item);
+      if (y - layout.height < 72) {
+        nextColumn(sectionLabel);
+        drawTitle(true);
+      }
+      drawBullet(item, color, sectionLabel);
+    });
+    y -= 10;
+  };
+
+  addPage("Plano técnico de manutenção preventiva");
+  const planTitle = plan.title || "Plano de manutenção preventiva";
+  const titleLines = wrap(planTitle, bold, 17, contentWidth);
+  drawLines(page, titleLines, { x: MARGIN, y: y, font: bold, size: 17, color: NAVY, lineHeight: 20 });
+  y -= titleLines.length * 20 + 14;
+
+  const disciplines = (plan.disciplineIds || []).map((id) => preventiveDisciplineLabels[id] || id);
+  const summaryCards = [
+    ["COBERTURA", disciplines.length ? `${disciplines.length} disciplina(s)` : "Plano personalizado"],
+    ["PERIODICIDADE", `${frequencyLabel(plan.frequency)} - ${plan.visitsPerYear || 0} visita(s)/ano`],
+    ["MOBILIZAÇÃO", `${plan.durationHours || 0}h por visita - ${plan.technicians || 0} técnico(s)`],
+    ["ATENDIMENTO", `SLA de ${plan.slaHours || 0}h - início ${plan.startDate ? date(`${plan.startDate}T12:00:00`) : "a definir"}`],
+  ];
+  const cardGap = 8;
+  const cardWidth = (contentWidth - cardGap * 3) / 4;
+  summaryCards.forEach(([label, value], index) => {
+    const x = MARGIN + index * (cardWidth + cardGap);
+    page.drawRectangle({ x, y: y - 52, width: cardWidth, height: 52, color: index === 0 ? NAVY : rgb(0.97, 0.98, 1), borderColor: index === 0 ? NAVY : BORDER, borderWidth: 0.6 });
+    page.drawText(label, { x: x + 9, y: y - 16, font: bold, size: 6.2, color: index === 0 ? rgb(0.62, 0.79, 1) : BLUE });
+    drawLines(page, wrap(value, index === 0 ? bold : regular, 7.4, cardWidth - 18), { x: x + 9, y: y - 33, font: index === 0 ? bold : regular, size: 7.4, color: index === 0 ? rgb(1, 1, 1) : TEXT, lineHeight: 9, maxLines: 2 });
+  });
+  y -= 70;
+  page.drawText(pdfText(`ESCOPO TÉCNICO DETALHADO - ${plan.scope?.length || 0} ATIVIDADES`), { x: MARGIN, y, font: bold, size: 9, color: BLUE });
+  y -= 18;
+  page.drawRectangle({ x: MARGIN, y, width: contentWidth, height: 1, color: BORDER });
+  y -= 15;
+  columnTop = y;
+
+  const scopeGroups = (plan.scope || []).reduce<Record<string, string[]>>((groups, item) => {
+    const label = item.label?.trim();
+    if (!label) return groups;
+    const group = item.group?.trim() || "Escopo geral";
+    groups[group] = [...(groups[group] || []), label];
+    return groups;
+  }, {});
+  const scopeEntries = Object.entries(scopeGroups);
+  let finalPageBalanceTarget: number | null = null;
+  scopeEntries.forEach(([group, items], index) => {
+    const groupHeight = groupHeightOf(items);
+    const remainingHeight = scopeEntries.slice(index).reduce((sum, [, groupItems]) => sum + groupHeightOf(groupItems), 0);
+    if (column === 1 && y - Math.min(groupHeight, 610) < 72 && remainingHeight <= (730 - 72) * 2) {
+      addPage("Escopo técnico detalhado");
+      finalPageBalanceTarget = remainingHeight / 2;
+    }
+    if (
+      finalPageBalanceTarget
+      && column === 0
+      && y < columnTop
+      && columnTop - y + groupHeight > finalPageBalanceTarget
+    ) {
+      nextColumn("Escopo técnico detalhado");
+    }
+    drawGroup(group, items);
+  });
+
+  addPage("Composição do pacote");
+  page.drawText("ENTREGAS, LIMITES E RESPONSABILIDADES", { x: MARGIN, y, font: bold, size: 15, color: NAVY });
+  y -= 19;
+  page.drawText("Leitura objetiva do que será entregue, do que está incluído e do que depende de contratação complementar.", { x: MARGIN, y, font: regular, size: 8.5, color: MUTED });
+  y -= 25;
+  page.drawRectangle({ x: MARGIN, y, width: contentWidth, height: 1, color: BORDER });
+  y -= 16;
+  columnTop = y;
+  drawListSection("Entregas ao cliente", plan.deliverables || [], TEXT);
+  drawListSection("Incluso no pacote", plan.inclusions || [], GREEN);
+  drawListSection("Não incluso / contratação à parte", plan.exclusions || [], rgb(0.72, 0.2, 0.14));
+  if (plan.equipments?.length) {
+    drawListSection(
+      `Ativos inicialmente vinculados - ${plan.equipments.length}`,
+      plan.equipments.map((equipment) => [equipment.tag || equipment.type, equipment.brand, equipment.model, equipment.location].filter(Boolean).join(" - ")),
+      TEXT,
+    );
+  }
+
+  document.getPages().slice(firstTechnicalPageIndex).forEach((technicalPage) => {
+    technicalPage.drawRectangle({ x: 0, y: 753, width: A4_WIDTH, height: A4_HEIGHT - 753, color: rgb(1, 1, 1) });
+    technicalPage.drawText("CADERNO TÉCNICO", { x: MARGIN, y: 796, font: bold, size: 7.2, color: BLUE });
+    technicalPage.drawText(pdfText(quote.code), { x: MARGIN, y: 773, font: bold, size: 15, color: NAVY });
+    technicalPage.drawText(brand, { x: A4_WIDTH - MARGIN - bold.widthOfTextAtSize(brand, 8.5), y: 779, font: bold, size: 8.5, color: NAVY });
+    technicalPage.drawRectangle({ x: MARGIN, y: 755, width: contentWidth, height: 2, color: BLUE });
+    technicalPage.drawRectangle({ x: 0, y: 0, width: A4_WIDTH, height: 60, color: rgb(1, 1, 1) });
+    technicalPage.drawRectangle({ x: MARGIN, y: 53, width: contentWidth, height: 1, color: BORDER });
+    technicalPage.drawText(pdfText(`${quote.code} - Anexo técnico integrante da proposta comercial`), { x: MARGIN, y: 37, font: regular, size: 6.4, color: MUTED });
   });
 }
 
@@ -480,36 +645,36 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   page.drawRectangle({ x: MARGIN + boxWidth + boxGap, y: y - 88, width: boxWidth, height: 88, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
   page.drawCircle({ x: MARGIN + 14, y: y - 15, size: 3.2, color: BLUE });
   page.drawText("DADOS DO CLIENTE", { x: MARGIN + 23, y: y - 18, font: bold, size: 7, color: NAVY });
-  page.drawText(pdfText(quote.client.socialName || quote.client.name), { x: MARGIN + 14, y: y - 34, font: bold, size: 8.4, color: TEXT });
-  page.drawText(pdfText(`CPF/CNPJ: ${quote.client.cpfCnpj || "Nao informado"}`), { x: MARGIN + 14, y: y - 48, font: regular, size: 6.6, color: MUTED });
-  drawLines(page, wrap(addressOf(quote), regular, 6.3, boxWidth - 28), { x: MARGIN + 14, y: y - 61, font: regular, size: 6.3, color: MUTED, lineHeight: 8, maxLines: 2 });
+  page.drawText(pdfText(quote.client.socialName || quote.client.name), { x: MARGIN + 14, y: y - 34, font: bold, size: 9.2, color: TEXT });
+  page.drawText(pdfText(`CPF/CNPJ: ${quote.client.cpfCnpj || "Nao informado"}`), { x: MARGIN + 14, y: y - 49, font: regular, size: 7, color: MUTED });
+  drawLines(page, wrap(addressOf(quote), regular, 6.8, boxWidth - 28), { x: MARGIN + 14, y: y - 63, font: regular, size: 6.8, color: MUTED, lineHeight: 8.4, maxLines: 2 });
   if (quote.contact) {
-    page.drawText(pdfText(`Contato: ${quote.contact.name}${quote.contact.email ? ` - ${quote.contact.email}` : ""}`), { x: MARGIN + 14, y: y - 82, font: regular, size: 5.8, color: MUTED });
+    page.drawText(pdfText(`Contato: ${quote.contact.name}${quote.contact.email ? ` - ${quote.contact.email}` : ""}`), { x: MARGIN + 14, y: y - 82, font: regular, size: 6.4, color: MUTED });
   }
 
   const rightX = MARGIN + boxWidth + boxGap;
   page.drawCircle({ x: rightX + 14, y: y - 15, size: 3.2, color: BLUE });
-  page.drawText("DADOS DA PROPOSTA", { x: rightX + 23, y: y - 18, font: bold, size: 7, color: NAVY });
-  page.drawText(pdfText(`Validade: ${date(quote.validUntil)}`), { x: rightX + 14, y: y - 35, font: bold, size: 7, color: TEXT });
-  page.drawText(pdfText(`Pagamento: ${quote.paymentTerms || "A combinar"}`), { x: rightX + 14, y: y - 49, font: regular, size: 6.4, color: MUTED });
-  page.drawText(pdfText(`Execucao: ${quote.executionTerm || "A combinar"}`), { x: rightX + 14, y: y - 62, font: regular, size: 6.4, color: MUTED });
-  page.drawText(pdfText(`Garantia: ${quote.warrantyDays || 90} dias`), { x: rightX + 14, y: y - 74, font: regular, size: 6.4, color: MUTED });
+  page.drawText("DADOS DA PROPOSTA", { x: rightX + 23, y: y - 18, font: bold, size: 7.6, color: NAVY });
+  page.drawText(pdfText(`Validade: ${date(quote.validUntil)}`), { x: rightX + 14, y: y - 35, font: bold, size: 7.5, color: TEXT });
+  page.drawText(pdfText(`Pagamento: ${quote.paymentTerms || "A combinar"}`), { x: rightX + 14, y: y - 50, font: regular, size: 6.9, color: MUTED });
+  page.drawText(pdfText(`Execucao: ${quote.executionTerm || "A combinar"}`), { x: rightX + 14, y: y - 64, font: regular, size: 6.9, color: MUTED });
+  page.drawText(pdfText(`Garantia: ${quote.warrantyDays || 90} dias`), { x: rightX + 14, y: y - 78, font: regular, size: 6.9, color: MUTED });
   y -= 106;
 
-  page.drawText("OBJETO DA PROPOSTA", { x: MARGIN, y, font: bold, size: 7.2, color: NAVY });
-  y -= 12;
-  drawLines(page, wrap(quote.notes || "Fornecimento de materiais e execucao dos servicos descritos abaixo, conforme condicoes desta proposta.", regular, 6.8, contentWidth), { x: MARGIN, y, font: regular, size: 6.8, color: MUTED, lineHeight: 8.5, maxLines: 3 });
-  y -= 29;
+  page.drawText("OBJETO DA PROPOSTA", { x: MARGIN, y, font: bold, size: 8, color: NAVY });
+  y -= 14;
+  drawLines(page, wrap(quote.notes || "Fornecimento de materiais e execucao dos servicos descritos abaixo, conforme condicoes desta proposta.", regular, 7.4, contentWidth), { x: MARGIN, y, font: regular, size: 7.4, color: MUTED, lineHeight: 9.5, maxLines: 3 });
+  y -= 32;
 
   const tableTop = y;
   const footerReserve = preventivePlan ? 194 : 170;
   const availableRowsHeight = Math.max(180, tableTop - footerReserve);
   const descriptionWidth = 260;
-  let itemFontSize = 7;
-  let itemLineHeight = 8.4;
+  let itemFontSize = 8;
+  let itemLineHeight = 9.6;
   let rowLayouts = quote.items.map((item) => ({ item, lines: wrap(item.description, regular, itemFontSize, descriptionWidth) }));
-  const neededHeight = () => rowLayouts.reduce((total, row) => total + Math.max(24, row.lines.length * itemLineHeight + 10), 0);
-  while (neededHeight() > availableRowsHeight && itemFontSize > 3.4) {
+  const neededHeight = () => rowLayouts.reduce((total, row) => total + Math.max(26, row.lines.length * itemLineHeight + 10), 0);
+  while (neededHeight() > availableRowsHeight && itemFontSize > 5.2) {
     itemFontSize -= 0.35;
     itemLineHeight = itemFontSize * 1.18;
     rowLayouts = quote.items.map((item) => ({ item, lines: wrap(item.description, regular, itemFontSize, descriptionWidth) }));
@@ -519,7 +684,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   page.drawRectangle({ x: MARGIN, y: y - headerHeight, width: contentWidth, height: headerHeight, color: NAVY });
   const columns = [MARGIN + 10, MARGIN + 40, MARGIN + 310, MARGIN + 360, MARGIN + 405, MARGIN + 468];
   ["ITEM", "DESCRICAO DOS SERVICOS / MATERIAIS", "QTDE", "UNID", "VALOR UNIT.", "VALOR TOTAL"].forEach((label, index) => {
-    page.drawText(label, { x: columns[index], y: y - 15, font: bold, size: index === 1 ? 6.2 : 5.7, color: rgb(1, 1, 1) });
+    page.drawText(label, { x: columns[index], y: y - 15, font: bold, size: index === 1 ? 6.6 : 6.1, color: rgb(1, 1, 1) });
   });
   y -= headerHeight;
 
@@ -527,11 +692,11 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   const compactRowHeight = forceCompactRows ? availableRowsHeight / rowLayouts.length : null;
 
   rowLayouts.forEach((row, index) => {
-    const rowHeight = compactRowHeight || Math.max(23, row.lines.length * itemLineHeight + 9);
+    const rowHeight = compactRowHeight || Math.max(26, row.lines.length * itemLineHeight + 10);
     const effectiveFontSize = compactRowHeight
-      ? Math.max(2.7, Math.min(itemFontSize, compactRowHeight * 0.42))
+      ? Math.max(5.2, Math.min(itemFontSize, compactRowHeight * 0.42))
       : itemFontSize;
-    const effectiveLineHeight = Math.max(3.2, effectiveFontSize * 1.15);
+    const effectiveLineHeight = Math.max(6.2, effectiveFontSize * 1.18);
     const wrappedLines = wrap(row.item.description, regular, effectiveFontSize, descriptionWidth);
     const maxLines = compactRowHeight
       ? Math.max(1, Math.floor((rowHeight - 4) / effectiveLineHeight))
@@ -547,8 +712,8 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
     drawLines(page, visibleLines, { x: columns[1], y: textY, font: regular, size: effectiveFontSize, color: TEXT, lineHeight: effectiveLineHeight });
     page.drawText(pdfText(row.item.quantity), { x: columns[2] + 5, y: textY, font: regular, size: effectiveFontSize, color: TEXT });
     page.drawText(pdfText(row.item.unit), { x: columns[3] + 4, y: textY, font: regular, size: effectiveFontSize, color: TEXT });
-    page.drawText(money(row.item.unitPrice), { x: columns[4], y: textY, font: regular, size: Math.max(2.7, effectiveFontSize - 0.35), color: TEXT });
-    page.drawText(money(row.item.total), { x: columns[5], y: textY, font: bold, size: Math.max(2.7, effectiveFontSize - 0.35), color: TEXT });
+    page.drawText(money(row.item.unitPrice), { x: columns[4], y: textY, font: regular, size: Math.max(5.2, effectiveFontSize - 0.35), color: TEXT });
+    page.drawText(money(row.item.total), { x: columns[5], y: textY, font: bold, size: Math.max(5.2, effectiveFontSize - 0.35), color: TEXT });
     y -= rowHeight;
   });
 
@@ -566,19 +731,19 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   ];
   totalRows.forEach(([label, value, strong], index) => {
     const lineY = y - 15 - index * (preventivePlan ? 15 : 16);
-    page.drawText(label, { x: totalBoxX + 12, y: lineY, font: strong ? bold : regular, size: strong ? 8 : 6.5, color: strong ? NAVY : MUTED });
+    page.drawText(label, { x: totalBoxX + 12, y: lineY, font: strong ? bold : regular, size: strong ? 8.5 : 7.1, color: strong ? NAVY : MUTED });
     const valueFont = strong ? bold : regular;
-    const valueSize = strong ? 10 : 6.5;
+    const valueSize = strong ? 11 : 7.1;
       page.drawText(value, { x: totalBoxX + totalBoxWidth - 12 - valueFont.widthOfTextAtSize(value, valueSize), y: lineY, font: valueFont, size: valueSize, color: strong ? GREEN : TEXT });
   });
   if (preventivePlan) {
     const taxInfo = pdfText(`Tributação estimada: ${taxLabel(preventivePlan)}`);
-    page.drawText(taxInfo, { x: totalBoxX + 12, y: y - 89, font: regular, size: 5.1, color: MUTED });
+    page.drawText(taxInfo, { x: totalBoxX + 12, y: y - 89, font: regular, size: 5.8, color: MUTED });
   }
 
-  page.drawText("ACEITE DA PROPOSTA", { x: MARGIN, y: y - 14, font: bold, size: 7, color: NAVY });
-  page.drawText("Nome: __________________________________________", { x: MARGIN, y: y - 34, font: regular, size: 6.4, color: MUTED });
-  page.drawText("Data: ____/____/________    Assinatura: ____________________", { x: MARGIN, y: y - 51, font: regular, size: 6.4, color: MUTED });
+  page.drawText("ACEITE DA PROPOSTA", { x: MARGIN, y: y - 14, font: bold, size: 7.6, color: NAVY });
+  page.drawText("Nome: __________________________________________", { x: MARGIN, y: y - 34, font: regular, size: 7, color: MUTED });
+  page.drawText("Data: ____/____/________    Assinatura: ____________________", { x: MARGIN, y: y - 51, font: regular, size: 7, color: MUTED });
   y -= preventivePlan ? 112 : 92;
 
   page.drawRectangle({ x: MARGIN, y: 28, width: contentWidth, height: 28, color: NAVY });
@@ -587,102 +752,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   page.drawText(footer, { x: A4_WIDTH - MARGIN - 12 - regular.widthOfTextAtSize(footer, 6.2), y: 39, font: regular, size: 6.2, color: rgb(0.72, 0.82, 1) });
 
   if (preventivePlan) {
-    let detailPage: PDFPage = page;
-    let detailY = 0;
-    const detailWidth = contentWidth;
-
-    const addDetailPage = () => {
-      detailPage = document.addPage([A4_WIDTH, A4_HEIGHT]);
-      detailPage.drawText("PLANO TÉCNICO DE MANUTENÇÃO PREVENTIVA", { x: MARGIN, y: 738, font: bold, size: 8.5, color: BLUE });
-      detailPage.drawText(pdfText(quote.code), { x: MARGIN, y: 714, font: bold, size: 15, color: NAVY });
-      const brand = pdfText(company.tradeName || company.corporateName || "O PRESTADOR");
-      detailPage.drawText(brand, { x: A4_WIDTH - MARGIN - bold.widthOfTextAtSize(brand, 8), y: 717, font: bold, size: 8, color: NAVY });
-      detailPage.drawRectangle({ x: MARGIN, y: 692, width: detailWidth, height: 2, color: BLUE });
-      detailPage.drawRectangle({ x: MARGIN, y: 91, width: detailWidth, height: 1, color: BORDER });
-      detailPage.drawText(pdfText(`${quote.code} - Escopo técnico integrante da proposta comercial`), { x: MARGIN, y: 76, font: regular, size: 6.2, color: MUTED });
-      detailY = 670;
-    };
-
-    const ensureDetailSpace = (height: number) => {
-      if (detailY - height < 108) addDetailPage();
-    };
-
-    const detailHeading = (title: string) => {
-      ensureDetailSpace(31);
-      detailPage.drawRectangle({ x: MARGIN, y: detailY - 22, width: detailWidth, height: 22, color: LIGHT_BLUE, borderColor: rgb(0.68, 0.79, 0.96), borderWidth: 0.5 });
-      detailPage.drawText(pdfText(title.toUpperCase()), { x: MARGIN + 10, y: detailY - 14, font: bold, size: 7.3, color: NAVY });
-      detailY -= 31;
-    };
-
-    const detailBullet = (text: string, color = TEXT) => {
-      const bulletLines = wrap(text, regular, 7, detailWidth - 26);
-      const height = Math.max(14, bulletLines.length * 9 + 4);
-      ensureDetailSpace(height);
-      detailPage.drawCircle({ x: MARGIN + 5, y: detailY - 5, size: 2, color: BLUE });
-      drawLines(detailPage, bulletLines, { x: MARGIN + 14, y: detailY - 8, font: regular, size: 7, color, lineHeight: 9 });
-      detailY -= height;
-    };
-
-    addDetailPage();
-    const planTitle = preventivePlan.title || "Plano de manutenção preventiva";
-    const titleLines = wrap(planTitle, bold, 15, detailWidth);
-    drawLines(detailPage, titleLines, { x: MARGIN, y: detailY, font: bold, size: 15, color: NAVY, lineHeight: 18 });
-    detailY -= titleLines.length * 18 + 12;
-
-    const disciplines = (preventivePlan.disciplineIds || []).map((id) => preventiveDisciplineLabels[id] || id);
-    const summaryRows = [
-      ["PACOTE CONTRATADO", disciplines.length ? disciplines.join(" + ") : "Plano preventivo personalizado"],
-      ["PERIODICIDADE", `${preventivePlan.frequency || "A definir"} · ${preventivePlan.visitsPerYear || 0} visita(s) por ano`],
-      ["MOBILIZAÇÃO", `${preventivePlan.durationHours || 0} hora(s) por visita · ${preventivePlan.technicians || 0} técnico(s)`],
-      ["ATENDIMENTO", `SLA de ${preventivePlan.slaHours || 0} hora(s) · início previsto ${preventivePlan.startDate ? date(`${preventivePlan.startDate}T12:00:00`) : "a definir"}`],
-    ];
-    summaryRows.forEach(([label, value], index) => {
-      const rowY = detailY - index * 28;
-      detailPage.drawRectangle({ x: MARGIN, y: rowY - 22, width: detailWidth, height: 24, color: index % 2 ? rgb(0.985, 0.988, 0.995) : rgb(0.96, 0.975, 1) });
-      detailPage.drawText(label, { x: MARGIN + 10, y: rowY - 13, font: bold, size: 6.4, color: BLUE });
-      const valueLines = wrap(value, regular, 6.8, detailWidth - 135);
-      drawLines(detailPage, valueLines, { x: MARGIN + 126, y: rowY - 13, font: regular, size: 6.8, color: TEXT, lineHeight: 8, maxLines: 2 });
-    });
-    detailY -= summaryRows.length * 28 + 12;
-
-    const scopeGroups = (preventivePlan.scope || []).reduce<Record<string, string[]>>((groups, item) => {
-      const label = item.label?.trim();
-      if (!label) return groups;
-      const group = item.group?.trim() || "Escopo geral";
-      groups[group] = [...(groups[group] || []), label];
-      return groups;
-    }, {});
-    detailHeading(`Escopo técnico detalhado · ${preventivePlan.scope?.length || 0} atividades`);
-    Object.entries(scopeGroups).forEach(([group, items]) => {
-      ensureDetailSpace(25);
-      detailPage.drawText(pdfText(group.toUpperCase()), { x: MARGIN, y: detailY - 7, font: bold, size: 7, color: BLUE });
-      detailY -= 17;
-      items.forEach((item) => detailBullet(item));
-      detailY -= 4;
-    });
-
-    const detailSections: Array<[string, string[] | undefined, ReturnType<typeof rgb>]> = [
-      ["Entregas ao cliente", preventivePlan.deliverables, TEXT],
-      ["Incluso no pacote", preventivePlan.inclusions, GREEN],
-      ["Não incluso / contratação à parte", preventivePlan.exclusions, rgb(0.72, 0.2, 0.14)],
-    ];
-    detailSections.forEach(([sectionTitle, items, color]) => {
-      if (!items?.length) return;
-      const estimatedHeight = 31 + items.reduce((sum, item) => sum + Math.max(14, wrap(item, regular, 7, detailWidth - 26).length * 9 + 4), 0);
-      if (estimatedHeight < 680 && detailY - estimatedHeight < 72) addDetailPage();
-      detailHeading(sectionTitle);
-      items.forEach((item) => detailBullet(item, color));
-      detailY -= 4;
-    });
-
-    if (preventivePlan.equipments?.length) {
-      detailHeading(`Ativos inicialmente vinculados · ${preventivePlan.equipments.length}`);
-      preventivePlan.equipments.forEach((equipment) => {
-        detailBullet([equipment.tag || equipment.type, equipment.brand, equipment.model, equipment.location].filter(Boolean).join(" · "));
-      });
-    }
-
-    refreshPreventiveTechnicalPageChrome(document, quote, company, regular, bold);
+    drawPreventiveTechnicalAppendix({ document, quote, company, plan: preventivePlan, regular, bold });
     addPreventivePageNumbers(document, regular);
   }
 
