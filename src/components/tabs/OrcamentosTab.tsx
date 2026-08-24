@@ -1549,28 +1549,40 @@ export default function OrcamentosTab({
             <title>Orçamento ${quoteDetails?.code || ""}</title>
             ${styles}
             <style>
-              @page { size: ${printPageSize}; margin: 8mm 6mm; }
+              @page { size: ${printPageSize}; margin: 0; }
               html, body {
-                width: 100% !important;
-                height: auto !important;
-                min-width: 0 !important;
-                min-height: 0 !important;
+                width: ${printWidthMm}mm !important;
+                height: ${printHeightMm}mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                overflow: visible !important;
+                overflow: hidden !important;
                 background: white !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
               }
               .a4-page {
-                width: 100%;
-                height: auto;
-                padding: 0;
-                box-sizing: border-box;
-                overflow: visible;
-                background: white;
+                width: ${printWidthMm}mm !important;
+                height: ${printHeightMm}mm !important;
+                padding: 6mm 8mm !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                background: white !important;
               }
-              .print-keep-together, .quote-proposal-header, tr, .quote-print-responsive-grid {
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
+              .quote-print-responsive-grid {
+                display: grid !important;
+                grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+                gap: 10px !important;
+              }
+              .quote-print-responsive-grid > div:first-child {
+                grid-column: span 7 / span 7 !important;
+              }
+              .quote-print-responsive-grid > div:last-child {
+                grid-column: span 5 / span 5 !important;
+              }
+              .quote-proposal-header.quote-print-responsive-grid {
+                display: grid !important;
+                grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+                gap: 14px !important;
               }
               .proposal-content {
                 width: 100%;
@@ -1619,7 +1631,24 @@ export default function OrcamentosTab({
               .proposal-content .print-items-table th:nth-child(5) { width: 16% !important; }
               .proposal-content .print-items-table th:nth-child(6) { width: 17% !important; }
               @media print {
-                html, body, .a4-page { width: ${printWidthMm}mm !important; height: ${printHeightMm - 1}mm !important; overflow: hidden !important; }
+                @page { size: ${printPageSize}; margin: 0; }
+                html, body {
+                  width: ${printWidthMm}mm !important;
+                  height: ${printHeightMm}mm !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  overflow: hidden !important;
+                  background: white !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                .a4-page {
+                  width: ${printWidthMm}mm !important;
+                  height: ${printHeightMm}mm !important;
+                  padding: 6mm 8mm !important;
+                  box-sizing: border-box !important;
+                  overflow: hidden !important;
+                }
               }
             </style>
           </head>
