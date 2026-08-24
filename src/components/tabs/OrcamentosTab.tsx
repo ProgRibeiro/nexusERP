@@ -119,6 +119,14 @@ const calculateOutsourcedUnitPrice = (cost: number, markupPercentage: number) =>
   Math.round((cost * (1 + markupPercentage / 100) + Number.EPSILON) * 100) /
   100;
 
+const normalizeClientSearch = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/\s+/g, " ")
+    .trim();
+
 export default function OrcamentosTab({
   newRecord = false,
   requestId,
@@ -400,7 +408,6 @@ export default function OrcamentosTab({
   }
 
   useEffect(() => {
-    if (pathname !== "/orcamentos") return;
     const timer = window.setTimeout(() => void loadQuotes(), 0);
     return () => window.clearTimeout(timer);
   }, [pathname]);
@@ -510,16 +517,38 @@ export default function OrcamentosTab({
   }, [newQuoteForm.clientId, view]);
 
   const filteredClients = useMemo(() => {
-    const term = clientSearch.trim().toLowerCase().replace(/\D/g, "");
-    const textTerm = clientSearch.trim().toLowerCase();
-    if (!textTerm) return clients;
-    return clients.filter(
-      (client) =>
-        client.name.toLowerCase().includes(textTerm) ||
-        (client.fancyName || "").toLowerCase().includes(textTerm) ||
-        (client.socialName || "").toLowerCase().includes(textTerm) ||
-        (!!term && Boolean(client.cpfCnpj?.replace(/\D/g, "").includes(term))),
-    );
+    const normalizedSearch = normalizeClientSearch(clientSearch);
+    const terms = normalizedSearch.split(/\s+/).filter(Boolean);
+    const digitSearch = clientSearch.replace(/\D/g, "");
+    if (!terms.length && !digitSearch) return clients;
+
+    return clients.filter((client) => {
+      const searchableText = normalizeClientSearch(
+        [
+          client.name,
+          client.fancyName,
+          client.socialName,
+          client.email,
+          client.phone,
+          client.whatsapp,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+      const searchableDigits = [
+        client.cpfCnpj,
+        client.phone,
+        client.whatsapp,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\D/g, "");
+
+      return (
+        terms.every((term) => searchableText.includes(term)) ||
+        (!!digitSearch && searchableDigits.includes(digitSearch))
+      );
+    });
   }, [clients, clientSearch]);
 
   const handleClientChange = (clientId: string) => {
