@@ -619,37 +619,85 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   const page = document.addPage([A4_WIDTH, A4_HEIGHT]);
 
   // Cabeçalho empresarial e identificação da proposta.
-  page.drawRectangle({ x: MARGIN, y: y - 82, width: contentWidth, height: 82, color: NAVY });
-  const companyTextX = MARGIN + 18 + (logo ? 56 : 0);
+  const proposalHeaderHeight = 98;
+  page.drawRectangle({ x: MARGIN, y: y - proposalHeaderHeight, width: contentWidth, height: proposalHeaderHeight, color: NAVY });
+  page.drawRectangle({ x: MARGIN, y: y - 5, width: contentWidth, height: 5, color: BLUE });
+  const logoCardX = MARGIN + 16;
+  const logoCardY = y - 79;
+  const logoCardSize = 58;
+  const companyTextX = MARGIN + (logo ? 88 : 18);
   if (logo) {
-    const dimensions = logo.scaleToFit(45, 45);
+    page.drawRectangle({
+      x: logoCardX,
+      y: logoCardY,
+      width: logoCardSize,
+      height: logoCardSize,
+      color: rgb(1, 1, 1),
+      borderColor: rgb(0.72, 0.82, 1),
+      borderWidth: 0.8,
+    });
+    const dimensions = logo.scaleToFit(46, 46);
     page.drawImage(logo, {
-      x: MARGIN + 16 + (45 - dimensions.width) / 2,
-      y: y - 64 + (45 - dimensions.height) / 2,
+      x: logoCardX + (logoCardSize - dimensions.width) / 2,
+      y: logoCardY + (logoCardSize - dimensions.height) / 2,
       width: dimensions.width,
       height: dimensions.height,
     });
   }
-  page.drawText(pdfText((company.tradeName || company.corporateName || "NEXUS CLIMATIZACAO").toUpperCase()), { x: companyTextX, y: y - 25, font: bold, size: logo ? 12 : 15, color: rgb(1, 1, 1) });
-  page.drawText(pdfText(company.corporateName || "Solucoes em climatizacao, eletrica e manutencao"), { x: companyTextX, y: y - 43, font: regular, size: 7.5, color: rgb(0.75, 0.84, 1) });
-  page.drawText(pdfText([company.cnpj && `CNPJ ${company.cnpj}`, company.phone, company.email].filter(Boolean).join("  |  ")), { x: companyTextX, y: y - 60, font: regular, size: 6.8, color: rgb(0.75, 0.84, 1) });
-  page.drawRectangle({ x: A4_WIDTH - MARGIN - 181, y: y - 65, width: 164, height: 48, color: rgb(0.08, 0.18, 0.43), borderColor: rgb(0.25, 0.45, 0.86), borderWidth: 0.8 });
-  page.drawText("PROPOSTA COMERCIAL", { x: A4_WIDTH - MARGIN - 163, y: y - 32, font: bold, size: 7, color: rgb(0.73, 0.83, 1) });
-  page.drawText(pdfText(quote.code), { x: A4_WIDTH - MARGIN - 163, y: y - 49, font: bold, size: 14, color: rgb(1, 1, 1) });
-  page.drawText(pdfText(`Versao ${quote.version || 1}  |  ${date(quote.createdAt)}`), { x: A4_WIDTH - MARGIN - 163, y: y - 60, font: regular, size: 6.5, color: rgb(0.73, 0.83, 1) });
-  y -= 100;
+  const proposalPanelWidth = 156;
+  const proposalPanelX = A4_WIDTH - MARGIN - proposalPanelWidth - 16;
+  const companyTextWidth = proposalPanelX - companyTextX - 18;
+  const brand = pdfText((company.tradeName || company.corporateName || "EMPRESA CONTRATANTE").toUpperCase());
+  const brandLines = wrap(brand, bold, logo ? 11.5 : 14, companyTextWidth).slice(0, 2);
+  drawLines(page, brandLines, {
+    x: companyTextX,
+    y: y - 25,
+    font: bold,
+    size: logo ? 11.5 : 14,
+    color: rgb(1, 1, 1),
+    lineHeight: logo ? 13 : 15,
+    maxLines: 2,
+  });
+  const legalNameY = y - 29 - brandLines.length * (logo ? 13 : 15);
+  drawLines(page, wrap(company.corporateName || "Serviços técnicos e manutenção empresarial", regular, 7.1, companyTextWidth), {
+    x: companyTextX,
+    y: legalNameY,
+    font: regular,
+    size: 7.1,
+    color: rgb(0.78, 0.86, 1),
+    lineHeight: 8.5,
+    maxLines: 2,
+  });
+  drawLines(page, wrap([company.cnpj && `CNPJ ${company.cnpj}`, company.phone, company.email].filter(Boolean).join("  |  "), regular, 6.4, companyTextWidth), {
+    x: companyTextX,
+    y: y - 78,
+    font: regular,
+    size: 6.4,
+    color: rgb(0.72, 0.82, 1),
+    lineHeight: 7.8,
+    maxLines: 2,
+  });
+  page.drawRectangle({ x: proposalPanelX, y: y - 78, width: proposalPanelWidth, height: 58, color: rgb(0.08, 0.18, 0.43), borderColor: rgb(0.25, 0.45, 0.86), borderWidth: 0.8 });
+  page.drawText("PROPOSTA COMERCIAL", { x: proposalPanelX + 14, y: y - 36, font: bold, size: 6.8, color: rgb(0.73, 0.83, 1) });
+  page.drawText(pdfText(quote.code), { x: proposalPanelX + 14, y: y - 54, font: bold, size: 14, color: rgb(1, 1, 1) });
+  page.drawText(pdfText(`Versao ${quote.version || 1}  |  Emissao ${date(quote.createdAt)}`), { x: proposalPanelX + 14, y: y - 69, font: regular, size: 6.2, color: rgb(0.73, 0.83, 1) });
+  y -= 116;
 
   const boxGap = 10;
   const boxWidth = (contentWidth - boxGap) / 2;
-  page.drawRectangle({ x: MARGIN, y: y - 88, width: boxWidth, height: 88, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
-  page.drawRectangle({ x: MARGIN + boxWidth + boxGap, y: y - 88, width: boxWidth, height: 88, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
+  const detailsBoxHeight = 104;
+  page.drawRectangle({ x: MARGIN, y: y - detailsBoxHeight, width: boxWidth, height: detailsBoxHeight, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
+  page.drawRectangle({ x: MARGIN + boxWidth + boxGap, y: y - detailsBoxHeight, width: boxWidth, height: detailsBoxHeight, color: rgb(0.985, 0.99, 1), borderColor: BORDER, borderWidth: 0.8 });
   page.drawCircle({ x: MARGIN + 14, y: y - 15, size: 3.2, color: BLUE });
   page.drawText("DADOS DO CLIENTE", { x: MARGIN + 23, y: y - 18, font: bold, size: 7, color: NAVY });
-  page.drawText(pdfText(quote.client.socialName || quote.client.name), { x: MARGIN + 14, y: y - 34, font: bold, size: 9.2, color: TEXT });
-  page.drawText(pdfText(`CPF/CNPJ: ${quote.client.cpfCnpj || "Nao informado"}`), { x: MARGIN + 14, y: y - 49, font: regular, size: 7, color: MUTED });
-  drawLines(page, wrap(addressOf(quote), regular, 6.8, boxWidth - 28), { x: MARGIN + 14, y: y - 63, font: regular, size: 6.8, color: MUTED, lineHeight: 8.4, maxLines: 2 });
+  const clientNameLines = wrap(quote.client.socialName || quote.client.name, bold, 8.5, boxWidth - 28).slice(0, 2);
+  drawLines(page, clientNameLines, { x: MARGIN + 14, y: y - 34, font: bold, size: 8.5, color: TEXT, lineHeight: 10.5, maxLines: 2 });
+  const clientDetailsOffset = (clientNameLines.length - 1) * 10.5;
+  page.drawText(pdfText(`CPF/CNPJ: ${quote.client.cpfCnpj || "Nao informado"}`), { x: MARGIN + 14, y: y - 49 - clientDetailsOffset, font: regular, size: 7, color: MUTED });
+  drawLines(page, wrap(addressOf(quote), regular, 6.8, boxWidth - 28), { x: MARGIN + 14, y: y - 63 - clientDetailsOffset, font: regular, size: 6.8, color: MUTED, lineHeight: 8.4, maxLines: 2 });
   if (quote.contact) {
-    page.drawText(pdfText(`Contato: ${quote.contact.name}${quote.contact.email ? ` - ${quote.contact.email}` : ""}`), { x: MARGIN + 14, y: y - 82, font: regular, size: 6.4, color: MUTED });
+    const contactText = pdfText(`Contato: ${quote.contact.name}${quote.contact.email ? ` - ${quote.contact.email}` : ""}`);
+    drawLines(page, wrap(contactText, regular, 6.2, boxWidth - 28), { x: MARGIN + 14, y: y - 86 - clientDetailsOffset, font: regular, size: 6.2, color: MUTED, lineHeight: 7.5, maxLines: 1 });
   }
 
   const rightX = MARGIN + boxWidth + boxGap;
@@ -659,7 +707,7 @@ export async function buildQuotePdf(quote: QuotePdfData, company: QuotePdfCompan
   page.drawText(pdfText(`Pagamento: ${quote.paymentTerms || "A combinar"}`), { x: rightX + 14, y: y - 50, font: regular, size: 6.9, color: MUTED });
   page.drawText(pdfText(`Execucao: ${quote.executionTerm || "A combinar"}`), { x: rightX + 14, y: y - 64, font: regular, size: 6.9, color: MUTED });
   page.drawText(pdfText(`Garantia: ${quote.warrantyDays || 90} dias`), { x: rightX + 14, y: y - 78, font: regular, size: 6.9, color: MUTED });
-  y -= 106;
+  y -= detailsBoxHeight + 18;
 
   page.drawText("OBJETO DA PROPOSTA", { x: MARGIN, y, font: bold, size: 8, color: NAVY });
   y -= 14;

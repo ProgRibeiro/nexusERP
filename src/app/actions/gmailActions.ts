@@ -12,6 +12,7 @@ import {
 } from "@/lib/gmail";
 import { logger } from "@/lib/logger";
 import { buildQuotePdf, type QuotePdfCompanyProfile } from "@/lib/quotePdf";
+import { getCompanySettingsAction } from "@/app/actions/settingsActions";
 
 const SIMPLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -155,6 +156,13 @@ export async function sendQuoteByGmail(input: {
     if (!quote) throw new Error("Proposta não encontrada.");
     if (!integration?.active) throw new Error("Conecte uma conta Gmail antes de enviar a proposta.");
     integrationId = integration.id;
+    // A identidade visual do PDF deve vir sempre do cadastro oficial do tenant.
+    // Os dados recebidos do navegador podem estar antigos ou sem o logotipo.
+    const storedCompany = await getCompanySettingsAction();
+    const company: QuotePdfCompanyProfile = {
+      ...input.company,
+      ...storedCompany,
+    };
 
     const recentDuplicate = await prisma.proposalEmail.findFirst({
       where: {
@@ -221,11 +229,11 @@ export async function sendQuoteByGmail(input: {
         unitPrice: Number(item.unitPrice),
         total: Number(item.total),
       })),
-    }, input.company || {});
+    }, company);
     const attachmentSha256 = crypto.createHash("sha256").update(pdf).digest("hex");
     const raw = createProposalMimeMessage({
       senderEmail: integration.email,
-      senderName: integration.displayName || input.company?.tradeName || input.company?.corporateName,
+      senderName: integration.displayName || company.tradeName || company.corporateName,
       recipientEmail: recipient,
       ccEmails: ccEmails.length ? ccEmails.join(", ") : null,
       subject,

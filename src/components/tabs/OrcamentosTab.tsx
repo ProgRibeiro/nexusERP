@@ -3193,15 +3193,16 @@ export default function OrcamentosTab({
                   aria-label={`Orçamento ${quoteDetails.code}`}
                 >
                   {/* HEADER ROW */}
-                  <header className="quote-print-responsive-grid print-keep-together relative grid grid-cols-1 overflow-hidden rounded-2xl bg-[#1b150f] p-4 text-white sm:grid-cols-12 sm:gap-5 sm:p-5">
-                    <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-[#155eef]/10" />
+                  <header className="quote-print-responsive-grid print-keep-together relative grid grid-cols-1 overflow-hidden rounded-2xl bg-gradient-to-br from-[#061638] via-[#0b2a66] to-[#155eef] p-4 text-white sm:grid-cols-12 sm:gap-5 sm:p-5">
+                    <div className="absolute inset-x-0 top-0 h-1 bg-[#4fa3ff]" />
+                    <div className="absolute -right-10 -top-16 h-40 w-40 rounded-full bg-white/10" />
                     {/* Logo and company profile details */}
                     <div className="relative flex min-w-0 items-center gap-3 sm:col-span-7">
                       {companyParams.logoUrl ? (
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white p-1.5">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-white/40 bg-white p-2 shadow-lg shadow-black/15">
                           <img
                             src={companyParams.logoUrl}
-                            alt="Logo"
+                            alt={`Logo de ${companyParams.tradeName || companyParams.corporateName || "empresa"}`}
                             className="h-full w-full object-contain"
                           />
                         </div>
@@ -3211,13 +3212,16 @@ export default function OrcamentosTab({
                         </div>
                       )}
                       <div className="min-w-0 break-words">
-                        <span className="block text-[7px] font-bold uppercase tracking-[0.24em] text-[#f3d88a]">
-                          Proposta comercial de serviços
+                        <span className="block text-[7px] font-bold uppercase tracking-[0.24em] text-blue-200">
+                          Documento oficial da empresa contratante
                         </span>
-                        <h1 className="mt-1 text-base font-black uppercase leading-none tracking-tight text-white">
+                        <h1 className="mt-1 text-base font-black uppercase leading-tight tracking-tight text-white">
                           {companyParams.tradeName || "SUA EMPRESA"}
                         </h1>
-                        <p className="mt-1.5 text-[7.5px] font-medium leading-relaxed text-slate-300">
+                        <p className="mt-1 text-[7px] font-semibold leading-relaxed text-blue-100">
+                          {companyParams.corporateName}
+                        </p>
+                        <p className="mt-1 text-[7.5px] font-medium leading-relaxed text-slate-200">
                           CNPJ {companyParams.cnpj} &nbsp;|&nbsp;{" "}
                           {companyParams.phone} &nbsp;|&nbsp;{" "}
                           {companyParams.email}
