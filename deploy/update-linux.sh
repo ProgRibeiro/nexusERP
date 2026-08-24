@@ -17,7 +17,7 @@ LOCK_FILE="$ROOT/.update.lock"
 STATUS_FILE="$SHARED/update-status.json"
 STATIC_ROOT="${NEXUS_STATIC_ROOT:-/var/cache/nexus-erp/static}"
 SAFETY_ROOT="$SHARED/update-safety"
-REQUIRE_OFFSITE_BACKUP="${REQUIRE_OFFSITE_BACKUP:-true}"
+REQUIRE_OFFSITE_BACKUP="${REQUIRE_OFFSITE_BACKUP:-}"
 
 if [[ ! -r "$ENV_FILE" ]]; then
   echo "Ambiente ausente ou ilegível: $ENV_FILE" >&2
@@ -89,6 +89,15 @@ set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
+
+if [[ -z "$REQUIRE_OFFSITE_BACKUP" ]]; then
+  if [[ -n "${BACKUP_BUCKET:-}" || -n "${BACKUP_RCLONE_REMOTE:-}" ]]; then
+    REQUIRE_OFFSITE_BACKUP="true"
+  else
+    REQUIRE_OFFSITE_BACKUP="false"
+  fi
+fi
+
 export BACKUP_DIR="$SHARED/backups"
 export HOME="/home/nexus"
 export NPM_CONFIG_CACHE="$SHARED/npm-cache"
