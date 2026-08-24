@@ -6,7 +6,7 @@ import { logger } from "@/lib/logger";
 import { requireAuth, requirePermission } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
-import { saveBase64Asset } from "@/lib/storage";
+import { deleteUploadedAsset, saveBase64Asset } from "@/lib/storage";
 import { nextServiceOrderCode } from "@/lib/sequences";
 import { createInitialVisit } from "@/lib/visits";
 
@@ -16,6 +16,27 @@ interface StoreAssetPhotoInput {
   mimeType?: string;
   caption?: string;
 }
+
+interface StorePhotoInput {
+  dataUrl: string;
+  fileName?: string;
+  mimeType?: string;
+  category?: string;
+}
+
+const STORE_PHOTO_CATEGORIES = new Set([
+  "FACHADA",
+  "SALAO",
+  "ESTOQUE",
+  "AREA_TECNICA",
+  "QUADRO_ELETRICO",
+  "CLIMATIZACAO",
+  "ILUMINACAO",
+  "DEPOSITO",
+  "TELHADO",
+  "CASA_MAQUINAS",
+  "OUTROS",
+]);
 
 const normalizeAssetPhotos = (photos: StoreAssetPhotoInput[] = []) => photos.slice(0, 8).map((photo) => {
   if (!photo.dataUrl.startsWith("data:image/") || photo.dataUrl.length > 4_500_000) {
@@ -174,6 +195,10 @@ export async function getPreventiveStore(contractId: string) {
   });
 
   if (!contract) return null;
+  const storePhotos = await prisma.attachment.findMany({
+    where: { entityId: contract.id, entityType: { startsWith: "LOJA_FOTO_" } },
+    orderBy: { createdAt: "desc" },
+  });
   const selectedContract = {
     ...contract,
     value: Number(contract.value),
@@ -185,7 +210,71 @@ export async function getPreventiveStore(contractId: string) {
     contracts: [selectedContract],
     storeProjects: contract.client.storeProjects,
     serviceOrders: contract.serviceOrders,
+    storePhotos: storePhotos.map((photo) => ({
+      ...photo,
+      category: photo.entityType.replace("LOJA_FOTO_", ""),
+    })),
   };
+}
+
+export async function addPreventiveStorePhotos(input: { contractId: string; photos: StorePhotoInput[] }) {
+  const uploadedUrls: string[] = [];
+  try {
+    const session = await requirePermission("clients.write");
+    const contract = await prisma.contract.findUnique({ where: { id: input.contractId }, select: { id: true, clientId: true } });
+    if (!contract) return { success: false, error: "Loja ou contrato não encontrado." };
+    const existingCount = await prisma.attachment.count({ where: { entityId: contract.id, entityType: { startsWith: "LOJA_FOTO_" } } });
+    const photos = (input.photos || []).slice(0, 10);
+    if (!photos.length) return { success: false, error: "Selecione ao menos uma foto da loja." };
+    if (existingCount + photos.length > 60) return { success: false, error: "A galeria da loja aceita até 60 fotos." };
+
+    const records = [];
+    for (const photo of photos) {
+      if (!photo.dataUrl?.startsWith("data:image/") || photo.dataUrl.length > 4_500_000) {
+        throw new Error("Cada foto deve ser JPG, PNG ou WEBP e possuir até 3 MB.");
+      }
+      const category = STORE_PHOTO_CATEGORIES.has(photo.category || "") ? photo.category! : "OUTROS";
+      const url = await saveBase64Asset(photo.dataUrl, `loja-${contract.id.slice(0, 8)}-${category.toLowerCase()}`);
+      uploadedUrls.push(url);
+      const base64 = photo.dataUrl.split(",")[1] || "";
+      records.push({
+        name: (photo.fileName || `${category.toLowerCase()}.jpg`).slice(0, 180),
+        url,
+        sizeBytes: Buffer.from(base64, "base64").byteLength,
+        mimeType: (photo.mimeType || "image/jpeg").slice(0, 80),
+        entityType: `LOJA_FOTO_${category}`,
+        entityId: contract.id,
+      });
+    }
+    await prisma.attachment.createMany({ data: records });
+    await prisma.auditLog.create({
+      data: { userId: session.userId, action: "CRIACAO", entity: "FotosLojaPreventiva", entityId: contract.id, changesJson: JSON.stringify({ added: records.length, categories: records.map((record) => record.entityType) }) },
+    });
+    refreshPreventiveCentral();
+    return { success: true, added: records.length };
+  } catch (error: any) {
+    await Promise.all(uploadedUrls.map((url) => deleteUploadedAsset(url).catch(() => undefined)));
+    logger.error("preventive_store_photos_add_failed", error);
+    return { success: false, error: error.message || "Não foi possível salvar as fotos da loja." };
+  }
+}
+
+export async function deletePreventiveStorePhoto(photoId: string) {
+  try {
+    const session = await requirePermission("clients.write");
+    const photo = await prisma.attachment.findFirst({ where: { id: photoId, entityType: { startsWith: "LOJA_FOTO_" } } });
+    if (!photo) return { success: false, error: "Foto da loja não encontrada." };
+    await prisma.attachment.delete({ where: { id: photo.id } });
+    await deleteUploadedAsset(photo.url);
+    await prisma.auditLog.create({
+      data: { userId: session.userId, action: "EXCLUSAO", entity: "FotoLojaPreventiva", entityId: photo.entityId, changesJson: JSON.stringify({ photoId: photo.id, category: photo.entityType }) },
+    });
+    refreshPreventiveCentral();
+    return { success: true };
+  } catch (error: any) {
+    logger.error("preventive_store_photo_delete_failed", error);
+    return { success: false, error: error.message || "Não foi possível excluir a foto da loja." };
+  }
 }
 
 export async function savePreventiveStoreProfile(input: {

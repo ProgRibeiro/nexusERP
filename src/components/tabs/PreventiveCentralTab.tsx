@@ -38,11 +38,13 @@ import {
 } from "lucide-react";
 import {
   addStoreAssetPhotos,
+  addPreventiveStorePhotos,
   createStoreAsset,
   createStoreProject,
   createProvisionalStore,
   createStoreTicket,
   deleteStoreAssetPhoto,
+  deletePreventiveStorePhoto,
   assignContractStore,
   getPreventiveStore,
   getPreventiveStores,
@@ -393,6 +395,7 @@ export default function PreventiveCentralTab() {
   const [assetParentId, setAssetParentId] = useState("");
   const [editingAssetId, setEditingAssetId] = useState("");
   const [assetPhotos, setAssetPhotos] = useState<Array<{ dataUrl: string; fileName: string; mimeType: string }>>([]);
+  const [storePhotoCategory, setStorePhotoCategory] = useState("FACHADA");
   const [assetAttributes, setAssetAttributes] = useState<Record<string, string>>({});
   const [portal, setPortal] = useState<any | null>(null);
   const [ticketForm, setTicketForm] = useState(emptyTicket);
@@ -666,9 +669,9 @@ export default function PreventiveCentralTab() {
     toast(`Chamado ${result.code} aberto e ligado a esta loja.`, "success");
   };
 
-  const addPhotosToAsset = async (files?: FileList | null) => {
+  const addPhotosToAsset = async (files?: FileList | null, category = "EQUIPAMENTO") => {
     if (!assetDetail) return;
-    const photos = await readPhotoFiles(files, 8);
+    const photos = (await readPhotoFiles(files, 8)).map((photo) => ({ ...photo, caption: category }));
     if (!photos.length) return;
     setSaving(true);
     const result = await addStoreAssetPhotos({ assetId: assetDetail.id, photos });
@@ -679,6 +682,30 @@ export default function PreventiveCentralTab() {
     const nextAsset = fresh?.storeProjects.flatMap((item: any) => item.assets).find((item: any) => item.id === assetDetail.id);
     setAssetDetail(nextAsset || null);
     toast(`${result.added} foto(s) adicionada(s).`, "success");
+  };
+
+  const addPhotosToStore = async (files?: FileList | null) => {
+    if (!selectedStoreId) return;
+    const photos = await readPhotoFiles(files, 10);
+    if (!photos.length) return;
+    setSaving(true);
+    const result = await addPreventiveStorePhotos({
+      contractId: selectedStoreId,
+      photos: photos.map((photo) => ({ ...photo, category: storePhotoCategory })),
+    });
+    setSaving(false);
+    if (!result.success) return toast(result.error || "Não foi possível salvar as fotos da loja.", "error");
+    await refreshStore();
+    toast(`${result.added} foto(s) adicionada(s) ao prontuário da loja.`, "success");
+  };
+
+  const removeStorePhoto = async (photoId: string) => {
+    setSaving(true);
+    const result = await deletePreventiveStorePhoto(photoId);
+    setSaving(false);
+    if (!result.success) return toast(result.error || "Não foi possível excluir a foto.", "error");
+    setStore((current: any) => current ? { ...current, storePhotos: current.storePhotos.filter((photo: any) => photo.id !== photoId) } : null);
+    toast("Foto removida do prontuário da loja.", "success");
   };
 
   const removeAssetPhoto = async (photoId: string) => {
@@ -1060,6 +1087,10 @@ export default function PreventiveCentralTab() {
                   onViewAsset={setAssetDetail}
                   onNewOccurrence={openTicketCreation}
                   onOpenOrder={(order) => openTab("ordens-servico", order.code, { id: order.id, section: isResolvedPreventiveOrder(order.status) ? "relatorio" : undefined })}
+                  storePhotoCategory={storePhotoCategory}
+                  onStorePhotoCategoryChange={setStorePhotoCategory}
+                  onAddStorePhotos={addPhotosToStore}
+                  onDeleteStorePhoto={removeStorePhoto}
                 />
               ) : !project ? (
                 <div className="flex min-h-[480px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 px-6 text-center dark:border-zinc-700">
@@ -1526,6 +1557,7 @@ export default function PreventiveCentralTab() {
 }
 
 function AdminAssetDetail({ asset, saving, onClose, onAddPhotos, onDeletePhoto, onEdit, onOpenComponent, onAddComponent, onTicket }: any) {
+  const [photoCategory, setPhotoCategory] = useState("EQUIPAMENTO");
   if (!asset) return null;
   const style = categoryStyle[asset.category] || categoryStyle.OUTROS;
   const Icon = style.icon;
@@ -1541,8 +1573,13 @@ function AdminAssetDetail({ asset, saving, onClose, onAddPhotos, onDeletePhoto, 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(300px,.95fr)]">
         <section>
           <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><span className={`rounded-xl border p-2.5 ${style.color}`}><Icon size={20} /></span><div><p className="text-[9px] font-black uppercase tracking-wide text-blue-600">{assetTypeLabel(asset.category, asset.assetType)}</p><h3 className="text-sm font-black text-zinc-900 dark:text-white">{asset.name}</h3><p className="text-[10px] text-zinc-500">{[asset.brand, asset.model, asset.manufacturerCode].filter(Boolean).join(" · ") || "Modelo não informado"}</p></div></div><Button size="sm" variant="secondary" onClick={() => onEdit(asset)}>Editar ficha</Button></div>
-          {asset.photos?.length ? <div className="mt-4 grid grid-cols-3 gap-2">{asset.photos.map((photo: any, index: number) => <div key={photo.id} className={`group relative overflow-hidden rounded-xl ${index === 0 ? "col-span-2 row-span-2 aspect-square" : "aspect-square"}`}><img src={photo.dataUrl} alt={photo.caption || asset.name} className="h-full w-full object-cover" /><button type="button" disabled={saving} onClick={() => void onDeletePhoto(photo.id)} className="absolute right-2 top-2 rounded-full bg-zinc-950/70 p-1.5 text-white opacity-0 transition group-hover:opacity-100"><Trash2 size={12} /></button></div>)}</div> : <div className="mt-4 flex aspect-[16/8] items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800"><Icon size={44} className="text-zinc-300" /></div>}
-          <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50 p-3 text-xs font-bold text-blue-700"><Upload size={15} /> Adicionar fotos<input type="file" accept="image/*" multiple className="hidden" onChange={(event) => void onAddPhotos(event.target.files)} /></label>
+          {asset.photos?.length ? <div className="mt-4 grid grid-cols-3 gap-2">{asset.photos.map((photo: any, index: number) => <div key={photo.id} className={`group relative overflow-hidden rounded-xl ${index === 0 ? "col-span-2 row-span-2 aspect-square" : "aspect-square"}`}><img src={photo.dataUrl} alt={photo.caption || asset.name} className="h-full w-full object-cover" />{photo.caption && <span className="absolute bottom-2 left-2 rounded-md bg-zinc-950/75 px-2 py-1 text-[8px] font-black uppercase text-white">{photo.caption.replaceAll("_", " ")}</span>}<button type="button" disabled={saving} onClick={() => void onDeletePhoto(photo.id)} className="absolute right-2 top-2 rounded-full bg-zinc-950/70 p-1.5 text-white opacity-0 transition group-hover:opacity-100"><Trash2 size={12} /></button></div>)}</div> : <div className="mt-4 flex aspect-[16/8] items-center justify-center rounded-xl bg-zinc-100 dark:bg-zinc-800"><Icon size={44} className="text-zinc-300" /></div>}
+          <div className="mt-3 grid gap-2 sm:grid-cols-[190px_1fr]">
+            <select value={photoCategory} onChange={(event) => setPhotoCategory(event.target.value)} className="h-11 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-bold text-zinc-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+              <option value="EQUIPAMENTO">Equipamento</option><option value="MODELO_REFERENCIA">Modelo / referência</option><option value="INSTALACAO">Instalação na loja</option><option value="IDENTIFICACAO">Etiqueta / identificação</option><option value="DEFEITO">Defeito</option><option value="ANTES">Antes</option><option value="DEPOIS">Depois</option><option value="QUADRO_FRONTAL">Quadro frontal</option><option value="QUADRO_INTERNO">Quadro interno</option><option value="DISJUNTORES">Disjuntores</option><option value="DIAGRAMA">Diagrama</option>
+            </select>
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50 p-3 text-xs font-bold text-blue-700"><Upload size={15} /> Adicionar fotos classificadas<input type="file" accept="image/*" multiple className="hidden" onChange={(event) => void onAddPhotos(event.target.files, photoCategory)} /></label>
+          </div>
           <div className="mt-4 grid grid-cols-2 gap-2 text-[10px]">{[["TAG", asset.tag], ["Série", asset.serialNumber], ["Local", asset.location], ["Quantidade", `${asset.quantity} ${asset.unit || "UN"}`], ["Criticidade", asset.criticality], ["Código fabricante", asset.manufacturerCode], ["Descrição", specifications], ["Observações", asset.notes]].map(([label, value]) => <div key={String(label)} className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-800"><span className="block font-black uppercase tracking-wide text-zinc-400">{label}</span><b className="mt-1 block text-zinc-700 dark:text-zinc-200">{value || "Não informado"}</b></div>)}</div>
           {technicalEntries.length > 0 && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/20"><p className="text-[10px] font-black uppercase tracking-wide text-blue-600">Dados técnicos mapeados</p><dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">{technicalEntries.map(([key, value]) => <div key={key}><dt className="text-[9px] font-bold uppercase text-zinc-400">{key.replace(/([A-Z])/g, " $1")}</dt><dd className="mt-0.5 text-xs font-black text-zinc-800 dark:text-zinc-200">{value}</dd></div>)}</dl></div>}
         </section>

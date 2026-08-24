@@ -1,5 +1,7 @@
 "use client";
 
-export default function PreventiveProposalsRoutePage() {
-  return null;
+import PreventiveCentralTab from "@/components/tabs/PreventiveCentralTab";
+
+export default function PreventiveCentralRoutePage() {
+  return <PreventiveCentralTab />;
 }

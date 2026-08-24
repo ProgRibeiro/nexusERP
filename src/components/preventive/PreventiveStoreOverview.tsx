@@ -7,6 +7,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ChevronRight,
+  CircuitBoard,
   FileImage,
   ImagePlus,
   MapPin,
@@ -15,6 +16,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Trash2,
   User,
   Wrench,
 } from "lucide-react";
@@ -40,6 +42,20 @@ const CATEGORY_LABELS: Record<string, string> = {
   REFRIGERACAO: "Refrigeração",
   DADOS_AUTOMACAO: "Dados e automação",
   MOBILIARIO: "Mobiliário",
+  OUTROS: "Outros",
+};
+
+const STORE_PHOTO_LABELS: Record<string, string> = {
+  FACHADA: "Fachada",
+  SALAO: "Salão",
+  ESTOQUE: "Estoque",
+  AREA_TECNICA: "Área técnica",
+  QUADRO_ELETRICO: "Quadro elétrico",
+  CLIMATIZACAO: "Climatização",
+  ILUMINACAO: "Iluminação",
+  DEPOSITO: "Depósito",
+  TELHADO: "Telhado",
+  CASA_MAQUINAS: "Casa de máquinas",
   OUTROS: "Outros",
 };
 
@@ -78,9 +94,13 @@ interface PreventiveStoreOverviewProps {
   onViewAsset: (asset: any) => void;
   onNewOccurrence: (asset?: any) => void;
   onOpenOrder: (order: any) => void;
+  storePhotoCategory: string;
+  onStorePhotoCategoryChange: (category: string) => void;
+  onAddStorePhotos: (files?: FileList | null) => void;
+  onDeleteStorePhoto: (photoId: string) => void;
 }
 
-export function PreventiveStoreOverview({ store, onNewAsset, onViewAsset, onNewOccurrence, onOpenOrder }: PreventiveStoreOverviewProps) {
+export function PreventiveStoreOverview({ store, onNewAsset, onViewAsset, onNewOccurrence, onOpenOrder, storePhotoCategory, onStorePhotoCategoryChange, onAddStorePhotos, onDeleteStorePhoto }: PreventiveStoreOverviewProps) {
   const allAssets = useMemo(() => (store?.storeProjects || []).flatMap((project: any) =>
     project.assets.filter((asset: any) => !asset.parentAssetId).map((asset: any) => ({ ...asset, environmentName: project.name })),
   ), [store]);
@@ -110,6 +130,11 @@ export function PreventiveStoreOverview({ store, onNewAsset, onViewAsset, onNewO
   const criticalUnits = allAssets.filter((asset: any) => assetTone(asset).label === "Crítico").reduce((sum: number, asset: any) => sum + Math.max(1, Number(asset.quantity) || 1), 0);
   const contact = store?.selectedContract?.contact;
   const address = store?.selectedContract?.address;
+  const selectedSpecifications = useMemo(() => {
+    if (!selectedAsset?.specificationsJson) return {} as Record<string, string>;
+    try { return JSON.parse(selectedAsset.specificationsJson) as Record<string, string>; } catch { return {} as Record<string, string>; }
+  }, [selectedAsset]);
+  const selectedBreakers = selectedAsset?.components?.filter((component: any) => component.assetType === "DISJUNTOR") || [];
 
   return (
     <div className="space-y-4">
@@ -194,6 +219,27 @@ export function PreventiveStoreOverview({ store, onNewAsset, onViewAsset, onNewO
           </section>
         </div>
       </div>
+
+      <section className="rounded-xl border border-[#E4E7EC] bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><h3 className="text-xs font-black text-[#101828] dark:text-white">Fotos da Loja</h3><p className="mt-1 text-[10px] text-[#667085]">Fachada, salão, estoque, áreas técnicas, iluminação, climatização e quadros permanecem no prontuário desta unidade.</p></div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <select value={storePhotoCategory} onChange={(event) => onStorePhotoCategoryChange(event.target.value)} className="h-9 rounded-lg border border-[#E4E7EC] bg-white px-3 text-[10px] font-bold text-[#344054] outline-none focus:border-[#155EEF] dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">{Object.entries(STORE_PHOTO_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+            <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#155EEF] px-3 text-[10px] font-black text-white hover:bg-blue-700"><ImagePlus size={13} /> Adicionar fotos<input type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden" onChange={(event) => void onAddStorePhotos(event.target.files)} /></label>
+          </div>
+        </div>
+        {store.storePhotos?.length ? <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">{store.storePhotos.slice(0, 12).map((photo: any) => <div key={photo.id} className="group relative overflow-hidden rounded-xl border border-[#E4E7EC] bg-[#F2F4F7]"><img src={photo.url} alt={`${STORE_PHOTO_LABELS[photo.category] || "Foto"} da loja`} className="aspect-[4/3] h-full w-full object-cover" /><span className="absolute bottom-2 left-2 rounded-md bg-zinc-950/75 px-2 py-1 text-[8px] font-black uppercase text-white">{STORE_PHOTO_LABELS[photo.category] || photo.category}</span><button type="button" onClick={() => void onDeleteStorePhoto(photo.id)} aria-label="Excluir foto da loja" className="absolute right-2 top-2 rounded-full bg-zinc-950/70 p-1.5 text-white opacity-0 transition group-hover:opacity-100"><Trash2 size={11} /></button></div>)}</div> : <div className="mt-4 flex h-32 flex-col items-center justify-center rounded-xl border border-dashed border-[#D0D5DD] text-center"><FileImage size={26} className="text-zinc-300" /><p className="mt-2 text-[10px] font-bold text-[#667085]">Adicione as primeiras fotos reais desta loja.</p></div>}
+      </section>
+
+      {selectedAsset?.category === "ELETRICA" && (
+        <section className="rounded-xl border border-[#E4E7EC] bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><span className="text-[9px] font-black uppercase tracking-wider text-[#155EEF]">Análise do quadro</span><h3 className="mt-1 text-sm font-black text-[#101828] dark:text-white">{selectedAsset.name}</h3><p className="mt-1 text-[10px] text-[#667085]">Dados técnicos, circuitos e evidências fotográficas vinculados ao patrimônio.</p></div><Button size="sm" variant="secondary" onClick={() => onViewAsset(selectedAsset)}><CircuitBoard size={13} /> Abrir análise completa</Button></div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1.4fr]">
+            <dl className="grid grid-cols-2 gap-2 text-[10px]">{[["Tensão", selectedSpecifications.tensao], ["Fases", selectedSpecifications.fases], ["Corrente nominal", selectedSpecifications.correnteNominal], ["Capacidade de ruptura", selectedSpecifications.capacidadeRuptura], ["Local", selectedAsset.location], ["Status", assetTone(selectedAsset).label]].map(([label, value]) => <div key={label} className="rounded-lg bg-[#F9FAFB] p-3 dark:bg-zinc-800"><dt className="text-[8px] font-black uppercase text-[#98A2B3]">{label}</dt><dd className="mt-1 font-black text-[#344054] dark:text-zinc-200">{value || "Não informado"}</dd></div>)}</dl>
+            <div className="rounded-xl border border-[#E4E7EC] p-3 dark:border-zinc-700"><div className="flex items-center justify-between"><h4 className="text-[10px] font-black text-[#344054] dark:text-zinc-200">Circuitos e disjuntores</h4><span className="text-[9px] font-bold text-[#667085]">{selectedBreakers.length} cadastrado(s)</span></div><div className="mt-3 grid gap-2 sm:grid-cols-2">{selectedBreakers.slice(0, 8).map((breaker: any, index: number) => <button key={breaker.id} type="button" onClick={() => onViewAsset(breaker)} className="flex items-center gap-2 rounded-lg border border-[#E4E7EC] p-2 text-left hover:border-[#155EEF]"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-[9px] font-black text-white">DJ{String(index + 1).padStart(2, "0")}</span><span className="min-w-0"><b className="block truncate text-[10px] text-[#344054] dark:text-zinc-200">{breaker.name}</b><span className="block truncate text-[8px] text-[#667085]">{[breaker.brand, breaker.model, breaker.tag].filter(Boolean).join(" · ") || "Dados técnicos pendentes"}</span></span></button>)}{!selectedBreakers.length && <p className="col-span-2 py-5 text-center text-[10px] text-[#667085]">Cadastre os disjuntores como componentes deste quadro.</p>}</div></div>
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_1.35fr_1fr]">
         <section className="rounded-xl border border-[#E4E7EC] bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">

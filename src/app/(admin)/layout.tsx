@@ -91,7 +91,7 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
 function WorkspaceContainer({ children }: { children: React.ReactNode }) {
   const { activeTab, darkMode, floatingTabs, activeFloatingTabId, activateFloatingTab, closeFloatingTab } = useWorkspace();
   const pathname = usePathname();
-  const standalonePage = pathname.startsWith("/orcamentos/") || pathname.startsWith("/orcamentos-obras");
+  const standalonePage = pathname === "/preventivas" || pathname.startsWith("/orcamentos/") || pathname.startsWith("/orcamentos-obras");
   const activeFloatingTab = floatingTabs.find((tab) => tab.id === activeFloatingTabId);
 
   return (
