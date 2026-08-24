@@ -4,8 +4,11 @@ set -Eeuo pipefail
 # Script autônomo do robô de atualização contínua (loop a cada 60 segundos)
 # Funciona em qualquer servidor Linux, macOS ou VPS Hostinger.
 
-ROOT="${NEXUS_ROOT:-/opt/nexus-erp}"
-SOURCE="${NEXUS_SOURCE:-$ROOT/source}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_SOURCE="$(cd "$SCRIPT_DIR/.." && pwd)"
+SOURCE="${NEXUS_SOURCE:-$DEFAULT_SOURCE}"
+DEFAULT_ROOT="$(cd "$SOURCE/.." && pwd)"
+ROOT="${NEXUS_ROOT:-$DEFAULT_ROOT}"
 BRANCH="${DEPLOY_BRANCH:-main}"
 LOG_FILE="${NEXUS_LOG:-$ROOT/shared/auto-update-60s.log}"
 INTERVAL="${POLL_INTERVAL:-60}"

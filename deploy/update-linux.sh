@@ -6,13 +6,29 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-ROOT="${NEXUS_ROOT:-/opt/nexus-erp}"
-SOURCE="$ROOT/source"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_SOURCE="$(cd "$SCRIPT_DIR/.." && pwd)"
+SOURCE="${NEXUS_SOURCE:-$DEFAULT_SOURCE}"
+DEFAULT_ROOT="$(cd "$SOURCE/.." && pwd)"
+ROOT="${NEXUS_ROOT:-$DEFAULT_ROOT}"
+
 RELEASES="$ROOT/releases"
 SLOTS="$ROOT/slots"
 SHARED="$ROOT/shared"
 BRANCH="${DEPLOY_BRANCH:-main}"
-ENV_FILE="${NEXUS_ENV_FILE:-/etc/nexus-erp.env}"
+
+ENV_FILE="${NEXUS_ENV_FILE:-}"
+if [[ -z "$ENV_FILE" ]]; then
+  if [[ -r "/etc/nexus-erp.env" ]]; then
+    ENV_FILE="/etc/nexus-erp.env"
+  elif [[ -r "/etc/oprestador.env" ]]; then
+    ENV_FILE="/etc/oprestador.env"
+  elif [[ -r "$ROOT/.env" ]]; then
+    ENV_FILE="$ROOT/.env"
+  else
+    ENV_FILE="/etc/nexus-erp.env"
+  fi
+fi
 LOCK_FILE="$ROOT/.update.lock"
 STATUS_FILE="$SHARED/update-status.json"
 STATIC_ROOT="${NEXUS_STATIC_ROOT:-/var/cache/nexus-erp/static}"
