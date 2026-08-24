@@ -117,6 +117,8 @@ export HOME="/home/nexus"
 export NPM_CONFIG_CACHE="$SHARED/npm-cache"
 
 git_nexus() {
+  git config --global --add safe.directory "$SOURCE" 2>/dev/null || true
+  runuser -u nexus -- git config --global --add safe.directory "$SOURCE" 2>/dev/null || true
   runuser -u nexus --preserve-environment -- /usr/bin/git -C "$SOURCE" "$@"
 }
 
