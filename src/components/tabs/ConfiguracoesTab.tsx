@@ -1209,8 +1209,8 @@ export default function ConfiguracoesTab() {
                       )}
                       {importType === "materiais" && (
                         <div className="p-2.5 bg-white dark:bg-zinc-900 border rounded-lg font-mono text-[9px] text-zinc-500 space-y-1">
-                          <p className="font-bold text-primary">nome, preco custo, preco venda, quantidade estoque, estoque minimo, unidade</p>
-                          <p>* O nome da peça é obrigatório. O estoque é inserido de forma automática no estoque físico.</p>
+                          <p className="font-bold text-primary">nome, preco custo, preco venda, quantidade estoque, estoque minimo, unidade, estoque</p>
+                          <p>* O nome da peça é obrigatório. Na coluna <strong className="text-zinc-800 dark:text-zinc-200">estoque</strong>, informe se é <strong className="text-amber-600">compra futura</strong> (Estoque Futuro / A Comprar) ou <strong className="text-emerald-600">material presente</strong> (Estoque Físico em Pronta Entrega). Se não informado, entra como estoque físico.</p>
                         </div>
                       )}
                     </div>

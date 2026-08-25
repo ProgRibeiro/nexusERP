@@ -129,6 +129,8 @@ const productImportSchema = z.object({
   stockQuantity: nonNegativeNumber,
   minStock: nonNegativeNumber,
   unit: z.preprocess((v) => String(v || "UN").trim().toUpperCase(), z.string().min(1).max(12)),
+  estoque: optionalText,
+  tipoEstoque: optionalText,
 });
 
 function schemaFor(type: ImportType) {
@@ -291,9 +293,38 @@ async function importRows(type: ImportType, rows: ImportRecord[]) {
           const code = String(normalized.code || "");
           const existing = await tx.product.findFirst({ where: { OR: [...(code ? [{ code }] : []), { name: { equals: String(normalized.name), mode: "insensitive" } }] } });
           const generatedCode = code || `P-${String(productCode).padStart(4, "0")}`;
+          
+          const estoqueTypeUpper = String(normalized.estoque || normalized.tipoEstoque || source.estoque || source.tipoEstoque || "").toUpperCase();
+          const isFuturo = estoqueTypeUpper.includes("FUTURO") || estoqueTypeUpper.includes("COMPRAR");
+          const rawQty = Number(normalized.stockQuantity) || 0;
+          const finalPresent = isFuturo ? 0 : rawQty;
+          const finalFuture = isFuturo ? (rawQty > 0 ? rawQty : 1) : 0;
+
           const product = existing
-            ? await tx.product.update({ where: { id: existing.id }, data: { name: String(normalized.name), costPrice: Number(normalized.costPrice), salePrice: Number(normalized.salePrice), stockQuantity: Number(normalized.stockQuantity), minStock: Number(normalized.minStock), unit: String(normalized.unit) } })
-            : await tx.product.create({ data: { code: generatedCode, name: String(normalized.name), costPrice: Number(normalized.costPrice), salePrice: Number(normalized.salePrice), stockQuantity: Number(normalized.stockQuantity), minStock: Number(normalized.minStock), unit: String(normalized.unit) } });
+            ? await tx.product.update({
+                where: { id: existing.id },
+                data: {
+                  name: String(normalized.name),
+                  costPrice: Number(normalized.costPrice),
+                  salePrice: Number(normalized.salePrice),
+                  stockQuantity: isFuturo ? existing.stockQuantity : finalPresent,
+                  futureStock: isFuturo ? finalFuture : existing.futureStock,
+                  minStock: Number(normalized.minStock),
+                  unit: String(normalized.unit)
+                }
+              })
+            : await tx.product.create({
+                data: {
+                  code: generatedCode,
+                  name: String(normalized.name),
+                  costPrice: Number(normalized.costPrice),
+                  salePrice: Number(normalized.salePrice),
+                  stockQuantity: finalPresent,
+                  futureStock: finalFuture,
+                  minStock: Number(normalized.minStock),
+                  unit: String(normalized.unit)
+                }
+              });
           if (!existing && !code) productCode += 1;
           entityId = product.id;
           transactionStatus = existing ? "ATUALIZADO" : "CRIADO";
