@@ -4,6 +4,21 @@ Este é um sistema ERP web completo para gestão operacional e financeira de emp
 
 ---
 
+## 🆕 Recursos Recentes & Guia Rápido de Uso
+
+Para consultar o manual completo de funcionamento do sistema para novos computadores ou membros da equipe, veja:
+👉 **[docs/MANUAL_DE_USO_E_NOVIDADES.md](./docs/MANUAL_DE_USO_E_NOVIDADES.md)**
+
+### Destaques das Novidades Integradas:
+* 🖥️ **Suíte Desktop Nativa (Windows, Mac, Linux):** Baixe o aplicativo nativo via `/api/desktop-app/download` com medidor de latência VPS.
+* 📦 **Divisão de Estoque Presente (Físico) vs. Estoque Futuro (A Comprar):** Controle de itens no almoxarifado vs. itens projetados para obras, com conversão em 1 clique (`⚡ Dar Entrada (Físico)`).
+* 📊 **Importador Universal NEXUS ONE:** Importação de planilhas com colunas `nome`, `preco custo`, `preco venda`, `quantidade estoque`, `estoque minimo`, `unidade` e `Estoque` (futuro/presente).
+* 💰 **Financeiro com Estorno Seguro:** Opção de estorno de recebimentos para retorno ao estado "Não Recebido" com auditoria preservada.
+* 📖 **Guia & Tutorial Interativo:** Acesse a qualquer momento pelo botão `[ 📖 Guia & Tutorial ]` no topo ou menu lateral.
+* 🎨 **Layout Reestruturado:** Todos os módulos expostos de forma fluida sem sanfonas escondidas.
+
+---
+
 ## 🚀 Tecnologias Utilizadas
 
 * **Framework:** Next.js 16 (App Router / React 19)
