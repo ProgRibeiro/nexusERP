@@ -341,6 +341,93 @@ export async function createQuickCompletedServiceOrder(data: {
   }
 }
 
+/** Baixa Rápida Expressa: Conclui a OS e altera o status instantaneamente enviando fotos e relatório automático */
+export async function expressCloseServiceOrderAction(data: {
+  serviceOrderId: string;
+  targetStatus?: "CONCLUIDA" | "RELATORIO_ENVIADO" | "FATURAMENTO" | "FATURADA";
+  solutionNotes?: string;
+  photos?: { step?: "ANTES" | "DEPOIS" | "EVIDENCIA"; url: string; caption?: string }[];
+}) {
+  try {
+    const session = await requirePermission("os.write");
+    const targetStatus = data.targetStatus || "CONCLUIDA";
+
+    const os = await prisma.serviceOrder.findUnique({
+      where: { id: data.serviceOrderId },
+      include: { client: true, items: true, completionReport: true },
+    });
+
+    if (!os) throw new Error("Ordem de serviço não encontrada.");
+
+    const completedAt = ["CONCLUIDA", "FATURADA", "FATURAMENTO", "RELATORIO_ENVIADO"].includes(targetStatus)
+      ? new Date()
+      : os.completedAt;
+
+    const faturamentoStatus = targetStatus === "FATURADA"
+      ? "NF_EMITIDA"
+      : targetStatus === "FATURAMENTO"
+      ? "AGUARDANDO_FATURAMENTO"
+      : os.faturamentoStatus;
+
+    await prisma.serviceOrder.update({
+      where: { id: os.id },
+      data: {
+        status: targetStatus,
+        faturamentoStatus,
+        completedAt,
+        technicalDiagnosis: data.solutionNotes?.trim() || os.technicalDiagnosis || "Serviço executado com sucesso e aprovado pelo cliente.",
+      },
+    });
+
+    await prisma.serviceOrderStatusHistory.create({
+      data: {
+        serviceOrderId: os.id,
+        oldStatus: os.status,
+        newStatus: targetStatus,
+        changedById: session.userId,
+        justification: "Baixa Rápida Expressa realizada pelo usuário.",
+      },
+    });
+
+    if (data.photos && data.photos.length > 0) {
+      for (const p of data.photos) {
+        if (p.url?.trim()) {
+          await prisma.serviceOrderPhoto.create({
+            data: {
+              serviceOrderId: os.id,
+              step: p.step || "EVIDENCIA",
+              url: p.url.trim(),
+              caption: p.caption?.trim() || "Foto de evidência do atendimento expresso",
+            },
+          });
+        }
+      }
+    }
+
+    if (!os.completionReport) {
+      await prisma.completionReport.create({
+        data: {
+          serviceOrderId: os.id,
+          executedServices: data.solutionNotes || os.problemReported || "Atendimento expresso concluído com sucesso.",
+          technicalObservations: "Baixa rápida realizada diretamente pelo painel operacional com evidências.",
+          operationalResult: "OPERACIONAL",
+          approvedByClient: true,
+          approvedAt: new Date(),
+        },
+      });
+    }
+
+    revalidatePath("/ordens-servico");
+    revalidatePath("/faturamento");
+    revalidatePath("/preventivas");
+    revalidatePath("/financeiro");
+
+    return { success: true as const, error: undefined };
+  } catch (error: any) {
+    return mutationFailure("service-orders.express-close", error, "Não foi possível concluir a OS no modo expresso.");
+  }
+}
+
 /**
  * Consolida a operação mensal dos contratos por loja para a tela de OS.
  * O contrato é a unidade operacional: uma loja, suas preventivas e chamados.

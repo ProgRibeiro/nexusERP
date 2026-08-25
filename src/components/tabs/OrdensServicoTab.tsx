@@ -50,6 +50,7 @@ import {
   Zap,
 } from "lucide-react";
 import { NexusOneImporterModal } from "../modals/NexusOneImporterModal";
+import { ExpressCloseOSModal } from "../modals/ExpressCloseOSModal";
 import { StatusBadge } from "../ui/StatusBadge";
 import {
   getServiceChecklistTemplate,
@@ -136,6 +137,8 @@ export default function OrdensServicoTab({
   });
 
   const [isNexusImporterOpen, setIsNexusImporterOpen] = useState(false);
+  const [isExpressCloseOpen, setIsExpressCloseOpen] = useState(false);
+  const [expressCloseOS, setExpressCloseOS] = useState<any>(null);
 
   const serviceItemsTotal = useMemo(
     () => serviceItems.reduce((total, item) => total + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0),
@@ -709,6 +712,26 @@ export default function OrdensServicoTab({
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5">
+                          {hasPermission("os.write") && !["CONCLUIDA", "FATURADA", "CANCELADA"].includes(os.status) && (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setExpressCloseOS({
+                                  id: os.id,
+                                  code: os.code,
+                                  clientName: os.client?.name || os.clientName,
+                                  problemReported: os.problemReported,
+                                  status: os.status,
+                                });
+                                setIsExpressCloseOpen(true);
+                              }}
+                              className="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 text-[10px] font-black text-amber-800 transition hover:bg-amber-500 hover:text-white dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+                              title="Baixa Rápida Expressa da OS"
+                            >
+                              <Zap size={13} className="fill-current" /> Baixa Rápida
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(event) => {
@@ -1433,6 +1456,16 @@ export default function OrdensServicoTab({
       <NexusOneImporterModal
         isOpen={isNexusImporterOpen}
         onClose={() => setIsNexusImporterOpen(false)}
+        onSuccess={() => void loadOrders()}
+      />
+
+      <ExpressCloseOSModal
+        isOpen={isExpressCloseOpen}
+        onClose={() => {
+          setIsExpressCloseOpen(false);
+          setExpressCloseOS(null);
+        }}
+        serviceOrder={expressCloseOS}
         onSuccess={() => void loadOrders()}
       />
     </div>
