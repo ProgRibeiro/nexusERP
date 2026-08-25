@@ -5,7 +5,7 @@ import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { requireAuth, requirePermission } from "@/lib/auth";
+import { requireAuth, requirePermission, requireAnyPermission } from "@/lib/auth";
 import { quoteCreateSchema, quoteItemSchema } from "@/lib/schemas";
 import { z } from "zod";
 import { calculateProposalTax } from "@/lib/tax";
@@ -796,10 +796,11 @@ export async function registerCatalogItem(data: {
   minStock?: number;
 }) {
   try {
-    const session = await requirePermission("quotes.write");
+    const session = await requireAnyPermission(["quotes.write", "orcamentos.write", "estoque.write"]);
     const name = data.name.trim();
     if (name.length < 2) return { success: false as const, error: "Informe um nome válido para o item." };
-    if (!Number.isFinite(data.price) || data.price < 0) return { success: false as const, error: "Informe um preço de venda válido." };
+    const priceVal = Math.max(0, Number(data.price) || 0);
+    const costVal = Math.max(0, Number(data.cost) || 0);
 
     if (data.type === "SERVICO") {
       const exists = await prisma.service.findFirst({
@@ -816,26 +817,50 @@ export async function registerCatalogItem(data: {
           maintenanceType: data.maintenanceType?.trim() || null,
           billingUnit: data.unit?.trim().toUpperCase() || "SERVIÇO",
           estimatedHours: data.estimatedHours && data.estimatedHours > 0 ? data.estimatedHours : null,
-          defaultPrice: data.price,
+          defaultPrice: priceVal,
         }
       });
       await prisma.auditLog.create({
-        data: { userId: session.userId, action: "CRIACAO", entity: "Servico", entityId: service.id, changesJson: JSON.stringify(service) },
+        data: {
+          userId: session.userId,
+          action: "CRIACAO",
+          entity: "Servico",
+          entityId: service.id,
+          changesJson: JSON.stringify({ id: service.id, name: service.name, defaultPrice: priceVal })
+        },
       });
       revalidatePath("/orcamentos");
       revalidatePath("/servicos");
-      return { success: true as const, error: undefined, item: { name: service.name, price: Number(service.defaultPrice), type: "SERVICO", unit: service.billingUnit || "SERVIÇO", costPrice: 0 } };
+      return {
+        success: true as const,
+        error: undefined,
+        item: { name: service.name, price: Number(service.defaultPrice), type: "SERVICO", unit: service.billingUnit || "SERVIÇO", costPrice: 0 }
+      };
     } else {
       const exists = await prisma.product.findFirst({
         where: { name: { equals: name, mode: "insensitive" } }
       });
       if (exists) {
-        return { success: false as const, error: "Peça já cadastrada com este nome." };
+        return { success: false as const, error: `Material/peça "${name}" já cadastrado no catálogo.` };
       }
-      const productCodes = await prisma.product.findMany({ where: { code: { startsWith: "P-" } }, select: { code: true } });
-      const lastNumber = Math.max(0, ...productCodes.map((product) => Number(product.code.match(/(\d+)$/)?.[1] || 0)));
-      const code = `P-${String(lastNumber + 1).padStart(4, "0")}`;
-      const initialStock = Math.max(0, data.stockQuantity || 0);
+
+      const productCodes = await prisma.product.findMany({ select: { code: true } });
+      const numbers = productCodes.map((p) => {
+        const m = p.code.match(/(\d+)$/);
+        return m ? parseInt(m[1], 10) : 0;
+      });
+      let nextNum = Math.max(0, ...numbers) + 1;
+      let code = `P-${String(nextNum).padStart(4, "0")}`;
+
+      // Garante código 100% único sem risco de colisão P2002
+      while (await prisma.product.findUnique({ where: { code } })) {
+        nextNum++;
+        code = `P-${String(nextNum).padStart(4, "0")}`;
+      }
+
+      const initialStock = Math.max(0, Number(data.stockQuantity) || 0);
+      const minStockVal = Math.max(0, Number(data.minStock) || 0);
+
       const product = await prisma.$transaction(async (tx) => {
         const created = await tx.product.create({
           data: {
@@ -843,27 +868,41 @@ export async function registerCatalogItem(data: {
             name,
             description: data.description?.trim() || null,
             type: data.productType || "MATERIAL",
-            salePrice: data.price,
-            costPrice: data.cost ?? 0,
+            salePrice: priceVal,
+            costPrice: costVal,
             unit: data.unit?.trim().toUpperCase() || "UN",
             stockQuantity: initialStock,
-            minStock: Math.max(0, data.minStock || 0),
+            minStock: minStockVal,
           }
         });
         if (initialStock > 0) {
           await tx.stockMovement.create({
-            data: { productId: created.id, type: "ENTRADA", quantity: initialStock, reason: "AJUSTE", cost: data.cost ?? 0, date: new Date() },
+            data: {
+              productId: created.id,
+              type: "ENTRADA",
+              quantity: initialStock,
+              reason: "AJUSTE",
+              cost: costVal,
+              date: new Date()
+            },
           });
         }
         await tx.auditLog.create({
-          data: { userId: session.userId, action: "CRIACAO", entity: "Produto", entityId: created.id, changesJson: JSON.stringify(created) },
+          data: {
+            userId: session.userId,
+            action: "CRIACAO",
+            entity: "Produto",
+            entityId: created.id,
+            changesJson: JSON.stringify({ id: created.id, code: created.code, name: created.name, salePrice: priceVal, costPrice: costVal })
+          },
         });
         return created;
       });
       revalidatePath("/orcamentos");
       revalidatePath("/estoque");
       return {
-        success: true,
+        success: true as const,
+        error: undefined,
         item: {
           name: product.name,
           price: Number(product.salePrice),

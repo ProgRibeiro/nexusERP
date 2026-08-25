@@ -4,7 +4,7 @@ import { logger } from "@/lib/logger";
 
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-import { requireAuth, requirePermission } from "@/lib/auth";
+import { requireAuth, requirePermission, requireAnyPermission } from "@/lib/auth";
 import { calculateServicePrice } from "@/lib/servicePricing";
 import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
@@ -43,7 +43,7 @@ export async function createService(data: {
   payrollBurdenPercentage?: number; overheadPercentage?: number; riskPercentage?: number; profitPercentage?: number; serviceTaxPercentage?: number;
 }) {
   try {
-    await requirePermission("estoque.write");
+    await requireAnyPermission(["estoque.write", "quotes.write", "orcamentos.write", "servicos.write"]);
 
     const normalizedName = data.name.trim();
 
