@@ -50,10 +50,36 @@ export interface NexusOneImportResult {
   errors: string[];
 }
 
-function parseCurrency(val: string | undefined): number {
-  if (!val) return 0;
-  const clean = val.replace("R$", "").replace(/\./g, "").replace(",", ".").trim();
-  const num = parseFloat(clean);
+function parseCurrency(val: any): number {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  const str = String(val).replace(/R\$/g, "").replace(/\s/g, "").trim();
+  if (!str) return 0;
+
+  // Se tem vírgula e ponto (ex: 1.250,50 ou 1,250.50)
+  if (str.includes(",") && str.includes(".")) {
+    if (str.lastIndexOf(",") > str.lastIndexOf(".")) {
+      // Formato BR: 1.250,50
+      const clean = str.replace(/\./g, "").replace(",", ".");
+      const num = parseFloat(clean);
+      return isNaN(num) ? 0 : num;
+    } else {
+      // Formato US: 1,250.50
+      const clean = str.replace(/,/g, "");
+      const num = parseFloat(clean);
+      return isNaN(num) ? 0 : num;
+    }
+  }
+
+  // Se só tem vírgula (ex: 640,00)
+  if (str.includes(",")) {
+    const clean = str.replace(",", ".");
+    const num = parseFloat(clean);
+    return isNaN(num) ? 0 : num;
+  }
+
+  // Se só tem ponto ou é número puro
+  const num = parseFloat(str);
   return isNaN(num) ? 0 : num;
 }
 
@@ -227,39 +253,66 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
         ordersCreated++;
       }
 
-      // 6. Upsert Título a Receber (Financeiro)
-      const amountToCharge = valorNf > 0 ? valorNf : valorAprovado;
-      if (amountToCharge > 0 || row.numeroNf) {
-        const osObj = await prisma.serviceOrder.findFirst({ where: { code: osCode } });
-        if (osObj) {
-          const nfNum = row.numeroNf || `OS-${row.id}`;
-          const issueDate = parseBrazilianDate(row.emissaoNf) || parseBrazilianDate(row.dataAprovacao) || new Date();
-          const dueDate = parseBrazilianDate(row.previsaoPagamento) || new Date();
-          const paidAt = parseBrazilianDate(row.dataPagamento);
-          const valorPago = parseCurrency(row.valorPago);
-          const isPaid = (row.statusPagamento || "").toUpperCase().includes("PAGO") || valorPago > 0;
-          const receivedVal = isPaid ? (valorPago > 0 ? valorPago : amountToCharge) : 0;
-          const pendingVal = isPaid ? 0 : amountToCharge;
+      // 6. Vincular Item com Valor Aprovado e Upsert no Financeiro
+      const osObj = await prisma.serviceOrder.findFirst({ where: { code: osCode } });
+      const amountToCharge = valorAprovado > 0 ? valorAprovado : (valorNf > 0 ? valorNf : parseCurrency(row.valorPago));
 
-          const existingFin = await prisma.accountsReceivable.findFirst({
-            where: { serviceOrderId: osObj.id },
+      if (osObj && amountToCharge > 0) {
+        const existingItem = await prisma.serviceOrderItem.findFirst({
+          where: { serviceOrderId: osObj.id },
+        });
+        if (existingItem) {
+          await prisma.serviceOrderItem.update({
+            where: { id: existingItem.id },
+            data: {
+              description: row.descricaoServico || "Manutenção Predial e Serviços",
+              unitPrice: amountToCharge,
+              total: amountToCharge,
+            },
           });
+        } else {
+          await prisma.serviceOrderItem.create({
+            data: {
+              serviceOrderId: osObj.id,
+              description: row.descricaoServico || "Manutenção Predial e Serviços",
+              quantity: 1,
+              unit: "UN",
+              unitPrice: amountToCharge,
+              total: amountToCharge,
+            },
+          });
+        }
+      }
 
-          if (existingFin) {
-            await prisma.accountsReceivable.update({
-              where: { id: existingFin.id },
-              data: {
-                totalValue: amountToCharge,
-                receivedValue: receivedVal,
-                pendingValue: pendingVal,
-                status: isPaid ? "PAGO" : "ABERTO",
-                dueDate,
-                paymentDate: isPaid ? (paidAt || new Date()) : null,
-                paymentMethod: row.formaPagamento || "TRANSFERENCIA",
-                notes: `NF: ${nfNum} | ${row.sla || ""}`.trim(),
-              },
-            });
-          } else {
+      if (osObj && (amountToCharge > 0 || row.numeroNf)) {
+        const nfNum = row.numeroNf || `OS-${row.id}`;
+        const issueDate = parseBrazilianDate(row.emissaoNf) || parseBrazilianDate(row.dataAprovacao) || new Date();
+        const dueDate = parseBrazilianDate(row.previsaoPagamento) || new Date();
+        const paidAt = parseBrazilianDate(row.dataPagamento);
+        const valorPago = parseCurrency(row.valorPago);
+        const isPaid = (row.statusPagamento || "").toUpperCase().includes("PAGO") || valorPago > 0;
+        const receivedVal = isPaid ? (valorPago > 0 ? valorPago : amountToCharge) : 0;
+        const pendingVal = isPaid ? 0 : amountToCharge;
+
+        const existingFin = await prisma.accountsReceivable.findFirst({
+          where: { serviceOrderId: osObj.id },
+        });
+
+        if (existingFin) {
+          await prisma.accountsReceivable.update({
+            where: { id: existingFin.id },
+            data: {
+              totalValue: amountToCharge,
+              receivedValue: receivedVal,
+              pendingValue: pendingVal,
+              status: isPaid ? "PAGO" : "ABERTO",
+              dueDate,
+              paymentDate: isPaid ? (paidAt || new Date()) : null,
+              paymentMethod: row.formaPagamento || "TRANSFERENCIA",
+              notes: `NF: ${nfNum} | ${row.sla || ""}`.trim(),
+            },
+          });
+        } else {
             await prisma.accountsReceivable.create({
               data: {
                 clientId: client.id,
@@ -280,7 +333,6 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
             financesCreated++;
           }
         }
-      }
     } catch (err: any) {
       errors.push(`Linha ${idx + 1} (${row.cliente || "Linha sem nome"}): ${err?.message || "Erro de processamento."}`);
     }
