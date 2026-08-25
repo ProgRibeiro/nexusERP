@@ -50,7 +50,7 @@ def launch_native_app():
     try:
         import webview
         window = webview.create_window(
-            title="Nexus ERP Enterprise — Software Desktop Nativo",
+            title="Nexus ERP — O Prestador Enterprise — Software Desktop Nativo",
             url=target_url,
             width=1366,
             height=850,

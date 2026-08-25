@@ -1,17 +1,17 @@
 # ===============================================================================
-# NEXUS ERP v2.0 — INSTALADOR AUTOMÁTICO POWERSHELL DESKTOP
+# NEXUS ERP — O PRESTADOR v2.0 — INSTALADOR AUTOMÁTICO POWERSHELL DESKTOP
 # ===============================================================================
 
 $ErrorActionPreference = "Stop"
 Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host " 🚀 INSTALADOR AUTOMÁTICO NEXUS ERP ENTERPRISE DESKTOP v2.0" -ForegroundColor Cyan
+Write-Host " 🚀 INSTALADOR AUTOMÁTICO NEXUS ERP — O PRESTADOR DESKTOP v2.0" -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host ""
 
 $LocalApp = "$env:LOCALAPPDATA\NexusERP"
 $ConfigFile = "$env:USERPROFILE\.nexus_erp_vps_config.json"
 $Desktop = [System.Environment]::GetFolderPath('Desktop')
-$StartMenu = [System.Environment]::GetFolderPath('StartMenu') + '\Programs\Nexus ERP'
+$StartMenu = [System.Environment]::GetFolderPath('StartMenu') + '\Programs\Nexus ERP - O Prestador'
 
 if (-not (Test-Path $LocalApp)) {
     New-Item -ItemType Directory -Path $LocalApp | Out-Null
@@ -20,9 +20,10 @@ if (-not (Test-Path $StartMenu)) {
     New-Item -ItemType Directory -Path $StartMenu | Out-Null
 }
 
-# 1. Escrever configuração pronta do servidor VPS
+# 1. Escrever configuração pronta do servidor VPS O Prestador
 $ConfigJson = @{
     vps_url = "https://erp.oprestador.tech"
+    app_name = "Nexus ERP — O Prestador"
     fullscreen = $false
     auto_start = $false
     installed_version = "2026.8.2-v2"
@@ -39,7 +40,7 @@ if (-not (Test-Path $EdgePath)) {
 
 # 3. Criar Atalho na Área de Trabalho
 $WshShell = New-Object -ComObject WScript.Shell
-$ShortcutDesktop = $WshShell.CreateShortcut("$Desktop\Nexus ERP Enterprise.lnk")
+$ShortcutDesktop = $WshShell.CreateShortcut("$Desktop\Nexus ERP - O Prestador.lnk")
 
 if (Test-Path $EdgePath) {
     $ShortcutDesktop.TargetPath = $EdgePath
@@ -50,20 +51,20 @@ if (Test-Path $EdgePath) {
 }
 
 $ShortcutDesktop.WorkingDirectory = $LocalApp
-$ShortcutDesktop.Description = "Nexus ERP — Software Desktop Nativo Enterprise"
+$ShortcutDesktop.Description = "Nexus ERP — O Prestador | Gestão Nativa Enterprise"
 $ShortcutDesktop.Save()
 
 # 4. Criar Atalho no Menu Iniciar
-$ShortcutStart = $WshShell.CreateShortcut("$StartMenu\Nexus ERP Enterprise.lnk")
+$ShortcutStart = $WshShell.CreateShortcut("$StartMenu\Nexus ERP - O Prestador.lnk")
 $ShortcutStart.TargetPath = $ShortcutDesktop.TargetPath
 $ShortcutStart.Arguments = $ShortcutDesktop.Arguments
 $ShortcutStart.WorkingDirectory = $LocalApp
-$ShortcutStart.Description = "Nexus ERP — Software Desktop Nativo Enterprise"
+$ShortcutStart.Description = "Nexus ERP — O Prestador | Gestão Nativa Enterprise"
 $ShortcutStart.Save()
 
 Write-Host "✅ Instalação concluída com sucesso!" -ForegroundColor Green
-Write-Host "• Atalho criado na sua Área de Trabalho: Nexus ERP Enterprise" -ForegroundColor Yellow
-Write-Host "• Conexão pré-configurada: https://erp.oprestador.tech" -ForegroundColor Yellow
+Write-Host "• Atalho criado na sua Área de Trabalho: Nexus ERP - O Prestador" -ForegroundColor Yellow
+Write-Host "• Servidor pré-configurado: https://erp.oprestador.tech" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Iniciando a aplicação desktop..." -ForegroundColor Cyan
 
