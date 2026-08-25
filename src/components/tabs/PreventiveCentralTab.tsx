@@ -246,6 +246,9 @@ export default function PreventiveCentralTab() {
   const [periodStart, setPeriodStart] = useState("2024-05-01");
   const [periodEnd, setPeriodEnd] = useState("2024-05-31");
   const [activeTab, setActiveTab] = useState<"equipamentos" | "preventivas" | "ocorrencias" | "documentos" | "historico" | "anexos">("equipamentos");
+  const [activeSubNav, setActiveSubNav] = useState<
+    "prontuario" | "lojas" | "quadros" | "inventario" | "agenda" | "documentos"
+  >("prontuario");
 
   // Modals
   const [isNewPreventiveOpen, setIsNewPreventiveOpen] = useState(false);
@@ -461,6 +464,81 @@ export default function PreventiveCentralTab() {
             <Plus size={16} className="mr-1.5" /> Nova Preventiva
           </Button>
         </div>
+      </div>
+
+      {/* 1.B NAVEGAÇÃO DE ABAS EXCLUSIVAS DA CENTRAL DE PREVENTIVAS */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#E4E7EC] pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveSubNav("prontuario")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer ${
+            activeSubNav === "prontuario"
+              ? "bg-[#155EEF] text-white shadow-md"
+              : "bg-white text-[#667085] hover:bg-zinc-100 hover:text-[#101828] border border-[#E4E7EC]"
+          }`}
+        >
+          <BarChart3 size={15} /> 📊 Prontuário Executivo & Indicadores
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubNav("lojas")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer ${
+            activeSubNav === "lojas"
+              ? "bg-[#155EEF] text-white shadow-md"
+              : "bg-white text-[#667085] hover:bg-zinc-100 hover:text-[#101828] border border-[#E4E7EC]"
+          }`}
+        >
+          <Building2 size={15} /> 🏬 Gestão de Lojas ({stores.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubNav("quadros")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer ${
+            activeSubNav === "quadros"
+              ? "bg-[#155EEF] text-white shadow-md"
+              : "bg-white text-[#667085] hover:bg-zinc-100 hover:text-[#101828] border border-[#E4E7EC]"
+          }`}
+        >
+          <CircuitBoard size={15} /> ⚡ Quadros Elétricos (QD-01 / QD-02)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubNav("inventario")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer ${
+            activeSubNav === "inventario"
+              ? "bg-[#155EEF] text-white shadow-md"
+              : "bg-white text-[#667085] hover:bg-zinc-100 hover:text-[#101828] border border-[#E4E7EC]"
+          }`}
+        >
+          <Box size={15} /> 🛠️ Inventário de Patrimônios ({equipmentList.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubNav("agenda")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer ${
+            activeSubNav === "agenda"
+              ? "bg-[#155EEF] text-white shadow-md"
+              : "bg-white text-[#667085] hover:bg-zinc-100 hover:text-[#101828] border border-[#E4E7EC]"
+          }`}
+        >
+          <CalendarClock size={15} /> 📅 Cronograma de Preventivas
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubNav("documentos")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition cursor-pointer ${
+            activeSubNav === "documentos"
+              ? "bg-[#155EEF] text-white shadow-md"
+              : "bg-white text-[#667085] hover:bg-zinc-100 hover:text-[#101828] border border-[#E4E7EC]"
+          }`}
+        >
+          <FileCheck size={15} /> 📑 Laudos & Documentos
+        </button>
       </div>
 
       {/* 2. BARRA DE FILTROS SUPERIORES */}
