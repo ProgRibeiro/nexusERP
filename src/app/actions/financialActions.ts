@@ -300,13 +300,24 @@ export async function receivePayment(data: {
 export async function payBill(data: {
   payableId: string;
   paymentMethod: string;
-  bankAccountId: string;
+  bankAccountId?: string;
   userId: string;
 }) {
   try {
     const session = await requirePermission("financeiro.write");
     data.userId = session.userId; // nunca confiar no valor vindo do client
     payBillSchema.parse(data);
+
+    let targetBankAccountId = data.bankAccountId;
+    if (!targetBankAccountId || targetBankAccountId.trim() === "") {
+      let defaultBank = await prisma.bankAccount.findFirst({ orderBy: { createdAt: "asc" } });
+      if (!defaultBank) {
+        defaultBank = await prisma.bankAccount.create({
+          data: { name: "Caixa Geral", bank: "Caixa", agency: "0001", accountNumber: "1000-1", balance: 0 },
+        });
+      }
+      targetBankAccountId = defaultBank.id;
+    }
 
     const pay = await prisma.accountsPayable.findUnique({
       where: { id: data.payableId },
@@ -322,7 +333,7 @@ export async function payBill(data: {
         data: {
           status: "PAGO",
           paymentDate: new Date(),
-          paymentMethod: data.paymentMethod,
+          paymentMethod: data.paymentMethod || "TRANSFERENCIA",
         },
       });
       if (claimed.count !== 1) throw new Error("Esta conta já foi paga ou está sendo processada por outro usuário.");
@@ -337,14 +348,14 @@ export async function payBill(data: {
           costCenter: pay.costCenter,
           accountsPayableId: pay.id,
           description: `Pagamento de conta: ${pay.providerName} (${pay.description})`,
-          bankAccountId: data.bankAccountId,
+          bankAccountId: targetBankAccountId,
           date: new Date(),
         },
       });
 
       // 3. Atualizar saldo da conta bancária (subtrair)
       await tx.bankAccount.update({
-        where: { id: data.bankAccountId },
+        where: { id: targetBankAccountId },
         data: { balance: { decrement: pay.value } },
       });
 

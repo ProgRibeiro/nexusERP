@@ -341,24 +341,24 @@ export default function FinanceiroTab({
   };
 
   const handlePay = async (payableId: string) => {
-    if (bankAccounts.length === 0) return;
+    const targetBankAccountId = bankAccounts.length > 0 ? bankAccounts[0].id : undefined;
     setActionLoading(true);
     try {
       const res = await payBill({
         payableId,
         paymentMethod: "TRANSFERENCIA",
-        bankAccountId: bankAccounts[0].id,
+        bankAccountId: targetBankAccountId,
         userId: currentUser?.id || "",
       });
 
       if (res.success) {
-        toast("Conta paga e baixada!", "success");
+        toast("Conta paga, baixada e conciliada!", "success");
         loadFinancialData();
       } else {
         toast(res.error || "Erro ao baixar pagamento", "error");
       }
-    } catch (err) {
-      toast("Erro de conexão", "error");
+    } catch (err: any) {
+      toast(err?.message || "Erro de conexão ao pagar conta", "error");
     } finally {
       setActionLoading(false);
     }
@@ -366,6 +366,9 @@ export default function FinanceiroTab({
 
   // Metrics
   const totalCash = bankAccounts.reduce((acc, b) => acc + b.balance, 0);
+  const totalRealizedReceivables = receivables
+    .filter((r) => r.status === "PAGO" || r.receivedValue > 0)
+    .reduce((acc, r) => acc + r.receivedValue, 0);
   const totalReceivables = receivables
     .filter((r) =>
       ["ABERTO", "PENDENTE", "VENCIDO", "PARCIAL"].includes(r.status),
@@ -426,8 +429,8 @@ export default function FinanceiroTab({
       <InsightBar insights={insights} />
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 flex items-center justify-between shadow-premium">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <Card className="p-4 flex items-center justify-between shadow-premium border-l-4 border-l-emerald-500">
           <div>
             <span className="text-[9px] font-bold text-zinc-400 block uppercase">
               Saldo em Caixa
@@ -436,43 +439,55 @@ export default function FinanceiroTab({
               {formatCurrency(totalCash)}
             </span>
           </div>
-          <TrendingUp size={24} className="text-success opacity-80" />
+          <TrendingUp size={22} className="text-emerald-500 opacity-90" />
         </Card>
 
-        <Card className="p-4 flex items-center justify-between shadow-premium">
+        <Card className="p-4 flex items-center justify-between shadow-premium border-l-4 border-l-blue-500">
           <div>
             <span className="text-[9px] font-bold text-zinc-400 block uppercase">
-              A Receber
+              Receita Entrada (Paga)
             </span>
-            <span className="text-lg font-bold text-success mt-1 block">
+            <span className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1 block">
+              {formatCurrency(totalRealizedReceivables)}
+            </span>
+          </div>
+          <CheckCircle2 size={22} className="text-blue-500 opacity-90" />
+        </Card>
+
+        <Card className="p-4 flex items-center justify-between shadow-premium border-l-4 border-l-amber-500">
+          <div>
+            <span className="text-[9px] font-bold text-zinc-400 block uppercase">
+              A Receber (Pendente)
+            </span>
+            <span className="text-lg font-bold text-amber-600 dark:text-amber-400 mt-1 block">
               {formatCurrency(totalReceivables)}
             </span>
           </div>
-          <Clock size={24} className="text-warning opacity-80" />
+          <Clock size={22} className="text-amber-500 opacity-90" />
         </Card>
 
-        <Card className="p-4 flex items-center justify-between shadow-premium">
+        <Card className="p-4 flex items-center justify-between shadow-premium border-l-4 border-l-rose-500">
           <div>
             <span className="text-[9px] font-bold text-zinc-400 block uppercase">
-              A Pagar
+              A Pagar (Despesas)
             </span>
-            <span className="text-lg font-bold text-danger mt-1 block">
+            <span className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-1 block">
               {formatCurrency(totalPayables)}
             </span>
           </div>
-          <TrendingDown size={24} className="text-danger opacity-80" />
+          <TrendingDown size={22} className="text-rose-500 opacity-90" />
         </Card>
 
-        <Card className="p-4 flex items-center justify-between shadow-premium">
+        <Card className="p-4 flex items-center justify-between shadow-premium border-l-4 border-l-red-600">
           <div>
             <span className="text-[9px] font-bold text-zinc-400 block uppercase">
               Contas Vencidas
             </span>
-            <span className="text-lg font-bold text-danger mt-1 block">
+            <span className="text-lg font-bold text-red-600 dark:text-red-400 mt-1 block">
               {overdueCount} parcelas
             </span>
           </div>
-          <AlertTriangle size={24} className="text-danger opacity-80" />
+          <AlertTriangle size={22} className="text-red-500 opacity-90" />
         </Card>
       </div>
 
