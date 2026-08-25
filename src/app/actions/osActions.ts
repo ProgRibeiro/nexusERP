@@ -854,12 +854,28 @@ export async function getServiceOrders(filters?: {
 /**
  * Obtém detalhes completos de uma OS específica
  */
-export async function getServiceOrderDetails(id: string) {
+export async function getServiceOrderDetails(idOrCode: string) {
   try {
     await requireAuth();
+    if (!idOrCode) return null;
 
-    const os = await prisma.serviceOrder.findUnique({
-      where: { id },
+    const trimmed = idOrCode.trim();
+    const numberMatch = trimmed.match(/(\d+)$/);
+    const numericPart = numberMatch ? numberMatch[1] : null;
+
+    const os = await prisma.serviceOrder.findFirst({
+      where: {
+        OR: [
+          { id: trimmed },
+          { code: { equals: trimmed, mode: "insensitive" } },
+          { code: { equals: `OS-${trimmed}`, mode: "insensitive" } },
+          { code: { equals: `NX-${trimmed}`, mode: "insensitive" } },
+          ...(numericPart ? [
+            { code: { endsWith: numericPart } },
+            { code: { contains: numericPart } },
+          ] : []),
+        ],
+      },
       include: {
         client: {
           include: {
