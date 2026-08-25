@@ -26,6 +26,9 @@ import {
   Keyboard,
   Building2,
   LogOut,
+  Camera,
+  ChevronDown,
+  User as UserIcon,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { CommandPalette } from "./ui/CommandPalette";
@@ -76,6 +79,26 @@ export default function Header() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [tempAvatarUrl, setTempAvatarUrl] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && user?.email) {
+      const saved = localStorage.getItem(`user_avatar_${user.email}`);
+      if (saved) setAvatarUrl(saved);
+      else setAvatarUrl("");
+    }
+  }, [user?.email]);
+
+  const handleSaveAvatar = (url: string) => {
+    setAvatarUrl(url);
+    if (user?.email) {
+      localStorage.setItem(`user_avatar_${user.email}`, url);
+    }
+    setIsAvatarModalOpen(false);
+  };
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -658,64 +681,134 @@ export default function Header() {
           <span>Minha Empresa</span>
         </button>
 
-        {/* User Simulator Dropdown */}
-        <div className="relative hidden lg:block">
-
+        {/* Top-Right User Profile & Avatar Card */}
+        <div className="relative">
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-2 px-2 lg:px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-850 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all text-zinc-700 dark:text-zinc-350 cursor-pointer"
+            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all text-zinc-800 dark:text-zinc-200 cursor-pointer shadow-sm"
           >
-            <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span>
-            <span className="hidden lg:inline font-bold text-zinc-950 dark:text-zinc-50">
-              {user ? user.roleName : "..."}
-            </span>
+            {/* Foto de perfil ou círculo de iniciais */}
+            <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-blue-500/40 bg-gradient-to-br from-blue-600 to-indigo-700 font-black text-white flex items-center justify-center text-xs shadow-md">
+              {avatarUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={avatarUrl}
+                  alt={user?.name || "Usuário"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span>{user?.name ? user.name.slice(0, 2).toUpperCase() : "LU"}</span>
+              )}
+            </div>
+
+            <div className="hidden sm:flex flex-col text-left">
+              <span className="text-xs font-black leading-tight text-zinc-950 dark:text-white truncate max-w-[130px]">
+                {user?.name || "Lucas Ribeiro"}
+              </span>
+              <span className="mt-0.5 text-[9px] font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                {user?.roleName || "Administrador"}
+              </span>
+            </div>
+
+            <ChevronDown size={14} className="text-zinc-400" />
           </button>
 
           {isProfileOpen && (
-            <div className="absolute right-0 mt-2 w-72 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
-              <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800">
-                <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-                  Escolha um perfil para testar:
-                </p>
-              </div>
-              <div className="max-h-80 overflow-y-auto py-1 scrollbar-none">
-                {users.map((u) => (
-                  <button
-                    key={u.email}
-                    onClick={() => handleUserSwitch(u.email)}
-                    className={`w-full text-left px-4 py-2.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800/80 flex flex-col gap-0.5 transition-all cursor-pointer ${
-                      user?.email === u.email
-                        ? "bg-zinc-50/50 dark:bg-zinc-800/40"
-                        : ""
-                    }`}
+            <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+              {/* Profile Summary Header */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/30">
+                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border-2 border-blue-500/50 bg-gradient-to-br from-blue-600 to-indigo-700 font-black text-white flex items-center justify-center text-sm shadow-md">
+                  {avatarUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={avatarUrl}
+                      alt={user?.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{user?.name ? user.name.slice(0, 2).toUpperCase() : "LU"}</span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-zinc-900 dark:text-white truncate">
+                    {user?.name || "Lucas Ribeiro"}
+                  </p>
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
+                    {user?.email || "lucasribeiro@nexusmax.com"}
+                  </p>
+                  <span
+                    className={`mt-1 inline-block text-[8px] px-2 py-0.5 rounded font-black uppercase tracking-wide ${getRoleColorClass(
+                      user?.roleName || "Administrador",
+                    )}`}
                   >
-                    <div className="flex justify-between items-center w-full">
-                      <span className="font-bold text-zinc-800 dark:text-zinc-200 truncate pr-2">
-                        {u.name}
-                      </span>
-                      <span
-                        className={`text-[8px] px-2 py-0.5 rounded font-bold uppercase tracking-wide ${getRoleColorClass(
-                          u.roleName,
-                        )}`}
-                      >
+                    {user?.roleName || "Administrador"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="p-1.5 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    setTempAvatarUrl(avatarUrl);
+                    setIsAvatarModalOpen(true);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-extrabold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <Camera size={15} />
+                  <span>Alterar Foto de Perfil</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    setIsCompanyModalOpen(true);
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  <Building2 size={15} className="text-zinc-500" />
+                  <span>Dados da Minha Empresa</span>
+                </button>
+              </div>
+
+              <div className="border-t border-zinc-100 dark:border-zinc-800 my-1" />
+
+              {/* Perfil de Teste (Simulador) */}
+              <div className="px-3 py-1.5">
+                <p className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">
+                  Trocar Usuário (Simulador):
+                </p>
+                <div className="max-h-40 overflow-y-auto space-y-0.5 scrollbar-none">
+                  {users.map((u) => (
+                    <button
+                      key={u.email}
+                      onClick={() => handleUserSwitch(u.email)}
+                      className={`w-full text-left px-2.5 py-1.5 text-xs rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex justify-between items-center transition-all cursor-pointer ${
+                        user?.email === u.email
+                          ? "bg-blue-50/60 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold"
+                          : "text-zinc-600 dark:text-zinc-400"
+                      }`}
+                    >
+                      <span className="truncate text-[11px]">{u.name}</span>
+                      <span className="text-[8px] font-bold uppercase text-zinc-400">
                         {u.roleName}
                       </span>
-                    </div>
-                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
-                      {u.email}
-                    </span>
-                  </button>
-                ))}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="border-t border-zinc-100 p-2 dark:border-zinc-800">
+
+              <div className="border-t border-zinc-100 p-1.5 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={handleLogout}
                   disabled={isLoggingOut}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-black text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-wait disabled:opacity-60 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-black text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-wait disabled:opacity-60 dark:text-rose-400 dark:hover:bg-rose-950/30 cursor-pointer"
                 >
                   <LogOut size={14} />
-                  {isLoggingOut ? "Saindo..." : "Sair do aplicativo"}
+                  {isLoggingOut ? "Saindo..." : "Sair do sistema"}
                 </button>
               </div>
             </div>
@@ -815,6 +908,99 @@ export default function Header() {
           onClose={() => setIsCompanyModalOpen(false)}
           isFloating={true}
         />
+      )}
+
+      {/* Modal de Alteração de Foto de Perfil */}
+      {isAvatarModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 space-y-5">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <h3 className="text-base font-black text-zinc-900 dark:text-white flex items-center gap-2">
+                <Camera size={18} className="text-blue-600" />
+                Alterar Foto de Perfil
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAvatarModalOpen(false)}
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-white cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Avatar Preview */}
+            <div className="flex flex-col items-center justify-center gap-3 py-2">
+              <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-blue-500/50 bg-gradient-to-br from-blue-600 to-indigo-700 font-black text-white flex items-center justify-center text-2xl shadow-lg">
+                {tempAvatarUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={tempAvatarUrl} alt="Preview" className="h-full w-full object-cover" />
+                ) : (
+                  <span>{user?.name ? user.name.slice(0, 2).toUpperCase() : "LU"}</span>
+                )}
+              </div>
+              <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
+                {user?.name || "Lucas Ribeiro"}
+              </p>
+            </div>
+
+            {/* Upload Options */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  1. Carregar imagem do seu dispositivo:
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (evt) => {
+                        if (evt.target?.result) {
+                          setTempAvatarUrl(evt.target.result as string);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="w-full text-xs text-zinc-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-950/40 dark:file:text-blue-300 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1.5">
+                  2. Ou cole a URL da sua foto:
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://exemplo.com/sua-foto.jpg"
+                  value={tempAvatarUrl.startsWith("data:") ? "" : tempAvatarUrl}
+                  onChange={(e) => setTempAvatarUrl(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3.5 py-2 text-xs font-medium text-zinc-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAvatarModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-xs font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveAvatar(tempAvatarUrl)}
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-md hover:bg-blue-700 transition-all cursor-pointer"
+              >
+                Salvar Foto de Perfil
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </header>
   );

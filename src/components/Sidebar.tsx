@@ -333,42 +333,6 @@ export default function Sidebar() {
             </div>
           </div>
 
-          {/* Simulator Profile Panel */}
-          {user && !isCollapsed && (
-            <div className="mx-3 my-3 flex shrink-0 flex-col gap-2 rounded-2xl border border-white/8 bg-white/[0.045] p-3.5 transition-all">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 truncate">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#155eef]/35 bg-[#155eef]/15 text-xs font-black uppercase text-[#60a5fa]">
-                    {user.name.slice(0, 2)}
-                  </div>
-                  <div className="truncate">
-                    <p className="truncate text-xs font-bold text-slate-100">
-                      {user.name}
-                    </p>
-                    <p className="truncate text-[10px] text-slate-500">
-                      {user.email}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="shrink-0 cursor-pointer rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
-                  title="Sair do Sistema"
-                >
-                  <LogOut size={13} />
-                </button>
-              </div>
-              <div className="mt-1">
-                <span
-                  className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${getRoleBadgeColor(user.roleName)}`}
-                >
-                  {user.roleName}
-                </span>
-              </div>
-            </div>
-          )}
-
           {/* Scrollable Navigation */}
           <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4 pt-2 scrollbar-none">
             {/* Dashboard Item */}
