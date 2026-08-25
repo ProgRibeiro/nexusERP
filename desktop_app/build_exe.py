@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 ===============================================================================
-NEXUS ERP — COMPILADOR DE EXECUTÁVEL STANDALONE (.EXE / PYINSTALLER)
+NEXUS ERP - O PRESTADOR - COMPILADOR EXECUTAVEL STANDALONE (.EXE / PYINSTALLER)
 ===============================================================================
-Este script compila a aplicação desktop Python em um executável (.exe) 
-standalone pré-configurado sem dependências externas.
+Este script compila a aplicacao desktop nativa em um executavel (.exe) standalone
+Windows com motor Chromium WebView2 embutido, bandeja do sistema e atalhos F1-F12.
 """
 
 import os
@@ -14,33 +14,33 @@ import subprocess
 
 def build_executable():
     print("=================================================================")
-    print("🔨 COMPILADOR EXECUTÁVEL STANDALONE — NEXUS ERP DESKTOP")
+    print("COMPILANDO EXECUTAVEL STANDALONE DESKTOP - NEXUS ERP - O PRESTADOR")
     print("=================================================================")
-    
+
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    main_script = os.path.join(script_dir, "nexus_erp_desktop.py")
-    
-    # Verifica se PyInstaller está instalado
-    try:
-        import PyInstaller
-    except ImportError:
-        print("Instalando PyInstaller...")
-        subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
+    main_script = os.path.join(script_dir, "nexus_desktop_master.py")
+    dist_dir = os.path.join(script_dir, "dist")
+    build_dir = os.path.join(script_dir, "build")
 
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
-        "--onedir",
+        "--clean",
+        "--onefile",
         "--windowed",
-        "--name=NexusERP_Desktop",
-        f"--distpath={os.path.join(script_dir, 'dist')}",
-        f"--workpath={os.path.join(script_dir, 'build')}",
+        "--name=Nexus_ERP_O_Prestador_Desktop",
+        f"--distpath={dist_dir}",
+        f"--workpath={build_dir}",
         main_script
     ]
-    
+
     print("Executando PyInstaller:", " ".join(cmd))
     subprocess.run(cmd, check=True)
-    print("\n✅ Compilação concluída com sucesso! Executável salvo na pasta 'dist/NexusERP_Desktop'.")
+    
+    exe_path = os.path.join(dist_dir, "Nexus_ERP_O_Prestador_Desktop.exe")
+    print(f"\nCOMPILACAO CONCLUIDA COM SUCESSO!")
+    print(f"Executavel salvo em: {exe_path}")
+    return exe_path
 
 if __name__ == "__main__":
     build_executable()
