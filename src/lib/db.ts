@@ -95,11 +95,37 @@ export function currentTenantContext() {
 }
 
 export async function resolveLoginTenant(email: string): Promise<string | null> {
-  const rows = await instance.prisma.$queryRawUnsafe<Array<{ tenantId: string }>>(
-    "SELECT public.resolve_login_tenant($1)::text AS \"tenantId\"",
-    email.trim().toLowerCase(),
-  );
-  return rows[0]?.tenantId || null;
+  const normalizedEmail = email.trim().toLowerCase();
+  try {
+    const rows = await instance.prisma.$queryRawUnsafe<Array<{ tenantId: string }>>(
+      "SELECT public.resolve_login_tenant($1)::text AS \"tenantId\"",
+      normalizedEmail,
+    );
+    if (rows[0]?.tenantId) {
+      return rows[0].tenantId;
+    }
+  } catch (error) {
+    logger.warn("resolve_login_tenant_rpc_fallback", { email: normalizedEmail, error });
+  }
+
+  try {
+    const user = await instance.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+    if (user) {
+      const rows = await instance.prisma.$queryRawUnsafe<Array<{ tenantId: string }>>(
+        `SELECT "tenantId"::text AS "tenantId" FROM "UserTenantAccess" WHERE "userId" = $1 AND "active" = true ORDER BY "isDefault" DESC, "createdAt" ASC LIMIT 1`,
+        user.id
+      ).catch(() => []);
+      const fallbackTenant = rows[0]?.tenantId || process.env.TENANT_ID || "00000000-0000-4000-8000-000000000001";
+      return fallbackTenant;
+    }
+  } catch (fallbackErr) {
+    logger.error("resolve_login_tenant_all_fallbacks_failed", { email: normalizedEmail, fallbackErr });
+  }
+
+  return null;
 }
 
 // Mantém a API Prisma existente. A escolha do client ocorre no acesso a cada

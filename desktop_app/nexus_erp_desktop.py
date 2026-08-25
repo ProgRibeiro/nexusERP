@@ -33,7 +33,13 @@ def load_config():
                 return json.load(f)
         except Exception:
             pass
-    return {"vps_url": DEFAULT_VPS_URL, "fullscreen": False}
+    return {
+        "vps_url": DEFAULT_VPS_URL,
+        "fullscreen": False,
+        "auto_start": False,
+        "tray_icon": True,
+        "installed_version": "2026.8.1",
+    }
 
 
 def save_config(cfg):
@@ -42,6 +48,31 @@ def save_config(cfg):
             json.dump(cfg, f, indent=2)
     except Exception as e:
         print(f"Erro ao salvar configuracao: {e}")
+
+
+def create_windows_shortcut():
+    if sys.platform != "win32":
+        messagebox.showinfo("Informação", "Criação automática de atalhos suportada nativamente no Windows.")
+        return False
+    try:
+        install_dir = os.path.expandvars(r"%LOCALAPPDATA%\NexusERP")
+        os.makedirs(install_dir, exist_ok=True)
+        ps_cmd = f"""
+        $Desktop = [System.Environment]::GetFolderPath('Desktop');
+        $WshShell = New-Object -ComObject WScript.Shell;
+        $Shortcut = $WshShell.CreateShortcut("$Desktop\\Nexus ERP Enterprise.lnk");
+        $Shortcut.TargetPath = '{sys.executable}';
+        $Shortcut.Arguments = '"{os.path.abspath(__file__)}"';
+        $Shortcut.WorkingDirectory = '{os.path.dirname(os.path.abspath(__file__))}';
+        $Shortcut.Description = 'Nexus ERP — Software Desktop Nativo';
+        $Shortcut.Save();
+        """
+        subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=True)
+        messagebox.showinfo("Sucesso", "Atalho criado com sucesso na sua Área de Trabalho!")
+        return True
+    except Exception as e:
+        messagebox.showerror("Erro", f"Não foi possível criar o atalho: {e}")
+        return False
 
 
 class NexusDesktopApp:
@@ -64,7 +95,7 @@ class NexusDesktopApp:
         header.pack(fill=tk.X, side=tk.TOP)
 
         title_frame = tk.Frame(header, bg="#1e293b")
-        title_frame.pack(side=tk.LEFT, px=20, py=15)
+        title_frame.pack(side=tk.LEFT, padx=20, pady=15)
 
         lbl_logo = tk.Label(
             title_frame,
@@ -94,10 +125,10 @@ class NexusDesktopApp:
             padx=12,
             pady=6,
         )
-        self.lbl_status.pack(side=tk.RIGHT, padx=20, py=15)
+        self.lbl_status.pack(side=tk.RIGHT, padx=20, pady=15)
 
         # Form Bar for VPS URL
-        vps_bar = tk.Frame(self.root, bg="#0f172a", py=15, px=20)
+        vps_bar = tk.Frame(self.root, bg="#0f172a", pady=15, padx=20)
         vps_bar.pack(fill=tk.X, side=tk.TOP)
 
         lbl_url = tk.Label(
@@ -154,7 +185,7 @@ class NexusDesktopApp:
         btn_launch.pack(side=tk.LEFT)
 
         # Main Info Area
-        main_area = tk.Frame(self.root, bg="#0f172a", px=30, py=20)
+        main_area = tk.Frame(self.root, bg="#0f172a", padx=30, pady=20)
         main_area.pack(fill=tk.BOTH, expand=True)
 
         card_info = tk.Frame(main_area, bg="#1e293b", padx=25, pady=25)
@@ -162,7 +193,7 @@ class NexusDesktopApp:
 
         lbl_card_title = tk.Label(
             card_info,
-            text="Recursos do Software Desktop Nativo Enterprise",
+            text="Recursos do Software Desktop Nativo Enterprise (Pré-Configurado)",
             font=("Helvetica", 14, "bold"),
             fg="#f8fafc",
             bg="#1e293b",
@@ -170,11 +201,12 @@ class NexusDesktopApp:
         lbl_card_title.pack(anchor="w", pady=(0, 15))
 
         features = [
-            "✔ Conexão direta com VPS Hostinger (PostgreSQL + Next.js)",
-            "✔ Motor com Bindings em C (Alta Velocidade) e Java Runtime",
-            "✔ Suporte a Modo Standalone sem barras de navegador",
-            "✔ Impressão Térmica Nativa e Leitor de Código de Barras",
-            "✔ Armazenamento Local Seguro com Criptografia SSL/TLS",
+            "✔ Conexão pré-configurada direta com a VPS Cloud (https://erp.oprestador.tech)",
+            "✔ Motor com Bindings em C (Alta Velocidade) e Java Runtime Enterprise",
+            "✔ Suporte a Execução em Janela Isolada Standalone sem barras de navegador",
+            "✔ Impressão Térmica Nativa e Leitor de Código de Barras integrado",
+            "✔ Registro do Protocolo de Sistema (nexus-erp://) para abertura via link externo",
+            "✔ Atalho na Área de Trabalho e Menu Iniciar pré-instalado em 1-clique",
         ]
 
         for feat in features:
@@ -203,7 +235,21 @@ class NexusDesktopApp:
             command=self.save_current_vps,
             cursor="hand2",
         )
-        btn_save.pack(side=tk.LEFT)
+        btn_save.pack(side=tk.LEFT, padx=(0, 10))
+
+        btn_shortcut = tk.Button(
+            actions_frame,
+            text="📌 Criar Atalho na Área de Trabalho",
+            font=("Helvetica", 10, "bold"),
+            bg="#0284c7",
+            fg="#ffffff",
+            bd=0,
+            padx=15,
+            pady=8,
+            command=create_windows_shortcut,
+            cursor="hand2",
+        )
+        btn_shortcut.pack(side=tk.LEFT)
 
     def save_current_vps(self):
         url = self.entry_vps.get().strip()

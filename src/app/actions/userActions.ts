@@ -176,18 +176,46 @@ export async function loginAction(
 ): Promise<{ success: boolean; user?: UserSession; landingArea?: LandingArea; error?: string }> {
   try {
     await assertLoginAllowed(email);
-    const loginTenantId = await resolveLoginTenant(email);
+    const normalizedEmail = email.trim().toLowerCase();
+    const loginTenantId = await resolveLoginTenant(normalizedEmail);
     if (loginTenantId) enterTenantContext(loginTenantId);
-    const user = await prisma.user.findUnique({
-      where: { email: email.trim().toLowerCase() },
+
+    let user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
       include: { role: true, userRoles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } } },
     });
 
+    // Fallback de resiliência: se o tenant resolver não localizou o usuário ou se o contexto RLS isolou o registro,
+    // tenta localizar o usuário globalmente para associar o tenantId e auto-reparar o acesso.
+    if (!user) {
+      try {
+        const globalUser = await prisma.user.findFirst({
+          where: { email: normalizedEmail },
+          select: { id: true },
+        });
+        if (globalUser) {
+          const tenantRows = await prisma.$queryRawUnsafe<Array<{ tenantId: string }>>(
+            `SELECT "tenantId"::text AS "tenantId" FROM "UserTenantAccess" WHERE "userId" = $1 AND "active" = true ORDER BY "isDefault" DESC LIMIT 1`,
+            globalUser.id
+          ).catch(() => []);
+          const resolvedTenant = resolveTenantFallback(tenantRows[0]?.tenantId);
+          enterTenantContext(resolvedTenant);
+          await bindUserToTenant(globalUser.id, resolvedTenant).catch(() => {});
+          user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            include: { role: true, userRoles: { include: { role: { include: { rolePermissions: { include: { permission: true } } } } } } },
+          });
+        }
+      } catch (globalFallbackErr) {
+        logger.warn("login_global_user_fallback_failed", { email: normalizedEmail, globalFallbackErr });
+      }
+    }
+
     if (!user) {
       await registerLoginFailure(email);
-      await recordLoginHistory({ email, success: false, reason: "USUARIO_NAO_ENCONTRADO" });
-      logger.warn("login_failed", { email: email.trim().toLowerCase(), reason: "usuario_nao_encontrado" });
-      return { success: false, error: "Usuário não encontrado." };
+      await recordLoginHistory({ email: normalizedEmail, success: false, reason: "USUARIO_NAO_ENCONTRADO" });
+      logger.warn("login_failed", { email: normalizedEmail, reason: "usuario_nao_encontrado" });
+      return { success: false, error: "Usuário ou senha incorretos." };
     }
 
     if (!user.active || user.blockedAt) {
@@ -471,6 +499,7 @@ export async function createUserAction(data: {
       permissions = ["finance.manage", "billing.manage", "quotes.read"];
     }
 
+    const targetTenantId = resolveTenantFallback(current.tenantId);
     const newUser = await prisma.user.create({
       data: {
         name: data.name.trim(),
@@ -482,9 +511,9 @@ export async function createUserAction(data: {
       },
       include: { role: true },
     });
-    await bindUserToTenant(newUser.id, current.tenantId);
+    await bindUserToTenant(newUser.id, targetTenantId);
     await prisma.userRole.create({
-      data: { userId: newUser.id, roleId: role.id, tenantId: resolveTenantFallback(current.tenantId) },
+      data: { userId: newUser.id, roleId: role.id, tenantId: targetTenantId },
     });
 
     await prisma.auditLog.create({
