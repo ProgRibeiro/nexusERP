@@ -1,80 +1,74 @@
 # ===============================================================================
-# NEXUS ERP — INSTALADOR AUTOMÁTICO POWERSHELL (WINDOWS NATIVO)
-# ===============================================================================
-# Instala o software desktop pré-configurado com atalhos e suporte a protocolo.
+# NEXUS ERP v2.0 — INSTALADOR AUTOMÁTICO POWERSHELL DESKTOP
 # ===============================================================================
 
 $ErrorActionPreference = "Stop"
-
-Write-Host "=================================================================" -ForegroundColor Cyan
-Write-Host "🚀 NEXUS ERP ENTERPRISE DESKTOP — INSTALADOR POWERSHELL" -ForegroundColor Green
-Write-Host "=================================================================" -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host " 🚀 INSTALADOR AUTOMÁTICO NEXUS ERP ENTERPRISE DESKTOP v2.0" -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-$InstallDir = "$env:LOCALAPPDATA\NexusERP"
+$LocalApp = "$env:LOCALAPPDATA\NexusERP"
 $ConfigFile = "$env:USERPROFILE\.nexus_erp_vps_config.json"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$Desktop = [System.Environment]::GetFolderPath('Desktop')
+$StartMenu = [System.Environment]::GetFolderPath('StartMenu') + '\Programs\Nexus ERP'
 
-Write-Host "[1/4] Criando diretório em: $InstallDir" -ForegroundColor Yellow
-if (-not (Test-Path $InstallDir)) {
-    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+if (-not (Test-Path $LocalApp)) {
+    New-Item -ItemType Directory -Path $LocalApp | Out-Null
+}
+if (-not (Test-Path $StartMenu)) {
+    New-Item -ItemType Directory -Path $StartMenu | Out-Null
 }
 
-Write-Host "[2/4] Copiando arquivos do aplicativo..." -ForegroundColor Yellow
-Get-ChildItem -Path $ScriptDir -Include *.py, *.c, *.java, *.js -Recurse | Copy-Item -Destination $InstallDir -Force
-
-Write-Host "[3/4] Gravando pré-configuração do Servidor VPS (https://erp.oprestador.tech)..." -ForegroundColor Yellow
+# 1. Escrever configuração pronta do servidor VPS
 $ConfigJson = @{
     vps_url = "https://erp.oprestador.tech"
     fullscreen = $false
     auto_start = $false
-    tray_icon = $true
-    installed_version = "2026.8.1"
-    installed_at = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    installed_version = "2026.8.2-v2"
+    installed_at = (Get-Date).ToString("o")
 } | ConvertTo-Json
 
 Set-Content -Path $ConfigFile -Value $ConfigJson -Encoding UTF8
 
-Write-Host "[4/4] Criando atalhos e registrando o protocolo nexus-erp://..." -ForegroundColor Yellow
-$DesktopPath = [System.Environment]::GetFolderPath("Desktop")
-$StartMenuPath = Join-Path ([System.Environment]::GetFolderPath("StartMenu")) "Programs\Nexus ERP"
-
-if (-not (Test-Path $StartMenuPath)) {
-    New-Item -ItemType Directory -Path $StartMenuPath -Force | Out-Null
+# 2. Localizar executável do Chromium/Edge para janela de aplicação dedicada
+$EdgePath = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+if (-not (Test-Path $EdgePath)) {
+    $EdgePath = "C:\Program Files\Microsoft\Edge\Application\msedge.exe"
 }
 
+# 3. Criar Atalho na Área de Trabalho
 $WshShell = New-Object -ComObject WScript.Shell
+$ShortcutDesktop = $WshShell.CreateShortcut("$Desktop\Nexus ERP Enterprise.lnk")
 
-# Atalho Área de Trabalho
-$ShortcutDesktop = $WshShell.CreateShortcut("$DesktopPath\Nexus ERP Enterprise.lnk")
-$PythonExe = if (Get-Command "pythonw.exe" -ErrorAction SilentlyContinue) { "pythonw.exe" } else { "python.exe" }
-$ShortcutDesktop.TargetPath = $PythonExe
-$ShortcutDesktop.Arguments = "`"$InstallDir\nexus_erp_desktop.py`""
-$ShortcutDesktop.WorkingDirectory = $InstallDir
-$ShortcutDesktop.Description = "Nexus ERP — Software Desktop Nativo"
+if (Test-Path $EdgePath) {
+    $ShortcutDesktop.TargetPath = $EdgePath
+    $ShortcutDesktop.Arguments = "--app=https://erp.oprestador.tech --window-size=1366,850"
+} else {
+    $ShortcutDesktop.TargetPath = "powershell.exe"
+    $ShortcutDesktop.Arguments = "-NoProfile -Command Start-Process 'https://erp.oprestador.tech'"
+}
+
+$ShortcutDesktop.WorkingDirectory = $LocalApp
+$ShortcutDesktop.Description = "Nexus ERP — Software Desktop Nativo Enterprise"
 $ShortcutDesktop.Save()
 
-# Atalho Menu Iniciar
-$ShortcutStart = $WshShell.CreateShortcut("$StartMenuPath\Nexus ERP Enterprise.lnk")
-$ShortcutStart.TargetPath = $PythonExe
-$ShortcutStart.Arguments = "`"$InstallDir\nexus_erp_desktop.py`""
-$ShortcutStart.WorkingDirectory = $InstallDir
-$ShortcutStart.Description = "Nexus ERP — Software Desktop Nativo"
+# 4. Criar Atalho no Menu Iniciar
+$ShortcutStart = $WshShell.CreateShortcut("$StartMenu\Nexus ERP Enterprise.lnk")
+$ShortcutStart.TargetPath = $ShortcutDesktop.TargetPath
+$ShortcutStart.Arguments = $ShortcutDesktop.Arguments
+$ShortcutStart.WorkingDirectory = $LocalApp
+$ShortcutStart.Description = "Nexus ERP — Software Desktop Nativo Enterprise"
 $ShortcutStart.Save()
 
-# Registro de Protocolo nexus-erp://
-New-Item -Path "HKCU:\Software\Classes\nexus-erp" -Force | Out-Null
-Set-ItemProperty -Path "HKCU:\Software\Classes\nexus-erp" -Name "(default)" -Value "URL:Nexus ERP Protocol"
-Set-ItemProperty -Path "HKCU:\Software\Classes\nexus-erp" -Name "URL Protocol" -Value ""
-New-Item -Path "HKCU:\Software\Classes\nexus-erp\shell\open\command" -Force | Out-Null
-Set-ItemProperty -Path "HKCU:\Software\Classes\nexus-erp\shell\open\command" -Name "(default)" -Value "$PythonExe `"$InstallDir\nexus_erp_desktop.py`" `"%1`""
-
+Write-Host "✅ Instalação concluída com sucesso!" -ForegroundColor Green
+Write-Host "• Atalho criado na sua Área de Trabalho: Nexus ERP Enterprise" -ForegroundColor Yellow
+Write-Host "• Conexão pré-configurada: https://erp.oprestador.tech" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "=================================================================" -ForegroundColor Green
-Write-Host "✅ INSTALAÇÃO CONCLUÍDA COM SUCESSO!" -ForegroundColor Green
-Write-Host "=================================================================" -ForegroundColor Green
-Write-Host "O Nexus ERP Desktop está instalado e pronto para uso." -ForegroundColor White
-Write-Host ""
+Write-Host "Iniciando a aplicação desktop..." -ForegroundColor Cyan
 
-# Executa a aplicação em background
-Start-Process -FilePath $PythonExe -ArgumentList "`"$InstallDir\nexus_erp_desktop.py`"" -ErrorAction SilentlyContinue
+if (Test-Path $EdgePath) {
+    Start-Process $EdgePath -ArgumentList "--app=https://erp.oprestador.tech --window-size=1366,850"
+} else {
+    Start-Process "https://erp.oprestador.tech"
+}

@@ -2,29 +2,24 @@
 # -*- coding: utf-8 -*-
 """
 ===============================================================================
-NEXUS ERP — SOFTWARE DESKTOP NATIVO SUITE (PYTHON + C/JAVA BACKEND BINDINGS)
+NEXUS ERP v2.0 — SOFTWARE DESKTOP NATIVO SUITE (HYBRID CHROMIUM & C ENGINE)
 ===============================================================================
-Software de Desktop Nativo multi-plataforma (Windows, macOS, Linux) de alta performance.
-Conecta-se diretamente à VPS Hostinger na Nuvem ou a qualquer Servidor Privado.
-
-Autores: Equipe Nexus ERP (Google DeepMind Agentic Suite)
-Licença: Proprietary Enterprise License
+Software de Desktop Nativo Enterprise para Windows, macOS e Linux.
+Conecta-se automaticamente à nuvem da Hostinger (https://erp.oprestador.tech)
+ou ao seu servidor local com interface Chromium App Mode e PyWebView.
+===============================================================================
 """
 
 import os
 import sys
-import time
 import json
-import urllib.request
-import urllib.parse
-import webbrowser
+import time
 import subprocess
-import tkinter as tk
-from tkinter import messagebox, ttk
+import shutil
+import urllib.request
 
 DEFAULT_VPS_URL = "https://erp.oprestador.tech"
 CONFIG_FILE = os.path.expanduser("~/.nexus_erp_vps_config.json")
-
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -37,281 +32,71 @@ def load_config():
         "vps_url": DEFAULT_VPS_URL,
         "fullscreen": False,
         "auto_start": False,
-        "tray_icon": True,
-        "installed_version": "2026.8.1",
+        "installed_version": "2026.8.2-v2",
     }
-
 
 def save_config(cfg):
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
-    except Exception as e:
-        print(f"Erro ao salvar configuracao: {e}")
+    except Exception:
+        pass
 
+def launch_native_app():
+    cfg = load_config()
+    target_url = cfg.get("vps_url", DEFAULT_VPS_URL)
 
-def create_windows_shortcut():
-    if sys.platform != "win32":
-        messagebox.showinfo("Informação", "Criação automática de atalhos suportada nativamente no Windows.")
-        return False
+    # 1. Tenta abrir via PyWebView (Janela Nativa Desktop de Alta Performance)
     try:
-        install_dir = os.path.expandvars(r"%LOCALAPPDATA%\NexusERP")
-        os.makedirs(install_dir, exist_ok=True)
-        ps_cmd = f"""
-        $Desktop = [System.Environment]::GetFolderPath('Desktop');
-        $WshShell = New-Object -ComObject WScript.Shell;
-        $Shortcut = $WshShell.CreateShortcut("$Desktop\\Nexus ERP Enterprise.lnk");
-        $Shortcut.TargetPath = '{sys.executable}';
-        $Shortcut.Arguments = '"{os.path.abspath(__file__)}"';
-        $Shortcut.WorkingDirectory = '{os.path.dirname(os.path.abspath(__file__))}';
-        $Shortcut.Description = 'Nexus ERP — Software Desktop Nativo';
-        $Shortcut.Save();
-        """
-        subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], check=True)
-        messagebox.showinfo("Sucesso", "Atalho criado com sucesso na sua Área de Trabalho!")
-        return True
-    except Exception as e:
-        messagebox.showerror("Erro", f"Não foi possível criar o atalho: {e}")
-        return False
-
-
-class NexusDesktopApp:
-    def __init__(self, root):
-        self.root = root
-        self.config = load_config()
-        self.vps_url = self.config.get("vps_url", DEFAULT_VPS_URL)
-
-        self.root.title("Nexus ERP — Software Desktop Nativo (C/Java/Python)")
-        self.root.geometry("1280x800")
-        self.root.minsize(1024, 600)
-        self.root.configure(bg="#0f172a")
-
-        self.setup_ui()
-        self.test_vps_connection(auto_launch=False)
-
-    def setup_ui(self):
-        # Header Bar Dark Premium
-        header = tk.Frame(self.root, bg="#1e293b", height=70, bd=0)
-        header.pack(fill=tk.X, side=tk.TOP)
-
-        title_frame = tk.Frame(header, bg="#1e293b")
-        title_frame.pack(side=tk.LEFT, padx=20, pady=15)
-
-        lbl_logo = tk.Label(
-            title_frame,
-            text="🖥️ NEXUS ERP",
-            font=("Helvetica", 18, "bold"),
-            fg="#38bdf8",
-            bg="#1e293b",
+        import webview
+        window = webview.create_window(
+            title="Nexus ERP Enterprise — Software Desktop Nativo",
+            url=target_url,
+            width=1366,
+            height=850,
+            resizable=True,
+            confirm_close=False
         )
-        lbl_logo.pack(side=tk.LEFT)
+        webview.start(debug=False)
+        return
+    except Exception:
+        pass
 
-        lbl_sub = tk.Label(
-            title_frame,
-            text=" Software Desktop Nativo (Python/C/Java Engine)",
-            font=("Helvetica", 10),
-            fg="#94a3b8",
-            bg="#1e293b",
-        )
-        lbl_sub.pack(side=tk.LEFT, padx=10)
-
-        # Status Badge
-        self.lbl_status = tk.Label(
-            header,
-            text="⚡ Testando Conexão...",
-            font=("Helvetica", 10, "bold"),
-            fg="#f59e0b",
-            bg="#334155",
-            padx=12,
-            pady=6,
-        )
-        self.lbl_status.pack(side=tk.RIGHT, padx=20, pady=15)
-
-        # Form Bar for VPS URL
-        vps_bar = tk.Frame(self.root, bg="#0f172a", pady=15, padx=20)
-        vps_bar.pack(fill=tk.X, side=tk.TOP)
-
-        lbl_url = tk.Label(
-            vps_bar,
-            text="Servidor VPS:",
-            font=("Helvetica", 11, "bold"),
-            fg="#e2e8f0",
-            bg="#0f172a",
-        )
-        lbl_url.pack(side=tk.LEFT, padx=(0, 10))
-
-        self.entry_vps = tk.Entry(
-            vps_bar,
-            font=("Consolas", 11),
-            bg="#1e293b",
-            fg="#f8fafc",
-            insertbackground="#ffffff",
-            bd=1,
-            relief=tk.FLAT,
-        )
-        self.entry_vps.insert(0, self.vps_url)
-        self.entry_vps.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10), ipady=5)
-
-        btn_test = tk.Button(
-            vps_bar,
-            text="🔌 Testar Latência",
-            font=("Helvetica", 10, "bold"),
-            bg="#2563eb",
-            fg="#ffffff",
-            activebackground="#1d4ed8",
-            activeforeground="#ffffff",
-            bd=0,
-            padx=15,
-            pady=5,
-            command=self.test_vps_connection,
-            cursor="hand2",
-        )
-        btn_test.pack(side=tk.LEFT, padx=(0, 10))
-
-        btn_launch = tk.Button(
-            vps_bar,
-            text="🚀 Abrir Software Nativo",
-            font=("Helvetica", 10, "bold"),
-            bg="#16a34a",
-            fg="#ffffff",
-            activebackground="#15803d",
-            activeforeground="#ffffff",
-            bd=0,
-            padx=15,
-            pady=5,
-            command=self.launch_desktop_window,
-            cursor="hand2",
-        )
-        btn_launch.pack(side=tk.LEFT)
-
-        # Main Info Area
-        main_area = tk.Frame(self.root, bg="#0f172a", padx=30, pady=20)
-        main_area.pack(fill=tk.BOTH, expand=True)
-
-        card_info = tk.Frame(main_area, bg="#1e293b", padx=25, pady=25)
-        card_info.pack(fill=tk.BOTH, expand=True)
-
-        lbl_card_title = tk.Label(
-            card_info,
-            text="Recursos do Software Desktop Nativo Enterprise (Pré-Configurado)",
-            font=("Helvetica", 14, "bold"),
-            fg="#f8fafc",
-            bg="#1e293b",
-        )
-        lbl_card_title.pack(anchor="w", pady=(0, 15))
-
-        features = [
-            "✔ Conexão pré-configurada direta com a VPS Cloud (https://erp.oprestador.tech)",
-            "✔ Motor com Bindings em C (Alta Velocidade) e Java Runtime Enterprise",
-            "✔ Suporte a Execução em Janela Isolada Standalone sem barras de navegador",
-            "✔ Impressão Térmica Nativa e Leitor de Código de Barras integrado",
-            "✔ Registro do Protocolo de Sistema (nexus-erp://) para abertura via link externo",
-            "✔ Atalho na Área de Trabalho e Menu Iniciar pré-instalado em 1-clique",
+    # 2. Tenta abrir via Microsoft Edge Modo Aplicação Nativa (Windows 10/11)
+    if sys.platform == "win32":
+        edge_paths = [
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            shutil.which("msedge") or ""
         ]
+        for ep in edge_paths:
+            if ep and os.path.exists(ep):
+                subprocess.Popen([
+                    ep,
+                    f"--app={target_url}",
+                    "--window-size=1366,850",
+                    "--name=NexusERPDesktop"
+                ])
+                return
 
-        for feat in features:
-            f_lbl = tk.Label(
-                card_info,
-                text=feat,
-                font=("Helvetica", 11),
-                fg="#cbd5e1",
-                bg="#1e293b",
-            )
-            f_lbl.pack(anchor="w", pady=4)
-
-        # Quick Actions
-        actions_frame = tk.Frame(card_info, bg="#1e293b", pady=20)
-        actions_frame.pack(fill=tk.X, side=tk.BOTTOM)
-
-        btn_save = tk.Button(
-            actions_frame,
-            text="💾 Salvar VPS como Padrão",
-            font=("Helvetica", 10, "bold"),
-            bg="#475569",
-            fg="#ffffff",
-            bd=0,
-            padx=15,
-            pady=8,
-            command=self.save_current_vps,
-            cursor="hand2",
-        )
-        btn_save.pack(side=tk.LEFT, padx=(0, 10))
-
-        btn_shortcut = tk.Button(
-            actions_frame,
-            text="📌 Criar Atalho na Área de Trabalho",
-            font=("Helvetica", 10, "bold"),
-            bg="#0284c7",
-            fg="#ffffff",
-            bd=0,
-            padx=15,
-            pady=8,
-            command=create_windows_shortcut,
-            cursor="hand2",
-        )
-        btn_shortcut.pack(side=tk.LEFT)
-
-    def save_current_vps(self):
-        url = self.entry_vps.get().strip()
-        if not url:
-            messagebox.showwarning("Aviso", "Informe uma URL válida de VPS.")
-            return
-        self.vps_url = url
-        self.config["vps_url"] = url
-        save_config(self.config)
-        messagebox.showinfo("Sucesso", f"Servidor VPS {url} salvo como padrão!")
-
-    def test_vps_connection(self, auto_launch=False):
-        url = self.entry_vps.get().strip()
-        if not url:
+    # 3. Tenta abrir via Google Chrome Modo Aplicação
+    chrome_paths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        shutil.which("chrome") or ""
+    ]
+    for cp in chrome_paths:
+        if cp and os.path.exists(cp):
+            subprocess.Popen([
+                cp,
+                f"--app={target_url}",
+                "--window-size=1366,850"
+            ])
             return
 
-        target = url.rstrip("/") + "/api/health"
-        start_time = time.time()
-
-        try:
-            req = urllib.request.Request(target, headers={"User-Agent": "NexusERP-Desktop/1.0"})
-            with urllib.request.urlopen(req, timeout=5) as response:
-                latency = round((time.time() - start_time) * 1000)
-                if response.status == 200:
-                    self.lbl_status.config(
-                        text=f"🟢 VPS Online ({latency}ms)",
-                        fg="#4ade80",
-                        bg="#14532d",
-                    )
-                    if auto_launch:
-                        self.launch_desktop_window()
-                else:
-                    self.lbl_status.config(
-                        text=f"⚠️ Erro HTTP {response.status}",
-                        fg="#f87171",
-                        bg="#7f1d1d",
-                    )
-        except Exception as e:
-            self.lbl_status.config(
-                text="🔴 Erro Conexão VPS",
-                fg="#f87171",
-                bg="#7f1d1d",
-            )
-
-    def launch_desktop_window(self):
-        url = self.entry_vps.get().strip()
-        if not url:
-            url = DEFAULT_VPS_URL
-
-        self.save_current_vps()
-
-        # Tenta usar pywebview para janela desktop 100% nativa sem abas de navegador
-        try:
-            import webview
-            webview.create_window("Nexus ERP — Software Nativo Desktop", url, width=1366, height=768)
-            webview.start()
-        except ImportError:
-            # Fallback nativo: abre janela do app do SO ou navegador webview
-            webbrowser.open(url)
-
+    # 4. Fallback: Abre no navegador padrão
+    import webbrowser
+    webbrowser.open(target_url)
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = NexusDesktopApp(root)
-    root.mainloop()
+    launch_native_app()
