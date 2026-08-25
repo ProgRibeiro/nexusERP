@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FileSpreadsheet,
   Link,
@@ -21,6 +21,8 @@ import { useToast } from "@/components/ui/Toast";
 import {
   importGoogleSpreadsheetAction,
   parseTsvAndImportNexusOne,
+  getGoogleSheetSyncConfigAction,
+  saveGoogleSheetSyncConfigAction,
   NexusOneImportResult,
 } from "@/app/actions/nexusOneImportActions";
 
@@ -40,9 +42,34 @@ export function NexusOneImporterModal({
   const [googleUrl, setGoogleUrl] = useState(
     "https://docs.google.com/spreadsheets/d/16HxM9rw8P_xApUgRbv53Mof6USS1VV7Uo8OQ8zgHhJU/edit?gid=1888996763#gid=1888996763"
   );
+  const [autoSync, setAutoSync] = useState(true);
+  const [lastSync, setLastSync] = useState<string | null>(null);
   const [pastedText, setPastedText] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<NexusOneImportResult | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    getGoogleSheetSyncConfigAction().then((cfg) => {
+      if (cfg.url) setGoogleUrl(cfg.url);
+      setAutoSync(cfg.autoSync);
+      setLastSync(cfg.lastSync);
+    });
+  }, [isOpen]);
+
+  const handleSaveConfig = async (newUrl: string, newAuto: boolean) => {
+    try {
+      await saveGoogleSheetSyncConfigAction(newUrl, newAuto);
+      toast(
+        newAuto
+          ? "Sincronização automática em segundo plano ativada!"
+          : "Configuração da planilha salva.",
+        "success"
+      );
+    } catch {
+      toast("Erro ao salvar configuração.", "error");
+    }
+  };
 
   const handleImportByLink = async () => {
     if (!googleUrl.trim()) {
@@ -53,6 +80,7 @@ export function NexusOneImporterModal({
     try {
       setLoading(true);
       setResult(null);
+      await saveGoogleSheetSyncConfigAction(googleUrl, autoSync);
       const res = await importGoogleSpreadsheetAction(googleUrl);
       setResult(res);
       if (res.success) {
@@ -163,6 +191,30 @@ export function NexusOneImporterModal({
             <p className="text-[11px] text-zinc-500">
               Certifique-se de que a planilha do Google está configurada como <em>&quot;Qualquer pessoa com o link pode ver&quot;</em>.
             </p>
+
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5 dark:border-emerald-900/40 dark:bg-emerald-950/20 flex items-center justify-between">
+              <div>
+                <span className="font-bold text-zinc-900 dark:text-zinc-100 block text-xs">
+                  Sincronização Automática em Segundo Plano
+                </span>
+                <span className="text-[11px] text-zinc-500 block mt-0.5">
+                  {lastSync ? `Última atualização: ${new Date(lastSync).toLocaleString("pt-BR")}` : "Sincroniza automaticamente as alterações da planilha no ERP."}
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoSync}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    setAutoSync(next);
+                    void handleSaveConfig(googleUrl, next);
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer dark:bg-zinc-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-emerald-600"></div>
+              </label>
+            </div>
 
             <div className="pt-2">
               <Button

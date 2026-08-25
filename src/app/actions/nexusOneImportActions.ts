@@ -422,3 +422,47 @@ export async function parseTsvAndImportNexusOne(rawText: string): Promise<NexusO
 
   return importNexusOneBaseAction(parsedRows);
 }
+
+export async function getGoogleSheetSyncConfigAction() {
+  const urlSetting = await prisma.setting.findUnique({ where: { key: "google_sheet_sync_url" } });
+  const autoSyncSetting = await prisma.setting.findUnique({ where: { key: "google_sheet_auto_sync_enabled" } });
+  const lastSyncSetting = await prisma.setting.findUnique({ where: { key: "google_sheet_last_sync" } });
+
+  return {
+    url: urlSetting?.value || "https://docs.google.com/spreadsheets/d/16HxM9rw8P_xApUgRbv53Mof6USS1VV7Uo8OQ8zgHhJU/edit?gid=1888996763#gid=1888996763",
+    autoSync: autoSyncSetting?.value === "true",
+    lastSync: lastSyncSetting?.value || null,
+  };
+}
+
+export async function saveGoogleSheetSyncConfigAction(url: string, autoSync: boolean) {
+  await prisma.setting.upsert({
+    where: { key: "google_sheet_sync_url" },
+    update: { value: url },
+    create: { key: "google_sheet_sync_url", value: url },
+  });
+
+  await prisma.setting.upsert({
+    where: { key: "google_sheet_auto_sync_enabled" },
+    update: { value: autoSync ? "true" : "false" },
+    create: { key: "google_sheet_auto_sync_enabled", value: autoSync ? "true" : "false" },
+  });
+
+  return { success: true };
+}
+
+export async function syncGoogleSheetBackgroundAction() {
+  const config = await getGoogleSheetSyncConfigAction();
+  if (!config.url) return { success: false, totalRows: 0, clientsCreated: 0, ordersCreated: 0, ordersUpdated: 0, financesCreated: 0, errors: ["Nenhuma URL configurada."] };
+
+  const res = await importGoogleSpreadsheetAction(config.url);
+  if (res.success) {
+    await prisma.setting.upsert({
+      where: { key: "google_sheet_last_sync" },
+      update: { value: new Date().toISOString() },
+      create: { key: "google_sheet_last_sync", value: new Date().toISOString() },
+    });
+  }
+  return res;
+}
+
