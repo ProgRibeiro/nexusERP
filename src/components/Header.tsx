@@ -29,12 +29,14 @@ import {
   Camera,
   ChevronDown,
   User as UserIcon,
+  Laptop,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { CommandPalette } from "./ui/CommandPalette";
 import { getSearchResultTarget } from "@/lib/searchNavigation";
 import PwaInstallButton from "./PwaInstallButton";
 import { CompanyRegistrationModal } from "./modals/CompanyRegistrationModal";
+import { DesktopAppLauncherModal } from "./modals/DesktopAppLauncherModal";
 
 
 // Badge color shown next to each global search result type.
@@ -78,6 +80,7 @@ export default function Header() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [isDesktopModalOpen, setIsDesktopModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [avatarUrl, setAvatarUrl] = useState<string>("");
@@ -671,6 +674,16 @@ export default function Header() {
           )}
         </div>
 
+        {/* Botão Software Desktop & VPS */}
+        <button
+          onClick={() => setIsDesktopModalOpen(true)}
+          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-900 text-xs font-black text-blue-700 dark:text-blue-300 bg-blue-50/80 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all cursor-pointer shadow-sm"
+          title="Software Desktop Nativo e Conexão VPS"
+        >
+          <Laptop size={15} className="text-blue-600 dark:text-blue-400" />
+          <span>App Desktop & VPS</span>
+        </button>
+
         {/* Botão Flutuante Minha Empresa */}
         <button
           onClick={() => setIsCompanyModalOpen(true)}
@@ -1001,6 +1014,14 @@ export default function Header() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Software Desktop Nativo & Conexão VPS */}
+      {isDesktopModalOpen && (
+        <DesktopAppLauncherModal
+          isOpen={isDesktopModalOpen}
+          onClose={() => setIsDesktopModalOpen(false)}
+        />
       )}
     </header>
   );
