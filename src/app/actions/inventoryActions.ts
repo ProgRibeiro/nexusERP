@@ -14,6 +14,7 @@ export interface ProductDTO {
   costPrice: number;
   salePrice: number;
   stockQuantity: number;
+  futureStock: number;
   minStock: number;
   unit: string;
   supplierId: string | null;
@@ -50,6 +51,7 @@ export async function getProducts(search?: string): Promise<ProductDTO[]> {
       costPrice: Number(p.costPrice),
       salePrice: Number(p.salePrice),
       stockQuantity: p.stockQuantity,
+      futureStock: p.futureStock || 0,
       minStock: p.minStock,
       unit: p.unit,
       supplierId: p.supplierId,
@@ -71,6 +73,7 @@ export async function createProduct(data: {
   costPrice: number;
   salePrice: number;
   stockQuantity: number;
+  futureStock?: number;
   minStock: number;
   unit?: string;
   supplierId?: string;
@@ -96,6 +99,7 @@ export async function createProduct(data: {
         costPrice: data.costPrice,
         salePrice: data.salePrice,
         stockQuantity: data.stockQuantity,
+        futureStock: data.futureStock || 0,
         minStock: data.minStock,
         unit: data.unit || "UN",
         supplierId: data.supplierId || null,
@@ -348,5 +352,71 @@ export async function updateProduct(data: {
   } catch (error: any) {
     logger.error("Erro ao atualizar produto:", error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Converte quantidade de Estoque Futuro (A Comprar/Pedido) para Estoque Presente (Físico/Entregue)
+ */
+export async function convertFutureStockToPresentAction(data: {
+  productId: string;
+  quantityToConvert: number;
+}) {
+  try {
+    const session = await requirePermission("estoque.write");
+
+    const product = await prisma.product.findUnique({
+      where: { id: data.productId },
+    });
+
+    if (!product) {
+      return { success: false, error: "Produto não encontrado." };
+    }
+
+    const qtyToMove = Math.min(data.quantityToConvert, product.futureStock);
+    if (qtyToMove <= 0) {
+      return { success: false, error: "Quantidade inválida para conversão." };
+    }
+
+    const updated = await prisma.product.update({
+      where: { id: product.id },
+      data: {
+        futureStock: Math.max(0, product.futureStock - qtyToMove),
+        stockQuantity: product.stockQuantity + qtyToMove,
+      },
+    });
+
+    // Registra a entrada física no almoxarifado
+    await prisma.stockMovement.create({
+      data: {
+        productId: product.id,
+        type: "ENTRADA",
+        quantity: qtyToMove,
+        reason: "COMPRA",
+        cost: Number(product.costPrice),
+        date: new Date(),
+      },
+    });
+
+    // Log de auditoria
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ENTRADA_FUTURA_CONVERTIDA",
+        entity: "Produto",
+        entityId: product.id,
+        changesJson: JSON.stringify({
+          convertido: qtyToMove,
+          novoEstoquePresente: updated.stockQuantity,
+          novoEstoqueFuturo: updated.futureStock,
+        }),
+      },
+    });
+
+    revalidatePath("/estoque");
+    return { success: true, product: updated, convertedQuantity: qtyToMove };
+  } catch (error: any) {
+    logger.error("Erro ao converter estoque futuro em presente:", error);
+    return { success: false, error: error.message || "Erro ao processar entrada do produto." };
   }
 }

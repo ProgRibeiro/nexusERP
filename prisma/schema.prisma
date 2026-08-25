@@ -1208,7 +1208,8 @@ model Product {
   type          String                 @default("PECA") // PECA, MATERIAL, EQUIPAMENTO
   costPrice     Decimal                @default(0.0) @db.Decimal(10, 2)
   salePrice     Decimal                @default(0.0) @db.Decimal(10, 2)
-  stockQuantity Float                  @default(0)
+  stockQuantity Float                  @default(0) // Estoque Presente / Físico
+  futureStock   Float                  @default(0) // Estoque Futuro / A Comprar
   minStock      Float                  @default(0)
   unit          String                 @default("UN")
   supplierId    String?
