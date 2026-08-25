@@ -98,10 +98,60 @@ export async function getBankAccounts() {
   try {
     await requireAuth();
 
-    const accounts = await prisma.bankAccount.findMany({ orderBy: { name: "asc" } });
+    let accounts = await prisma.bankAccount.findMany({ orderBy: { name: "asc" } });
+    if (accounts.length === 0) {
+      await prisma.bankAccount.createMany({
+        data: [
+          { name: "Caixa Geral / Tesouraria", bank: "Caixa", agency: "0001", accountNumber: "1000-1", balance: 0 },
+          { name: "Conta Corrente Principal", bank: "Itaú / Bradesco", agency: "0001", accountNumber: "2000-2", balance: 0 },
+          { name: "Cartão de Crédito Corporativo", bank: "Nubank", agency: "0001", accountNumber: "3000-3", balance: 0 },
+        ],
+      });
+      accounts = await prisma.bankAccount.findMany({ orderBy: { name: "asc" } });
+    }
+
     return accounts.map((account) => ({ ...account, balance: Number(account.balance) }));
   } catch (error) {
     failDataAccess("financial.bank-accounts.list", error);
+  }
+}
+
+export async function createBankAccountAction(data: {
+  name: string;
+  bank: string;
+  agency: string;
+  accountNumber: string;
+  initialBalance?: number;
+}) {
+  try {
+    const session = await requirePermission("financeiro.write");
+    if (!data.name?.trim()) throw new Error("Informe o nome da conta ou caixa.");
+
+    const created = await prisma.bankAccount.create({
+      data: {
+        name: data.name.trim(),
+        bank: data.bank?.trim() || "Geral",
+        agency: data.agency?.trim() || "0001",
+        accountNumber: data.accountNumber?.trim() || "0000",
+        balance: data.initialBalance || 0,
+      },
+    });
+
+    revalidatePath("/financeiro");
+    return { success: true, account: created };
+  } catch (error: any) {
+    return mutationFailure("financial.bank-account.create", error, "Não foi possível criar a conta bancária.");
+  }
+}
+
+export async function deleteBankAccountAction(id: string) {
+  try {
+    await requirePermission("financeiro.write");
+    await prisma.bankAccount.delete({ where: { id } });
+    revalidatePath("/financeiro");
+    return { success: true };
+  } catch (error: any) {
+    return mutationFailure("financial.bank-account.delete", error, "Erro ao excluir conta.");
   }
 }
 
@@ -140,13 +190,24 @@ export async function receivePayment(data: {
   receivableId: string;
   receivedValue: number;
   paymentMethod: string;
-  bankAccountId: string;
+  bankAccountId?: string;
   userId: string;
 }) {
   try {
     const session = await requirePermission("financeiro.write");
     data.userId = session.userId; // nunca confiar no valor vindo do client
     receivePaymentSchema.parse(data);
+
+    let targetBankAccountId = data.bankAccountId;
+    if (!targetBankAccountId || targetBankAccountId.trim() === "") {
+      let defaultBank = await prisma.bankAccount.findFirst({ orderBy: { createdAt: "asc" } });
+      if (!defaultBank) {
+        defaultBank = await prisma.bankAccount.create({
+          data: { name: "Caixa Geral", bank: "Caixa", agency: "0001", accountNumber: "1000-1", balance: 0 },
+        });
+      }
+      targetBankAccountId = defaultBank.id;
+    }
 
     const rec = await prisma.accountsReceivable.findUnique({
       where: { id: data.receivableId },
@@ -173,7 +234,7 @@ export async function receivePayment(data: {
           receivedValue: { increment: data.receivedValue },
           pendingValue: { decrement: data.receivedValue },
           paymentMethod: data.paymentMethod,
-          bankAccountId: data.bankAccountId,
+          bankAccountId: targetBankAccountId,
         },
       });
       if (claimed.count !== 1) throw new Error("Esta cobrança já foi liquidada ou teve o saldo alterado por outro usuário.");
@@ -195,14 +256,14 @@ export async function receivePayment(data: {
           costCenter: rec.costCenter,
           accountsReceivableId: rec.id,
           description: `Recebimento ${newStatus} de fatura - Cliente: ${rec.client.name}`,
-          bankAccountId: data.bankAccountId,
+          bankAccountId: targetBankAccountId,
           date: new Date(),
         },
       });
 
       // 3. Atualiza o saldo da conta bancária
       await tx.bankAccount.update({
-        where: { id: data.bankAccountId },
+        where: { id: targetBankAccountId },
         data: { balance: { increment: data.receivedValue } },
       });
 

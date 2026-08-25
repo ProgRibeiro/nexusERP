@@ -90,14 +90,14 @@ export const receivePaymentSchema = z.object({
   receivableId: z.string().trim().min(1),
   receivedValue: z.number().positive("Valor recebido deve ser maior que zero."),
   paymentMethod: z.string().trim().min(1, "Forma de pagamento é obrigatória."),
-  bankAccountId: z.string().trim().min(1, "Conta bancária é obrigatória."),
+  bankAccountId: z.string().trim().optional(),
   userId: z.string().trim().optional(),
 });
 
 export const payBillSchema = z.object({
   payableId: z.string().trim().min(1),
   paymentMethod: z.string().trim().min(1, "Forma de pagamento é obrigatória."),
-  bankAccountId: z.string().trim().min(1, "Conta bancária é obrigatória."),
+  bankAccountId: z.string().trim().optional(),
   userId: z.string().trim().optional(),
 });
 

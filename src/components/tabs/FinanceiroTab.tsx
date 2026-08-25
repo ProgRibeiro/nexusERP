@@ -14,9 +14,12 @@ import {
   createReceivable,
   updatePayable,
   updateReceivable,
+  createBankAccountAction,
+  deleteBankAccountAction,
   ReceivableDTO,
   PayableDTO,
 } from "@/app/actions/financialActions";
+import { NewBankAccountModal } from "../modals/NewBankAccountModal";
 import { getClients } from "@/app/actions/clientActions";
 import { getInsightsForModule } from "@/app/actions/insightsActions";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -96,6 +99,7 @@ export default function FinanceiroTab({
   const [selectedReceivable, setSelectedReceivable] =
     useState<ReceivableDTO | null>(null);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
+  const [isNewBankAccountOpen, setIsNewBankAccountOpen] = useState(false);
   const [editingLaunch, setEditingLaunch] = useState<{
     id: string;
     status: string;
@@ -306,7 +310,9 @@ export default function FinanceiroTab({
 
   const handleReceive = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedReceivable || !receiveForm.bankAccountId) return;
+    if (!selectedReceivable) return;
+
+    const targetBankAccountId = receiveForm.bankAccountId || (bankAccounts.length > 0 ? bankAccounts[0].id : undefined);
 
     setActionLoading(true);
     try {
@@ -314,21 +320,21 @@ export default function FinanceiroTab({
         receivableId: selectedReceivable.id,
         receivedValue:
           receiveForm.receivedValue || selectedReceivable.pendingValue,
-        paymentMethod: receiveForm.paymentMethod,
-        bankAccountId: receiveForm.bankAccountId,
+        paymentMethod: receiveForm.paymentMethod || "TRANSFERENCIA",
+        bankAccountId: targetBankAccountId,
         userId: currentUser?.id || "",
       });
 
       if (res.success) {
-        toast("Recebimento baixado com sucesso!", "success");
+        toast("Recebimento baixado e conciliado com sucesso!", "success");
         setIsReceiveOpen(false);
         setSelectedReceivable(null);
         loadFinancialData();
       } else {
         toast(res.error || "Erro ao baixar recebimento", "error");
       }
-    } catch (err) {
-      toast("Erro de conexão", "error");
+    } catch (err: any) {
+      toast(err?.message || "Erro de conexão ao baixar recebimento", "error");
     } finally {
       setActionLoading(false);
     }
@@ -386,25 +392,34 @@ export default function FinanceiroTab({
           <span>Gestão e Caixa Financeiro</span>
         </div>
         {hasPermission("financeiro.write") && (
-          <Button
-            variant="primary"
-            onClick={() => {
-              setEditingLaunch(null);
-              setLaunchForm({
-                type: "DESPESA",
-                providerName: "",
-                clientId: clients[0]?.id || "",
-                description: "",
-                category: "PECA",
-                costCenter: "GERAL",
-                value: "",
-                dueDate: "",
-              });
-              setIsLaunchOpen(true);
-            }}
-          >
-            <Plus size={16} /> Novo Lançamento
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setIsNewBankAccountOpen(true)}
+              className="border-zinc-300 dark:border-zinc-700"
+            >
+              <Building size={15} className="mr-1 text-teal-600" /> Cadastrar Conta / Caixa
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setEditingLaunch(null);
+                setLaunchForm({
+                  type: "DESPESA",
+                  providerName: "",
+                  clientId: clients[0]?.id || "",
+                  description: "",
+                  category: "PECA",
+                  costCenter: "GERAL",
+                  value: "",
+                  dueDate: "",
+                });
+                setIsLaunchOpen(true);
+              }}
+            >
+              <Plus size={16} /> Novo Lançamento
+            </Button>
+          </div>
         )}
       </div>
 
@@ -1330,6 +1345,12 @@ export default function FinanceiroTab({
           </div>
         </form>
       </Modal>
+
+      <NewBankAccountModal
+        isOpen={isNewBankAccountOpen}
+        onClose={() => setIsNewBankAccountOpen(false)}
+        onSuccess={() => void loadFinancialData()}
+      />
     </div>
   );
 }
