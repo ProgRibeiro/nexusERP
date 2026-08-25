@@ -644,18 +644,18 @@ export default function FinanceiroTab({
                             <TableCell>
                               <span
                                 className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                                  tx.type === "ENTRADA"
-                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                    : "bg-red-500/10 text-red-500 border border-red-500/20"
+                                  ["RECEITA", "ENTRADA", "LUCRO"].includes(tx.type?.toUpperCase())
+                                    ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400"
+                                    : "bg-red-500/10 text-red-600 border border-red-500/20 dark:text-red-400"
                                 }`}
                               >
                                 {tx.type}
                               </span>
                             </TableCell>
                             <TableCell
-                              className={`font-semibold ${tx.type === "ENTRADA" ? "text-emerald-500" : "text-red-500"}`}
+                              className={`font-bold ${["RECEITA", "ENTRADA", "LUCRO"].includes(tx.type?.toUpperCase()) ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
                             >
-                              {tx.type === "ENTRADA" ? "+" : "-"}{" "}
+                              {["RECEITA", "ENTRADA", "LUCRO"].includes(tx.type?.toUpperCase()) ? "+" : "-"}{" "}
                               {formatCurrency(tx.value)}
                             </TableCell>
                             <TableCell className="font-semibold text-zinc-650 dark:text-zinc-500">
@@ -937,9 +937,9 @@ export default function FinanceiroTab({
                           <TableCell>
                             <span
                               className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                                tx.type === "ENTRADA"
-                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                  : "bg-red-500/10 text-red-500 border border-red-500/20"
+                                ["RECEITA", "ENTRADA", "LUCRO"].includes(tx.type?.toUpperCase())
+                                  ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400"
+                                  : "bg-red-500/10 text-red-600 border border-red-500/20 dark:text-red-400"
                               }`}
                             >
                               {tx.type}
@@ -949,9 +949,9 @@ export default function FinanceiroTab({
                             {tx.paymentMethod}
                           </TableCell>
                           <TableCell
-                            className={`font-semibold ${tx.type === "ENTRADA" ? "text-emerald-500" : "text-red-500"}`}
+                            className={`font-bold ${["RECEITA", "ENTRADA", "LUCRO"].includes(tx.type?.toUpperCase()) ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
                           >
-                            {tx.type === "ENTRADA" ? "+" : "-"}{" "}
+                            {["RECEITA", "ENTRADA", "LUCRO"].includes(tx.type?.toUpperCase()) ? "+" : "-"}{" "}
                             {formatCurrency(tx.value)}
                           </TableCell>
                           <TableCell className="font-semibold text-zinc-650 dark:text-zinc-400">
