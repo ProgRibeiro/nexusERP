@@ -466,6 +466,79 @@ export async function expressCloseServiceOrderAction(data: {
   }
 }
 
+/** Atualiza o status da OS validando obrigatoriedade de Pedido de Compra ou Relatório Técnico para ir ao Faturamento */
+export async function updateServiceOrderStatusWithValidationAction(data: {
+  serviceOrderId: string;
+  newStatus: string;
+  justification?: string;
+}) {
+  try {
+    const session = await requirePermission("os.write");
+    const os = await prisma.serviceOrder.findUnique({
+      where: { id: data.serviceOrderId },
+      include: { completionReport: true, evidences: true },
+    });
+
+    if (!os) throw new Error("Ordem de serviço não encontrada.");
+
+    const targetStatus = data.newStatus.trim().toUpperCase();
+
+    // Gate para Faturamento: precisa de Pedido de Compra ou Relatório Concluído
+    if (["FATURAMENTO", "RELATORIO_ENVIADO"].includes(targetStatus)) {
+      const hasPO = Boolean(os.purchaseOrder?.trim());
+      const hasReport = Boolean(
+        os.completionReport?.executedServices?.trim() ||
+        (os.technicalDiagnosis && os.technicalDiagnosis.length > 5) ||
+        os.evidences.length > 0
+      );
+
+      if (!hasPO && !hasReport) {
+        await prisma.serviceOrderStatusHistory.create({
+          data: {
+            serviceOrderId: os.id,
+            oldStatus: os.status,
+            newStatus: os.status,
+            changedById: session.userId,
+            justification: `[VISTORIA AUTÔNOMA BLOQUEADA] Tentativa de liberação para Faturamento sem Pedido de Compra e sem Relatório Técnico.`,
+          },
+        });
+
+        return {
+          success: false as const,
+          error: `A OS ${os.code} não pode ir para o Faturamento ainda. Informe o Pedido de Compra ou preencha o Relatório Técnico de Conclusão.`,
+        };
+      }
+    }
+
+    const updated = await prisma.serviceOrder.update({
+      where: { id: os.id },
+      data: {
+        status: targetStatus,
+        faturamentoStatus: targetStatus === "FATURADA" ? "NF_EMITIDA" : targetStatus === "FATURAMENTO" ? "AGUARDANDO_FATURAMENTO" : os.faturamentoStatus,
+        completedAt: ["CONCLUIDA", "FATURADA", "FATURAMENTO"].includes(targetStatus) ? (os.completedAt || new Date()) : os.completedAt,
+      },
+    });
+
+    await prisma.serviceOrderStatusHistory.create({
+      data: {
+        serviceOrderId: os.id,
+        oldStatus: os.status,
+        newStatus: targetStatus,
+        changedById: session.userId,
+        justification: data.justification?.trim() || `Status alterado para ${targetStatus} via controle autônomo.`,
+      },
+    });
+
+    revalidatePath("/ordens-servico");
+    revalidatePath("/faturamento");
+    revalidatePath("/financeiro");
+
+    return { success: true as const, error: undefined, serviceOrder: updated };
+  } catch (error: any) {
+    return mutationFailure("service-orders.update-status-validated", error, "Não foi possível atualizar o status da OS.");
+  }
+}
+
 /** Reverte o status de uma Ordem de Serviço de volta para EM_ATENDIMENTO se concluída ou baixada por engano */
 export async function revertServiceOrderStatusAction(input: { serviceOrderId: string; justification?: string }) {
   try {

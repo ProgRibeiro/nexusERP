@@ -25,6 +25,10 @@ import {
   executeFiscalAndOSReconciliationAction,
   FiscalAuditResult,
 } from "@/app/actions/fiscalReconciliationActions";
+import {
+  attachBatchXmlAction,
+  XmlBatchImportSummary,
+} from "@/app/actions/xmlBatchImportActions";
 import { ClientDTO, getClients } from "@/app/actions/clientActions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { buildBillingDescription } from "@/lib/billingDescription";
@@ -136,6 +140,33 @@ export default function FaturamentoTab() {
       toast("Erro ao executar conciliação automática.", "error");
     } finally {
       setReconciliationBusy(false);
+    }
+  };
+
+  // Estados de Anexo de XML em Lote
+  const [isXmlBatchOpen, setIsXmlBatchOpen] = useState(false);
+  const [xmlBatchBusy, setXmlBatchBusy] = useState(false);
+  const [xmlBatchSummary, setXmlBatchSummary] = useState<XmlBatchImportSummary | null>(null);
+
+  const handleProcessXmlBatchFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setXmlBatchBusy(true);
+    try {
+      const xmlItems: { name: string; base64OrText: string }[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const text = await file.text();
+        xmlItems.push({ name: file.name, base64OrText: text });
+      }
+
+      const summary = await attachBatchXmlAction(xmlItems);
+      setXmlBatchSummary(summary);
+      toast(`Lote XML processado! ${summary.matchedCount + summary.createdCount} notas/OSs vinculadas com sucesso.`, "success");
+      await loadData();
+    } catch (error: any) {
+      toast(`Erro ao processar lote XML: ${error.message}`, "error");
+    } finally {
+      setXmlBatchBusy(false);
     }
   };
 
@@ -819,6 +850,11 @@ export default function FaturamentoTab() {
                 </Button>
               )}
               {hasPermission("faturamento.write") && (
+                <Button variant="secondary" onClick={() => setIsXmlBatchOpen(true)} className="bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800 font-bold">
+                  <FileCode2 size={15} /> Anexar XMLs em Lote
+                </Button>
+              )}
+              {hasPermission("faturamento.write") && (
                 <Button variant="secondary" onClick={openInvoiceImport}>
                   <Upload size={15} /> Importar notas da planilha
                 </Button>
@@ -896,7 +932,7 @@ export default function FaturamentoTab() {
         </button>
       </div>
 
-      {activeTab === "mirror" ? (
+      {activeTab === "mirror" && (
         <Card className="overflow-hidden p-0">
           <div className="flex flex-col gap-3 border-b border-zinc-100 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800">
             <div>
@@ -1148,7 +1184,9 @@ export default function FaturamentoTab() {
             </>
           )}
         </Card>
-      ) : (
+      )}
+
+      {activeTab === "history" && (
         <Card className="overflow-hidden p-0">
           <div className="flex flex-col gap-4 border-b border-zinc-100 p-5 lg:flex-row lg:items-center lg:justify-between dark:border-zinc-800">
             <div>
@@ -2164,6 +2202,100 @@ export default function FaturamentoTab() {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Modal de Anexo de XMLs em Lote */}
+      <Modal
+        isOpen={isXmlBatchOpen}
+        onClose={() => !xmlBatchBusy && setIsXmlBatchOpen(false)}
+        title="Anexar & Sincronizar XMLs de Notas Fiscais em Lote"
+        size="xl"
+      >
+        <div className="space-y-5">
+          <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 text-xs text-purple-900 dark:border-purple-900/60 dark:bg-purple-950/30 dark:text-purple-200 space-y-1">
+            <strong className="flex items-center gap-1.5 font-black text-sm">
+              <FileCode2 size={16} /> Leitor Autônomo de XMLs de NF-e / NFS-e
+            </strong>
+            <p>
+              Selecione um ou mais arquivos XML. O ERP lerá o número da NF, valor, tomador e observações, vinculando automaticamente cada arquivo à sua respectiva Ordem de Serviço e Nota Fiscal cadastrada.
+            </p>
+          </div>
+
+          <label className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-purple-300 bg-purple-50/50 p-8 transition hover:border-purple-600 dark:border-purple-800 dark:bg-purple-950/20 cursor-pointer">
+            {xmlBatchBusy ? (
+              <Loader2 className="animate-spin text-purple-600" size={32} />
+            ) : (
+              <Upload className="text-purple-600" size={32} />
+            )}
+            <div className="text-center">
+              <span className="block text-sm font-black text-purple-950 dark:text-purple-200">
+                {xmlBatchBusy ? "Processando arquivos XML..." : "Clique para selecionar os arquivos XML"}
+              </span>
+              <span className="block text-xs text-zinc-500 mt-1">
+                Suporta múltiplos arquivos .xml simultaneamente
+              </span>
+            </div>
+            <input
+              type="file"
+              multiple
+              accept=".xml,text/xml,application/xml"
+              className="hidden"
+              disabled={xmlBatchBusy}
+              onChange={(e) => void handleProcessXmlBatchFiles(e.target.files)}
+            />
+          </label>
+
+          {xmlBatchSummary && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                <div className="rounded-xl bg-zinc-100 p-3 dark:bg-zinc-800">
+                  <span className="block text-[10px] text-zinc-500 font-bold uppercase">Total Processados</span>
+                  <strong className="text-lg font-black">{xmlBatchSummary.totalProcessed}</strong>
+                </div>
+                <div className="rounded-xl bg-emerald-50 p-3 text-emerald-800 dark:bg-emerald-950/30">
+                  <span className="block text-[10px] font-bold uppercase">Vinculados</span>
+                  <strong className="text-lg font-black">{xmlBatchSummary.matchedCount}</strong>
+                </div>
+                <div className="rounded-xl bg-blue-50 p-3 text-blue-800 dark:bg-blue-950/30">
+                  <span className="block text-[10px] font-bold uppercase">Novas NFs Criadas</span>
+                  <strong className="text-lg font-black">{xmlBatchSummary.createdCount}</strong>
+                </div>
+                <div className="rounded-xl bg-rose-50 p-3 text-rose-800 dark:bg-rose-950/30">
+                  <span className="block text-[10px] font-bold uppercase">Erros / Não Achados</span>
+                  <strong className="text-lg font-black">{xmlBatchSummary.errorCount}</strong>
+                </div>
+              </div>
+
+              <div className="max-h-60 overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+                <Table headers={["Arquivo XML", "Nota Fiscal", "Valor", "OS Vinculada", "Situação"]}>
+                  {xmlBatchSummary.results.map((res, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-mono text-xs">{res.xmlName}</TableCell>
+                      <TableCell className="font-bold">{res.invoiceCode}</TableCell>
+                      <TableCell className="font-semibold">{formatCurrency(res.totalValue)}</TableCell>
+                      <TableCell>{res.matchedOsCode ? <span className="font-bold text-blue-600">{res.matchedOsCode}</span> : "—"}</TableCell>
+                      <TableCell>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          res.status === "ERRO"
+                            ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-200"
+                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200"
+                        }`}>
+                          {res.message}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </Table>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end border-t pt-4 dark:border-zinc-800">
+            <Button type="button" variant="secondary" onClick={() => setIsXmlBatchOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
