@@ -20,6 +20,11 @@ import {
   previewIssuedInvoicesFileAction,
 } from "@/app/actions/invoiceImportActions";
 import type { IssuedInvoiceImportPreview } from "@/app/actions/invoiceImportActions";
+import {
+  auditFiscalAndOSAction,
+  executeFiscalAndOSReconciliationAction,
+  FiscalAuditResult,
+} from "@/app/actions/fiscalReconciliationActions";
 import { ClientDTO, getClients } from "@/app/actions/clientActions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { buildBillingDescription } from "@/lib/billingDescription";
@@ -50,6 +55,8 @@ import {
   RefreshCw,
   Search,
   Send,
+  ShieldCheck,
+  Sparkles,
   Upload,
 } from "lucide-react";
 
@@ -92,11 +99,45 @@ export default function FaturamentoTab() {
   const [rows, setRows] = useState<MirrorRow[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
   const [clientsList, setClientsList] = useState<ClientDTO[]>([]);
-  const [activeTab, setActiveTab] = useState<"mirror" | "history">("mirror");
+  const [activeTab, setActiveTab] = useState<"mirror" | "history" | "audit">("mirror");
+  const [auditResult, setAuditResult] = useState<FiscalAuditResult | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [reconciliationBusy, setReconciliationBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<MirrorRow | null>(null);
+
+  const handleRunAudit = async () => {
+    setAuditLoading(true);
+    try {
+      const res = await auditFiscalAndOSAction();
+      setAuditResult(res);
+      if (res.totalDivergences === 0) {
+        toast("Auditoria concluída: 100% das OSs e Notas Fiscais estão perfeitamente sincronizadas!", "success");
+      } else {
+        toast(`Auditoria concluída: ${res.totalDivergences} divergência(s) encontrada(s) entre OSs, NFs e Financeiro.`, "warning");
+      }
+    } catch (error) {
+      toast("Erro ao executar auditoria fiscal.", "error");
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  const handleExecuteReconciliation = async () => {
+    setReconciliationBusy(true);
+    try {
+      const res = await executeFiscalAndOSReconciliationAction();
+      setAuditResult(res);
+      toast(`Conciliação concluída! ${res.summary.osUpdatedToFaturada + res.summary.faturamentoStatusSynced + res.summary.receivablesAligned} registro(s) sincronizados automaticamente.`, "success");
+      await loadData();
+    } catch (error) {
+      toast("Erro ao executar conciliação automática.", "error");
+    } finally {
+      setReconciliationBusy(false);
+    }
+  };
 
   // Estados de Registro de NF (Baixa com OS)
   const [registering, setRegistering] = useState<MirrorRow | null>(null);
@@ -834,6 +875,25 @@ export default function FaturamentoTab() {
         >
           Prontuário de NFs & Vistoria mensal ({invoices.length})
         </button>
+        <button
+          onClick={() => {
+            setActiveTab("audit");
+            if (!auditResult) void handleRunAudit();
+          }}
+          className={`rounded-lg px-4 py-2 text-xs font-bold transition flex items-center gap-1.5 ${
+            activeTab === "audit"
+              ? "bg-purple-700 text-white"
+              : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/[.05] dark:hover:text-white"
+          }`}
+        >
+          <Sparkles size={14} className="text-purple-300" />
+          ⚡ Conciliação & Auditoria Fiscal (Ponta a Ponta)
+          {auditResult && auditResult.totalDivergences > 0 && (
+            <span className="ml-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black text-white">
+              {auditResult.totalDivergences}
+            </span>
+          )}
+        </button>
       </div>
 
       {activeTab === "mirror" ? (
@@ -1292,6 +1352,150 @@ export default function FaturamentoTab() {
           ) : (
             <div className="py-14 text-center text-xs text-zinc-500">
               Nenhuma nota fiscal encontrada para os filtros selecionados.
+            </div>
+          )}
+        </Card>
+      )}
+
+      {activeTab === "audit" && (
+        <Card className="p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4 dark:border-zinc-800">
+            <div>
+              <h3 className="text-sm font-black flex items-center gap-2 text-zinc-900 dark:text-white">
+                <Sparkles className="text-purple-600 dark:text-purple-400" size={18} />
+                Auditoria & Conciliação Fiscal vs Ordem de Serviço (Ponta a Ponta)
+              </h3>
+              <p className="text-xs text-zinc-500 mt-1">
+                O ERP analisa linha por linha todas as OSs, Notas Fiscais e Títulos Financeiros para bater 100% das informações sem inconsistências.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleRunAudit}
+                loading={auditLoading}
+                className="font-bold text-xs"
+              >
+                <RefreshCw size={14} className="mr-1" /> Reavaliar Divergências
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={handleExecuteReconciliation}
+                loading={reconciliationBusy}
+                className="bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md"
+              >
+                <CheckCircle2 size={14} className="mr-1" /> ⚡ Executar Conciliação Automática
+              </Button>
+            </div>
+          </div>
+
+          {auditLoading ? (
+            <div className="py-12 text-center text-xs text-zinc-500 space-y-2">
+              <Loader2 className="mx-auto animate-spin text-purple-600" size={28} />
+              <p className="font-bold">Analisando dados fiscais e de OS ponta a ponta...</p>
+            </div>
+          ) : !auditResult ? (
+            <div className="py-12 text-center text-xs text-zinc-500 space-y-3">
+              <ShieldCheck className="mx-auto text-purple-500" size={32} />
+              <p className="font-bold text-sm text-zinc-800 dark:text-zinc-200">
+                Clique acima para iniciar a auditoria cruzada
+              </p>
+              <p>O sistema comparará o status das OSs com NFs emitidas e pagamentos registrados.</p>
+              <Button type="button" variant="primary" onClick={handleRunAudit} className="bg-purple-600 font-bold text-white">
+                Iniciar Auditoria Agora
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-center dark:border-zinc-800 dark:bg-zinc-900">
+                  <span className="text-[10px] font-bold text-zinc-500 block uppercase">Total OSs Auditadas</span>
+                  <span className="text-2xl font-black text-zinc-900 dark:text-white">{auditResult.totalAudited}</span>
+                </div>
+                <div className={`rounded-xl border p-4 text-center ${
+                  auditResult.totalDivergences > 0
+                    ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+                    : "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200"
+                }`}>
+                  <span className="text-[10px] font-bold block uppercase">Divergências Detectadas</span>
+                  <span className="text-2xl font-black">{auditResult.totalDivergences}</span>
+                </div>
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-900/50 dark:bg-blue-950/30">
+                  <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 block uppercase">OSs para Ajustar Status</span>
+                  <span className="text-2xl font-black text-blue-600 font-mono">{auditResult.summary.osUpdatedToFaturada + auditResult.summary.faturamentoStatusSynced}</span>
+                </div>
+                <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 text-center dark:border-purple-900/50 dark:bg-purple-950/30">
+                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 block uppercase">Status Conciliados</span>
+                  <span className="text-2xl font-black text-purple-600 font-mono">{auditResult.totalAudited - auditResult.totalDivergences}</span>
+                </div>
+              </div>
+
+              {auditResult.totalDivergences === 0 ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-6 text-center text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200 space-y-2">
+                  <CheckCircle2 size={36} className="mx-auto text-emerald-500" />
+                  <h4 className="font-extrabold text-sm">100% Sincronizado e Conciliado!</h4>
+                  <p className="text-xs">
+                    Todas as Ordens de Serviço, Notas Fiscais emitidas e Contas a Receber batem informação por informação perfeitamente.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={18} className="shrink-0 text-amber-600" />
+                      <span className="text-xs font-bold">
+                        Encontradas {auditResult.totalDivergences} divergência(s) entre OS e o Painel Fiscal.
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={handleExecuteReconciliation}
+                      loading={reconciliationBusy}
+                      className="bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shrink-0"
+                    >
+                      <Sparkles size={14} className="mr-1" /> Corrigir e Alinhar Tudo com 1 Clique
+                    </Button>
+                  </div>
+
+                  <Table headers={["Ordem de Serviço", "Cliente / Tomador", "Status OS Atual", "Status Fiscal Atual", "NF / Financeiro", "Divergência Detectada"]}>
+                    {auditResult.divergences.map((div) => (
+                      <TableRow key={div.osId}>
+                        <TableCell className="font-bold">{div.osCode}</TableCell>
+                        <TableCell className="font-medium text-zinc-800 dark:text-zinc-200">{div.clientName}</TableCell>
+                        <TableCell>
+                          <span className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
+                            {div.currentOsStatus}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 text-[10px] font-bold">
+                            {div.currentFaturamentoStatus}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {div.hasInvoice ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                              <Receipt size={12} /> NF: {div.invoiceCode}
+                            </span>
+                          ) : div.receivablesCount > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600">
+                              <DollarSign size={12} /> {div.receivablesStatus || "Título Gerado"}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-zinc-400">Sem vínculo</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-amber-900 dark:text-amber-200 font-medium">
+                          {div.description}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Table>
+                </div>
+              )}
             </div>
           )}
         </Card>
