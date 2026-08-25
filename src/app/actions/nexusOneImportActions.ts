@@ -53,6 +53,8 @@ export interface NexusOneRow {
   linkSite?: string;
   fotoUrl?: string;
   tipoEstoque?: string;
+  estoquePresente?: string;
+  estoqueFuturo?: string;
 }
 
 export interface NexusOneImportResult {
@@ -172,14 +174,30 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
           },
         });
 
+        const hasExplicitPresent = row.estoquePresente !== undefined && row.estoquePresente !== "";
+        const hasExplicitFuture = row.estoqueFuturo !== undefined && row.estoqueFuturo !== "";
+
         const rawQty = parseFloat((row.estoqueAtual || "0").replace(",", ".")) || 0;
+        const rawPresentQty = parseFloat((row.estoquePresente || "0").replace(",", ".")) || 0;
+        const rawFutureQty = parseFloat((row.estoqueFuturo || "0").replace(",", ".")) || 0;
         const minStockVal = parseFloat((row.estoqueMinimo || "0").replace(",", ".")) || 0;
         const unitVal = (row.unidade || "UN").toUpperCase();
 
         const isFuturo = tipoEstoqueUpper.includes("FUTURO") || tipoEstoqueUpper.includes("COMPRAR");
 
-        const finalStockQty = isFuturo ? 0 : rawQty;
-        const finalFutureStock = isFuturo ? (rawQty > 0 ? rawQty : 1) : 0;
+        let finalStockQty = 0;
+        let finalFutureStock = 0;
+
+        if (hasExplicitPresent || hasExplicitFuture) {
+          finalStockQty = rawPresentQty;
+          finalFutureStock = rawFutureQty;
+        } else if (isFuturo) {
+          finalStockQty = 0;
+          finalFutureStock = rawQty > 0 ? rawQty : 1;
+        } else {
+          finalStockQty = rawQty;
+          finalFutureStock = 0;
+        }
 
         if (existingProd) {
           await prisma.product.update({
@@ -188,8 +206,8 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
               name: prodName,
               costPrice: costVal > 0 ? costVal : existingProd.costPrice,
               salePrice: saleVal > 0 ? saleVal : existingProd.salePrice,
-              stockQuantity: !isFuturo && rawQty > 0 ? rawQty : existingProd.stockQuantity,
-              futureStock: isFuturo ? finalFutureStock : existingProd.futureStock,
+              stockQuantity: hasExplicitPresent ? rawPresentQty : (!isFuturo && rawQty > 0 ? rawQty : existingProd.stockQuantity),
+              futureStock: hasExplicitFuture ? rawFutureQty : (isFuturo ? finalFutureStock : existingProd.futureStock),
               minStock: minStockVal > 0 ? minStockVal : existingProd.minStock,
               unit: unitVal || existingProd.unit,
             },
@@ -575,12 +593,14 @@ export async function parseTsvAndImportNexusOne(rawText: string): Promise<NexusO
       precoVenda: rowObj["preco venda"] || rowObj["preco_venda"] || rowObj["valor_venda"] || rowObj["valor venda"] || rowObj["preco"] || "",
       margemLucro: rowObj["margem_lucro_pct"] || rowObj["margem_lucro"] || rowObj["margem"] || "",
       estoqueAtual: rowObj["quantidade estoque"] || rowObj["quantidade_estoque"] || rowObj["estoque_atual"] || rowObj["estoque atual"] || rowObj["quantidade"] || rowObj["qtd"] || "",
+      estoquePresente: rowObj["estoque_presente"] || rowObj["estoque presente"] || rowObj["estoque_fisico"] || rowObj["estoque fisico"] || rowObj["presente"] || rowObj["fisico"] || "",
+      estoqueFuturo: rowObj["estoque_futuro"] || rowObj["estoque futuro"] || rowObj["a_comprar"] || rowObj["a comprar"] || rowObj["futuro"] || rowObj["comprar"] || "",
       estoqueMinimo: rowObj["estoque minimo"] || rowObj["estoque_minimo"] || rowObj["minimo"] || "",
       marcaFabricante: rowObj["marca_fabricante"] || rowObj["marca"] || rowObj["fabricante"] || "",
       codigoBarrasEan: rowObj["codigo_barras_ean"] || rowObj["ean"] || rowObj["codigo_barras"] || "",
       linkSite: rowObj["link_site"] || rowObj["site"] || rowObj["url_site"] || "",
       fotoUrl: rowObj["foto_url"] || rowObj["foto"] || rowObj["imagem"] || "",
-      tipoEstoque: rowObj["estoque"] || rowObj["tipo_estoque"] || rowObj["tipo estoque"] || "",
+      tipoEstoque: rowObj["estoque"] || rowObj["tipo_estoque"] || rowObj["tipo estoque"] || rowObj["classificacao_estoque"] || "",
     });
   }
 

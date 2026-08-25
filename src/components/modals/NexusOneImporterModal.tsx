@@ -37,6 +37,8 @@ export function downloadStandardTemplateCSV() {
     "NOME",
     "PRECO_CUSTO",
     "PRECO_VENDA",
+    "ESTOQUE_PRESENTE",
+    "ESTOQUE_FUTURO",
     "QUANTIDADE_ESTOQUE",
     "ESTOQUE_MINIMO",
     "UNIDADE",
@@ -59,7 +61,9 @@ export function downloadStandardTemplateCSV() {
       "1775,55",
       "1775,55",
       "0",
+      "10",
       "0",
+      "2",
       "UN",
       "Estoque futuro",
       "AC-TCL-9K",
@@ -71,12 +75,14 @@ export function downloadStandardTemplateCSV() {
       "Instalação de Ar Condicionado 9K BTU",
       "1775,55",
       "ABERTO",
-      "Item reservado para compra futura da obra."
+      "Equipamento a comprar para a obra (Estoque Futuro)."
     ],
     [
       "Ar-condicionado 12.000 BTU/h Elgin Eco III Wi-Fi Hi-Wall Frio",
       "2041,55",
       "2041,55",
+      "5",
+      "0",
       "5",
       "1",
       "UN",
@@ -90,26 +96,28 @@ export function downloadStandardTemplateCSV() {
       "Manutenção Preventiva de Climatização",
       "2041,55",
       "PAGO",
-      "Item em pronta entrega no almoxarifado."
+      "Disponível no almoxarifado em pronta entrega (Estoque Presente)."
     ],
     [
-      "Par de tubos de cobre para 9.000 BTU/h - Linha sugerida 1/4 + 3/8",
+      "Par de tubos de cobre 1/4 + 3/8 para 9.000 BTU/h (Metro)",
       "55,00",
       "55,00",
-      "0",
-      "0",
+      "15",
+      "30",
+      "15",
+      "5",
       "M",
-      "Estoque futuro",
+      "Estoque presente e futuro",
       "TUB-COP-9K",
       "Insumos",
       "Eluma",
       "Espaço Hering Salvador",
       "12.345.678/0001-90",
       "NX-1001",
-      "Insumos de Instalação",
+      "Insumos de Tubulação de Cobre",
       "55,00",
       "ABERTO",
-      "Tubulação a comprar."
+      "15m em estoque físico + 30m previstos para cotação futura."
     ]
   ];
 
@@ -311,10 +319,10 @@ export function NexusOneImporterModal({
           <div className="space-y-0.5">
             <p className="font-extrabold text-xs text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
               <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              Planilha Modelo Padrão ERP (Completa com Estoque Futuro e Presente)
+              Planilha Modelo Padrão ERP (Com Colunas ESTOQUE_PRESENTE e ESTOQUE_FUTURO)
             </p>
             <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
-              Preencha com Nome, Custo, Venda, Qtd Estoque, Mínimo, Unidade e Estoque (futuro/presente).
+              Colunas: <code className="bg-emerald-200/60 font-mono text-[10px] px-1 py-0.5 rounded text-emerald-900">ESTOQUE_PRESENTE</code> (Físico/Pronta entrega) | <code className="bg-emerald-200/60 font-mono text-[10px] px-1 py-0.5 rounded text-emerald-900">ESTOQUE_FUTURO</code> (A Comprar/Obra) | <code className="bg-emerald-200/60 font-mono text-[10px] px-1 py-0.5 rounded text-emerald-900">PRECO_CUSTO</code> | <code className="bg-emerald-200/60 font-mono text-[10px] px-1 py-0.5 rounded text-emerald-900">PRECO_VENDA</code>.
             </p>
           </div>
           <Button
