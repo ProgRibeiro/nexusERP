@@ -52,6 +52,7 @@ export interface NexusOneRow {
   codigoBarrasEan?: string;
   linkSite?: string;
   fotoUrl?: string;
+  tipoEstoque?: string;
 }
 
 export interface NexusOneImportResult {
@@ -154,30 +155,41 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
     const row = rows[idx];
 
     // 0. Importar/Upsert de Produtos e Peças caso a linha contenha dados de produto
-    const prodCode = (row.codigoProduto || row.id || "").trim();
     const prodName = (row.nomeProduto || row.descricaoServico || "").trim();
+    const prodCode = (row.codigoProduto || `P-${prodName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15).toUpperCase()}` || "").trim();
     const costVal = parseCurrency(row.precoCusto);
     const saleVal = parseCurrency(row.precoVenda);
+    const tipoEstoqueUpper = (row.tipoEstoque || "").toUpperCase();
 
-    if (prodCode && prodName && (costVal > 0 || saleVal > 0 || row.estoqueAtual || row.categoriaProduto)) {
+    if (prodName && (costVal > 0 || saleVal > 0 || row.estoqueAtual !== undefined || tipoEstoqueUpper)) {
       try {
         const existingProd = await prisma.product.findFirst({
-          where: { code: prodCode },
+          where: {
+            OR: [
+              { code: prodCode },
+              { name: { equals: prodName, mode: "insensitive" } },
+            ],
+          },
         });
 
-        const stockQty = parseFloat(row.estoqueAtual || "0") || 0;
-        const minStockVal = parseFloat(row.estoqueMinimo || "0") || 0;
+        const rawQty = parseFloat((row.estoqueAtual || "0").replace(",", ".")) || 0;
+        const minStockVal = parseFloat((row.estoqueMinimo || "0").replace(",", ".")) || 0;
         const unitVal = (row.unidade || "UN").toUpperCase();
+
+        const isFuturo = tipoEstoqueUpper.includes("FUTURO") || tipoEstoqueUpper.includes("COMPRAR");
+
+        const finalStockQty = isFuturo ? 0 : rawQty;
+        const finalFutureStock = isFuturo ? (rawQty > 0 ? rawQty : 1) : 0;
 
         if (existingProd) {
           await prisma.product.update({
             where: { id: existingProd.id },
             data: {
               name: prodName,
-              type: (row.categoriaProduto || "PECA").toUpperCase(),
               costPrice: costVal > 0 ? costVal : existingProd.costPrice,
               salePrice: saleVal > 0 ? saleVal : existingProd.salePrice,
-              stockQuantity: stockQty > 0 ? stockQty : existingProd.stockQuantity,
+              stockQuantity: !isFuturo && rawQty > 0 ? rawQty : existingProd.stockQuantity,
+              futureStock: isFuturo ? finalFutureStock : existingProd.futureStock,
               minStock: minStockVal > 0 ? minStockVal : existingProd.minStock,
               unit: unitVal || existingProd.unit,
             },
@@ -186,12 +198,13 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
         } else {
           await prisma.product.create({
             data: {
-              code: prodCode,
+              code: prodCode || `PECA-${Date.now().toString().slice(-6)}`,
               name: prodName,
               type: (row.categoriaProduto || "PECA").toUpperCase(),
               costPrice: costVal,
               salePrice: saleVal,
-              stockQuantity: stockQty,
+              stockQuantity: finalStockQty,
+              futureStock: finalFutureStock,
               minStock: minStockVal,
               unit: unitVal,
             },
@@ -555,18 +568,19 @@ export async function parseTsvAndImportNexusOne(rawText: string): Promise<NexusO
       tipoExecucao: rowObj["tipo de execucao"] || rowObj["execucao"] || "",
       // Mapeamento de Produtos e Peças
       codigoProduto: rowObj["codigo_produto"] || rowObj["codigo produto"] || rowObj["codigo"] || rowObj["sku"] || "",
-      nomeProduto: rowObj["nome_produto"] || rowObj["nome produto"] || rowObj["produto"] || rowObj["item"] || "",
+      nomeProduto: rowObj["nome"] || rowObj["nome_produto"] || rowObj["nome produto"] || rowObj["produto"] || rowObj["item"] || "",
       categoriaProduto: rowObj["categoria"] || rowObj["tipo_produto"] || rowObj["grupo"] || "",
       unidade: rowObj["unidade"] || rowObj["un"] || "",
-      precoCusto: rowObj["preco_custo"] || rowObj["preco custo"] || rowObj["valor_compra"] || rowObj["valor compra"] || rowObj["custo"] || "",
-      precoVenda: rowObj["preco_venda"] || rowObj["preco venda"] || rowObj["valor_venda"] || rowObj["valor venda"] || rowObj["preco"] || "",
+      precoCusto: rowObj["preco custo"] || rowObj["preco_custo"] || rowObj["valor_compra"] || rowObj["valor compra"] || rowObj["custo"] || "",
+      precoVenda: rowObj["preco venda"] || rowObj["preco_venda"] || rowObj["valor_venda"] || rowObj["valor venda"] || rowObj["preco"] || "",
       margemLucro: rowObj["margem_lucro_pct"] || rowObj["margem_lucro"] || rowObj["margem"] || "",
-      estoqueAtual: rowObj["estoque_atual"] || rowObj["estoque atual"] || rowObj["quantidade"] || rowObj["qtd"] || "",
-      estoqueMinimo: rowObj["estoque_minimo"] || rowObj["estoque minimo"] || rowObj["minimo"] || "",
+      estoqueAtual: rowObj["quantidade estoque"] || rowObj["quantidade_estoque"] || rowObj["estoque_atual"] || rowObj["estoque atual"] || rowObj["quantidade"] || rowObj["qtd"] || "",
+      estoqueMinimo: rowObj["estoque minimo"] || rowObj["estoque_minimo"] || rowObj["minimo"] || "",
       marcaFabricante: rowObj["marca_fabricante"] || rowObj["marca"] || rowObj["fabricante"] || "",
       codigoBarrasEan: rowObj["codigo_barras_ean"] || rowObj["ean"] || rowObj["codigo_barras"] || "",
       linkSite: rowObj["link_site"] || rowObj["site"] || rowObj["url_site"] || "",
       fotoUrl: rowObj["foto_url"] || rowObj["foto"] || rowObj["imagem"] || "",
+      tipoEstoque: rowObj["estoque"] || rowObj["tipo_estoque"] || rowObj["tipo estoque"] || "",
     });
   }
 
