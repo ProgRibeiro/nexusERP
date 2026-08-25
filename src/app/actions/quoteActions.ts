@@ -801,13 +801,27 @@ export async function registerCatalogItem(data: {
     if (name.length < 2) return { success: false as const, error: "Informe um nome válido para o item." };
     const priceVal = Math.max(0, Number(data.price) || 0);
     const costVal = Math.max(0, Number(data.cost) || 0);
+    const unitVal = data.unit?.trim().toUpperCase() || (data.type === "SERVICO" ? "SERVIÇO" : "UN");
 
     if (data.type === "SERVICO") {
       const exists = await prisma.service.findFirst({
         where: { name: { equals: name, mode: "insensitive" } }
       });
       if (exists) {
-        return { success: false as const, error: "Serviço já cadastrado com este nome." };
+        const updated = await prisma.service.update({
+          where: { id: exists.id },
+          data: {
+            defaultPrice: priceVal > 0 ? priceVal : exists.defaultPrice,
+            description: data.description?.trim() || exists.description,
+          },
+        });
+        revalidatePath("/orcamentos");
+        revalidatePath("/servicos");
+        return {
+          success: true as const,
+          error: undefined,
+          item: { name: updated.name, price: Number(updated.defaultPrice), type: "SERVICO", unit: updated.billingUnit || "SERVIÇO", costPrice: 0 }
+        };
       }
       const service = await prisma.service.create({
         data: {
@@ -815,7 +829,7 @@ export async function registerCatalogItem(data: {
           description: data.description?.trim() || null,
           category: data.category?.trim() || null,
           maintenanceType: data.maintenanceType?.trim() || null,
-          billingUnit: data.unit?.trim().toUpperCase() || "SERVIÇO",
+          billingUnit: unitVal,
           estimatedHours: data.estimatedHours && data.estimatedHours > 0 ? data.estimatedHours : null,
           defaultPrice: priceVal,
         }
@@ -840,8 +854,30 @@ export async function registerCatalogItem(data: {
       const exists = await prisma.product.findFirst({
         where: { name: { equals: name, mode: "insensitive" } }
       });
+
       if (exists) {
-        return { success: false as const, error: `Material/peça "${name}" já cadastrado no catálogo.` };
+        const updated = await prisma.product.update({
+          where: { id: exists.id },
+          data: {
+            salePrice: priceVal > 0 ? priceVal : exists.salePrice,
+            costPrice: costVal > 0 ? costVal : exists.costPrice,
+            unit: unitVal || exists.unit,
+            description: data.description?.trim() || exists.description,
+          },
+        });
+        revalidatePath("/orcamentos");
+        revalidatePath("/estoque");
+        return {
+          success: true as const,
+          error: undefined,
+          item: {
+            name: updated.name,
+            price: Number(updated.salePrice),
+            type: "PECAS",
+            unit: updated.unit,
+            costPrice: Number(updated.costPrice),
+          },
+        };
       }
 
       const productCodes = await prisma.product.findMany({ select: { code: true } });
@@ -870,7 +906,7 @@ export async function registerCatalogItem(data: {
             type: data.productType || "MATERIAL",
             salePrice: priceVal,
             costPrice: costVal,
-            unit: data.unit?.trim().toUpperCase() || "UN",
+            unit: unitVal,
             stockQuantity: initialStock,
             minStock: minStockVal,
           }
@@ -913,7 +949,11 @@ export async function registerCatalogItem(data: {
       };
     }
   } catch (error: unknown) {
-    return mutationFailure("quotes.catalog.create", error, "Não foi possível registrar o item no catálogo.");
+    logger.error("Erro ao registrar item no catálogo via orçamento:", error);
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : "Não foi possível registrar o item no catálogo.",
+    };
   }
 }
 
