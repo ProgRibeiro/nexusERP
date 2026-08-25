@@ -606,6 +606,54 @@ export default function FinanceiroTab({
               {/* Contas a Receber */}
               {true && (
                 <div className="space-y-4">
+                  {/* Summary Bar for Receivables / Baixa de Pagamentos */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-blue-200/80 bg-blue-50/60 p-4 dark:border-blue-900/30 dark:bg-blue-950/20">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                        Total Pendente a Receber
+                      </span>
+                      <p className="mt-1 text-2xl font-black text-blue-950 dark:text-white">
+                        {formatCurrency(
+                          receivables
+                            .filter((r) => ["ABERTO", "PENDENTE", "PARCIAL", "VENCIDO"].includes(r.status))
+                            .reduce((sum, r) => sum + (r.pendingValue || 0), 0)
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs text-blue-600">
+                        {receivables.filter((r) => ["ABERTO", "PENDENTE", "PARCIAL", "VENCIDO"].includes(r.status)).length} título(s) aguardando baixa
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-4 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                        Total Já Recebido
+                      </span>
+                      <p className="mt-1 text-2xl font-black text-emerald-950 dark:text-white">
+                        {formatCurrency(
+                          receivables.reduce((sum, r) => sum + (r.receivedValue || 0), 0)
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs text-emerald-600">
+                        {receivables.filter((r) => r.status === "PAGO").length} título(s) quitados
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4 dark:border-amber-900/30 dark:bg-amber-950/20">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                        Vencidos / Em Atraso
+                      </span>
+                      <p className="mt-1 text-2xl font-black text-amber-950 dark:text-white">
+                        {formatCurrency(
+                          receivables
+                            .filter((r) => r.status === "VENCIDO" || (["ABERTO", "PENDENTE"].includes(r.status) && new Date(r.dueDate) < new Date()))
+                            .reduce((sum, r) => sum + (r.pendingValue || 0), 0)
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs text-amber-600">
+                        Atenção necessária de cobrança
+                      </p>
+                    </div>
+                  </div>
                   {receivables.length === 0 ? (
                     <p className="text-xs text-zinc-400 text-center py-6">
                       Nenhuma parcela a receber cadastrada.

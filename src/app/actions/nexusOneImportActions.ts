@@ -176,6 +176,8 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
         row.analista ? `Analista: ${row.analista}` : null,
       ].filter(Boolean).join(" | ");
 
+      const faturamentoStatus = osStatus === "FATURADA" ? "NF_EMITIDA" : osStatus === "FATURAMENTO" ? "AGUARDANDO_FATURAMENTO" : "AGUARDANDO_FATURAMENTO";
+
       // 5. Upsert Ordem de Serviço
       const existingOS = await prisma.serviceOrder.findFirst({
         where: { code: osCode },
@@ -189,6 +191,7 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
             problemReported: row.descricaoServico || "Manutenção predial e civil",
             purchaseOrder: row.pedidoCompra || null,
             status: osStatus,
+            faturamentoStatus,
             priority,
             operationKind,
             referenceMonth: row.competencia || null,
@@ -210,6 +213,7 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
             problemReported: row.descricaoServico || "Manutenção predial e civil",
             purchaseOrder: row.pedidoCompra || null,
             status: osStatus,
+            faturamentoStatus,
             priority,
             operationKind,
             referenceMonth: row.competencia || null,
