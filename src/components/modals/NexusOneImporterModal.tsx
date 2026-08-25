@@ -32,6 +32,103 @@ interface NexusOneImporterModalProps {
   onSuccess?: () => void;
 }
 
+export function downloadStandardTemplateCSV() {
+  const headers = [
+    "CODIGO_PRODUTO",
+    "NOME_PRODUTO",
+    "CATEGORIA",
+    "UNIDADE",
+    "PRECO_CUSTO",
+    "PRECO_VENDA",
+    "MARGEM_LUCRO_PCT",
+    "ESTOQUE_ATUAL",
+    "ESTOQUE_MINIMO",
+    "MARCA_FABRICANTE",
+    "CODIGO_BARRAS_EAN",
+    "LINK_SITE",
+    "FOTO_URL",
+    "CLIENTE",
+    "CNPJ_CLIENTE",
+    "CODIGO_OS",
+    "DESCRICAO_SERVICO",
+    "STATUS_OS",
+    "VALOR_SERVICO",
+    "DATA_AGENDAMENTO",
+    "TECNICO",
+    "STATUS_PAGAMENTO",
+    "VALOR_PAGO",
+    "OBSERVACOES"
+  ];
+
+  const sampleRows = [
+    [
+      "PECA-001",
+      "Lâmpada LED 18W Bivolt 6500K",
+      "Elétrica",
+      "UN",
+      "15,00",
+      "35,00",
+      "133.33",
+      "50",
+      "10",
+      "Elgin",
+      "7891234567890",
+      "https://nexusma.com.br/pecas/lampada-led-18w",
+      "https://nexusma.com.br/fotos/lampada-led.jpg",
+      "Espaço Hering Salvador",
+      "12.345.678/0001-90",
+      "NX-1001",
+      "Substituição de Lâmpadas do Salão de Vendas",
+      "CONCLUIDA",
+      "640,00",
+      "25/08/2026",
+      "Carlos Santos",
+      "PAGO",
+      "640,00",
+      "Serviço preventivo mensal efetuado com sucesso."
+    ],
+    [
+      "PECA-002",
+      "Disjuntor Bipolar 32A Curva C",
+      "Elétrica",
+      "UN",
+      "42,50",
+      "85,00",
+      "100.00",
+      "20",
+      "5",
+      "Schneider",
+      "7899876543210",
+      "https://nexusma.com.br/pecas/disjuntor-32a",
+      "https://nexusma.com.br/fotos/disjuntor.jpg",
+      "Shopping Barra - Rj",
+      "98.765.432/0001-10",
+      "NX-1002",
+      "Manutenção do Quadro Elétrico Geral QD-01",
+      "FATURAMENTO",
+      "410,00",
+      "26/08/2026",
+      "João Silva",
+      "ABERTO",
+      "0,00",
+      "Aguardando emissão da Nota Fiscal."
+    ]
+  ];
+
+  const csvContent =
+    "\uFEFF" +
+    [headers.join(";"), ...sampleRows.map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(";"))].join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", "Modelo_Padrao_Importacao_Nexus_ERP.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 export function NexusOneImporterModal({
   isOpen,
   onClose,
@@ -167,16 +264,37 @@ export function NexusOneImporterModal({
     >
       <div className="space-y-5 text-xs font-medium">
         
+        {/* Banner de Modelo Padrão Completo */}
+        <div className="flex items-center justify-between rounded-xl border border-dashed border-emerald-300 bg-emerald-50/70 p-3.5 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+          <div className="space-y-0.5">
+            <p className="font-extrabold text-xs text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              Planilha Modelo Padrão ERP (Completa)
+            </p>
+            <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
+              Preencha com Preços de Custo, Venda, Margem %, Site, Fotos, Estoque, Clientes e OSs.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={downloadStandardTemplateCSV}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 shrink-0 shadow-sm"
+          >
+            <Upload size={14} className="rotate-180 mr-1" /> Baixar Planilha Modelo (.csv)
+          </Button>
+        </div>
+
         {/* Banner de Instruções */}
         <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
           <div className="flex items-start gap-2.5">
             <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
             <div>
               <p className="font-bold text-xs uppercase tracking-wider">
-                Importação Automática da Planilha NEXUS ONE
+                Importação Automática de Dados Integrados
               </p>
               <p className="mt-1 leading-relaxed text-[11px]">
-                Importa automaticamente <strong>Clientes, Ordens de Serviço (OS), Pedidos de Compra, CNAE, Datas, Status de Execução</strong> (Equipe Própria ou Terceirizada) e gera os <strong>Títulos a Receber (Financeiro)</strong> vinculados.
+                Sincroniza automaticamente <strong>Produtos (Custo, Venda, Margem, Estoque), Clientes, Ordens de Serviço (OS), CNAE e Títulos Financeiros</strong>.
               </p>
             </div>
           </div>
@@ -312,22 +430,26 @@ export function NexusOneImporterModal({
               Resultado da Importação
             </h4>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <div className="rounded-xl border border-zinc-200 bg-white p-3 text-center dark:border-zinc-700 dark:bg-zinc-800">
-                <span className="text-[10px] font-bold text-zinc-500 block uppercase">Linhas</span>
-                <span className="text-xl font-black text-zinc-900 dark:text-white">{result.totalRows}</span>
+                <span className="text-[9px] font-bold text-zinc-500 block uppercase">Linhas</span>
+                <span className="text-lg font-black text-zinc-900 dark:text-white">{result.totalRows}</span>
               </div>
               <div className="rounded-xl border border-zinc-200 bg-white p-3 text-center dark:border-zinc-700 dark:bg-zinc-800">
-                <span className="text-[10px] font-bold text-zinc-500 block uppercase">Novos Clientes</span>
-                <span className="text-xl font-black text-blue-600">{result.clientsCreated}</span>
+                <span className="text-[9px] font-bold text-zinc-500 block uppercase">Produtos / Peças</span>
+                <span className="text-lg font-black text-purple-600 font-mono">{(result.productsCreated || 0) + (result.productsUpdated || 0)}</span>
               </div>
               <div className="rounded-xl border border-zinc-200 bg-white p-3 text-center dark:border-zinc-700 dark:bg-zinc-800">
-                <span className="text-[10px] font-bold text-zinc-500 block uppercase">OS Criadas / Att.</span>
-                <span className="text-xl font-black text-emerald-600">{result.ordersCreated + result.ordersUpdated}</span>
+                <span className="text-[9px] font-bold text-zinc-500 block uppercase">Clientes</span>
+                <span className="text-lg font-black text-blue-600 font-mono">{result.clientsCreated}</span>
               </div>
               <div className="rounded-xl border border-zinc-200 bg-white p-3 text-center dark:border-zinc-700 dark:bg-zinc-800">
-                <span className="text-[10px] font-bold text-zinc-500 block uppercase">Financeiro</span>
-                <span className="text-xl font-black text-teal-600">{result.financesCreated}</span>
+                <span className="text-[9px] font-bold text-zinc-500 block uppercase">OS Criadas</span>
+                <span className="text-lg font-black text-emerald-600 font-mono">{result.ordersCreated + result.ordersUpdated}</span>
+              </div>
+              <div className="rounded-xl border border-zinc-200 bg-white p-3 text-center dark:border-zinc-700 dark:bg-zinc-800">
+                <span className="text-[9px] font-bold text-zinc-500 block uppercase">Financeiro</span>
+                <span className="text-lg font-black text-teal-600 font-mono">{result.financesCreated}</span>
               </div>
             </div>
 

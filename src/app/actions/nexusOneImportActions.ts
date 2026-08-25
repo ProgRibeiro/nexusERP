@@ -38,6 +38,20 @@ export interface NexusOneRow {
   atualizadoPor: string;
   cnpjServico: string;
   tipoExecucao: string;
+  // Campos de Produtos e Peças
+  codigoProduto?: string;
+  nomeProduto?: string;
+  categoriaProduto?: string;
+  unidade?: string;
+  precoCusto?: string;
+  precoVenda?: string;
+  margemLucro?: string;
+  estoqueAtual?: string;
+  estoqueMinimo?: string;
+  marcaFabricante?: string;
+  codigoBarrasEan?: string;
+  linkSite?: string;
+  fotoUrl?: string;
 }
 
 export interface NexusOneImportResult {
@@ -47,6 +61,8 @@ export interface NexusOneImportResult {
   ordersCreated: number;
   ordersUpdated: number;
   financesCreated: number;
+  productsCreated: number;
+  productsUpdated: number;
   errors: string[];
 }
 
@@ -120,6 +136,8 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
       ordersCreated: 0,
       ordersUpdated: 0,
       financesCreated: 0,
+      productsCreated: 0,
+      productsUpdated: 0,
       errors: ["Sem permissão para importar ordens de serviço."],
     };
   }
@@ -128,10 +146,63 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
   let ordersCreated = 0;
   let ordersUpdated = 0;
   let financesCreated = 0;
+  let productsCreated = 0;
+  let productsUpdated = 0;
   const errors: string[] = [];
 
   for (let idx = 0; idx < rows.length; idx++) {
     const row = rows[idx];
+
+    // 0. Importar/Upsert de Produtos e Peças caso a linha contenha dados de produto
+    const prodCode = (row.codigoProduto || row.id || "").trim();
+    const prodName = (row.nomeProduto || row.descricaoServico || "").trim();
+    const costVal = parseCurrency(row.precoCusto);
+    const saleVal = parseCurrency(row.precoVenda);
+
+    if (prodCode && prodName && (costVal > 0 || saleVal > 0 || row.estoqueAtual || row.categoriaProduto)) {
+      try {
+        const existingProd = await prisma.product.findFirst({
+          where: { code: prodCode },
+        });
+
+        const stockQty = parseFloat(row.estoqueAtual || "0") || 0;
+        const minStockVal = parseFloat(row.estoqueMinimo || "0") || 0;
+        const unitVal = (row.unidade || "UN").toUpperCase();
+
+        if (existingProd) {
+          await prisma.product.update({
+            where: { id: existingProd.id },
+            data: {
+              name: prodName,
+              type: (row.categoriaProduto || "PECA").toUpperCase(),
+              costPrice: costVal > 0 ? costVal : existingProd.costPrice,
+              salePrice: saleVal > 0 ? saleVal : existingProd.salePrice,
+              stockQuantity: stockQty > 0 ? stockQty : existingProd.stockQuantity,
+              minStock: minStockVal > 0 ? minStockVal : existingProd.minStock,
+              unit: unitVal || existingProd.unit,
+            },
+          });
+          productsUpdated++;
+        } else {
+          await prisma.product.create({
+            data: {
+              code: prodCode,
+              name: prodName,
+              type: (row.categoriaProduto || "PECA").toUpperCase(),
+              costPrice: costVal,
+              salePrice: saleVal,
+              stockQuantity: stockQty,
+              minStock: minStockVal,
+              unit: unitVal,
+            },
+          });
+          productsCreated++;
+        }
+      } catch {
+        // ignora falhas pontuais de produto sem travar importacao de OS
+      }
+    }
+
     if (!row.cliente && !row.cnpjServico) continue;
 
     try {
@@ -338,20 +409,23 @@ export async function importNexusOneBaseAction(rows: NexusOneRow[]): Promise<Nex
     }
   }
 
-  revalidatePath("/ordens-servico");
-  revalidatePath("/financeiro");
-  revalidatePath("/preventivas");
+    revalidatePath("/ordens-servico");
+    revalidatePath("/financeiro");
+    revalidatePath("/preventivas");
+    revalidatePath("/estoque");
 
-  return {
-    success: errors.length === 0,
-    totalRows: rows.length,
-    clientsCreated,
-    ordersCreated,
-    ordersUpdated,
-    financesCreated,
-    errors,
-  };
-}
+    return {
+      success: errors.length === 0,
+      totalRows: rows.length,
+      clientsCreated,
+      ordersCreated,
+      ordersUpdated,
+      financesCreated,
+      productsCreated,
+      productsUpdated,
+      errors,
+    };
+  }
 
 /** Tenta importar diretamente via URL pública do Google Spreadsheets em TSV/CSV */
 export async function importGoogleSpreadsheetAction(publicUrl: string): Promise<NexusOneImportResult> {
@@ -376,6 +450,8 @@ export async function importGoogleSpreadsheetAction(publicUrl: string): Promise<
         ordersCreated: 0,
         ordersUpdated: 0,
         financesCreated: 0,
+        productsCreated: 0,
+        productsUpdated: 0,
         errors: [`Não foi possível acessar a planilha do Google (Status ${res.status}). Verifique se o link possui permissão de leitura pública.`],
       };
     }
@@ -390,6 +466,8 @@ export async function importGoogleSpreadsheetAction(publicUrl: string): Promise<
       ordersCreated: 0,
       ordersUpdated: 0,
       financesCreated: 0,
+      productsCreated: 0,
+      productsUpdated: 0,
       errors: [`Erro ao carregar planilha: ${err?.message || "Falha na conexão."}`],
     };
   }
@@ -406,6 +484,8 @@ export async function parseTsvAndImportNexusOne(rawText: string): Promise<NexusO
       ordersCreated: 0,
       ordersUpdated: 0,
       financesCreated: 0,
+      productsCreated: 0,
+      productsUpdated: 0,
       errors: ["O texto ou arquivo fornecido está vazio."],
     };
   }
@@ -473,6 +553,20 @@ export async function parseTsvAndImportNexusOne(rawText: string): Promise<NexusO
       atualizadoPor: rowObj["atualizado por"] || "",
       cnpjServico: rowObj["cnpj do servico"] || rowObj["cnpj"] || "",
       tipoExecucao: rowObj["tipo de execucao"] || rowObj["execucao"] || "",
+      // Mapeamento de Produtos e Peças
+      codigoProduto: rowObj["codigo_produto"] || rowObj["codigo produto"] || rowObj["codigo"] || rowObj["sku"] || "",
+      nomeProduto: rowObj["nome_produto"] || rowObj["nome produto"] || rowObj["produto"] || rowObj["item"] || "",
+      categoriaProduto: rowObj["categoria"] || rowObj["tipo_produto"] || rowObj["grupo"] || "",
+      unidade: rowObj["unidade"] || rowObj["un"] || "",
+      precoCusto: rowObj["preco_custo"] || rowObj["preco custo"] || rowObj["valor_compra"] || rowObj["valor compra"] || rowObj["custo"] || "",
+      precoVenda: rowObj["preco_venda"] || rowObj["preco venda"] || rowObj["valor_venda"] || rowObj["valor venda"] || rowObj["preco"] || "",
+      margemLucro: rowObj["margem_lucro_pct"] || rowObj["margem_lucro"] || rowObj["margem"] || "",
+      estoqueAtual: rowObj["estoque_atual"] || rowObj["estoque atual"] || rowObj["quantidade"] || rowObj["qtd"] || "",
+      estoqueMinimo: rowObj["estoque_minimo"] || rowObj["estoque minimo"] || rowObj["minimo"] || "",
+      marcaFabricante: rowObj["marca_fabricante"] || rowObj["marca"] || rowObj["fabricante"] || "",
+      codigoBarrasEan: rowObj["codigo_barras_ean"] || rowObj["ean"] || rowObj["codigo_barras"] || "",
+      linkSite: rowObj["link_site"] || rowObj["site"] || rowObj["url_site"] || "",
+      fotoUrl: rowObj["foto_url"] || rowObj["foto"] || rowObj["imagem"] || "",
     });
   }
 
