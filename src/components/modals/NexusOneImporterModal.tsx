@@ -38,7 +38,7 @@ export function NexusOneImporterModal({
   onSuccess,
 }: NexusOneImporterModalProps) {
   const { toast } = useToast();
-  const [importTab, setImportTab] = useState<"link" | "paste">("link");
+  const [importTab, setImportTab] = useState<"paste" | "link">("paste");
   const [googleUrl, setGoogleUrl] = useState(
     "https://docs.google.com/spreadsheets/d/16HxM9rw8P_xApUgRbv53Mof6USS1VV7Uo8OQ8zgHhJU/edit?gid=1888996763#gid=1888996763"
   );
@@ -71,6 +71,38 @@ export function NexusOneImporterModal({
     }
   };
 
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (!navigator.clipboard) {
+        toast("Cole os dados na caixa abaixo usando Ctrl+V ou Cmd+V.", "info");
+        return;
+      }
+      const text = await navigator.clipboard.readText();
+      if (!text || text.trim().length === 0) {
+        toast("A área de transferência está vazia. Copie as linhas da planilha primeiro.", "warning");
+        return;
+      }
+      setPastedText(text);
+      setLoading(true);
+      setResult(null);
+      const res = await parseTsvAndImportNexusOne(text);
+      setResult(res);
+      if (res.success) {
+        toast(
+          `Atualizado instantaneamente! ${res.ordersCreated + res.ordersUpdated} OS e ${res.clientsCreated} clientes sincronizados no ERP.`,
+          "success"
+        );
+        if (onSuccess) onSuccess();
+      } else {
+        toast(`Processado com avisos.`, "warning");
+      }
+    } catch {
+      toast("Para colar automaticamente, permita o acesso ou use o atalho Ctrl+V / Cmd+V.", "info");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleImportByLink = async () => {
     if (!googleUrl.trim()) {
       toast("Informe o link da planilha do Google.", "warning");
@@ -99,8 +131,9 @@ export function NexusOneImporterModal({
     }
   };
 
-  const handleImportByText = async () => {
-    if (!pastedText.trim()) {
+  const handleImportByText = async (textToUse?: string) => {
+    const raw = textToUse || pastedText;
+    if (!raw.trim()) {
       toast("Cole os dados da planilha na caixa de texto.", "warning");
       return;
     }
@@ -108,7 +141,7 @@ export function NexusOneImporterModal({
     try {
       setLoading(true);
       setResult(null);
-      const res = await parseTsvAndImportNexusOne(pastedText);
+      const res = await parseTsvAndImportNexusOne(raw);
       setResult(res);
       if (res.success) {
         toast(
@@ -229,13 +262,31 @@ export function NexusOneImporterModal({
           </div>
         ) : (
           <div className="space-y-3">
-            <label className="block font-bold text-zinc-900 dark:text-zinc-100">
-              Cole abaixo as linhas da tabela (incluindo o cabeçalho)
-            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <label className="block font-bold text-zinc-900 dark:text-zinc-100">
+                Cole abaixo as linhas da tabela (incluindo o cabeçalho)
+              </label>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handlePasteFromClipboard}
+                className="border-blue-300 bg-blue-50 font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300 shrink-0"
+              >
+                📋 Colar e Atualizar Instantaneamente
+              </Button>
+            </div>
             <textarea
               rows={8}
               value={pastedText}
               onChange={(e) => setPastedText(e.target.value)}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData("text");
+                if (text && text.trim().length > 0) {
+                  setPastedText(text);
+                  void handleImportByText(text);
+                }
+              }}
               placeholder="Cole aqui o conteúdo copiado da planilha (ID, Cliente, Descricao do Servico, Pedido de Compra...)"
               className="w-full rounded-xl border border-zinc-300 bg-white p-3 font-mono text-[11px] text-zinc-900 focus:border-blue-600 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             />
@@ -243,7 +294,7 @@ export function NexusOneImporterModal({
             <div className="pt-2 flex gap-2">
               <Button
                 variant="primary"
-                onClick={handleImportByText}
+                onClick={() => void handleImportByText()}
                 loading={loading}
                 className="w-full bg-blue-600 py-3 font-bold text-white shadow-md hover:bg-blue-700"
               >
