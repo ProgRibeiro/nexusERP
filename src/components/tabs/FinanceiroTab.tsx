@@ -16,6 +16,8 @@ import {
   updateReceivable,
   createBankAccountAction,
   deleteBankAccountAction,
+  revertReceivablePaymentAction,
+  revertPayablePaymentAction,
   ReceivableDTO,
   PayableDTO,
 } from "@/app/actions/financialActions";
@@ -359,6 +361,40 @@ export default function FinanceiroTab({
       }
     } catch (err: any) {
       toast(err?.message || "Erro de conexão ao pagar conta", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRevertReceivable = async (receivableId: string) => {
+    setActionLoading(true);
+    try {
+      const res = await revertReceivablePaymentAction(receivableId);
+      if (res.success) {
+        toast("Recebimento estornado com sucesso! Status retornado para ABERTO.", "success");
+        loadFinancialData();
+      } else {
+        toast((res as any).error || "Erro ao estornar recebimento.", "error");
+      }
+    } catch {
+      toast("Erro de conexão ao estornar.", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRevertPayable = async (payableId: string) => {
+    setActionLoading(true);
+    try {
+      const res = await revertPayablePaymentAction(payableId);
+      if (res.success) {
+        toast("Pagamento estornado com sucesso! Status retornado para ABERTO.", "success");
+        loadFinancialData();
+      } else {
+        toast((res as any).error || "Erro ao estornar pagamento.", "error");
+      }
+    } catch {
+      toast("Erro de conexão ao estornar.", "error");
     } finally {
       setActionLoading(false);
     }
@@ -750,10 +786,23 @@ export default function FinanceiroTab({
                                   <HandCoins size={14} /> Liquidar
                                 </Button>
                               ) : (
-                                <span className="inline-flex h-9 min-w-[112px] items-center justify-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/[.08] px-3 text-[10px] font-black uppercase tracking-wider text-emerald-400">
-                                  <CheckCircle2 size={13} />
-                                  Recebido
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-flex h-9 min-w-[100px] items-center justify-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/[.08] px-3 text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                                    <CheckCircle2 size={13} />
+                                    Recebido
+                                  </span>
+                                  {hasPermission("financeiro.write") && (
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      className="h-9 px-2 text-[10px] font-bold border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                                      title="Estornar recebimento e voltar para ABERTO"
+                                      onClick={() => handleRevertReceivable(r.id)}
+                                    >
+                                      ↩️ Estornar
+                                    </Button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </TableCell>
@@ -835,10 +884,23 @@ export default function FinanceiroTab({
                                   Baixar / Pagar
                                 </Button>
                               ) : (
-                                <span className="inline-flex h-9 min-w-[142px] items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[.035] px-3 text-[10px] font-black uppercase tracking-wider text-zinc-400">
-                                  <CheckCircle2 size={13} />
-                                  Pago / Baixado
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="inline-flex h-9 min-w-[100px] items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[.035] px-3 text-[10px] font-black uppercase tracking-wider text-zinc-400">
+                                    <CheckCircle2 size={13} />
+                                    Pago / Baixado
+                                  </span>
+                                  {hasPermission("financeiro.write") && (
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      className="h-9 px-2 text-[10px] font-bold border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
+                                      title="Estornar pagamento e voltar para ABERTO"
+                                      onClick={() => handleRevertPayable(p.id)}
+                                    >
+                                      ↩️ Estornar
+                                    </Button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </TableCell>

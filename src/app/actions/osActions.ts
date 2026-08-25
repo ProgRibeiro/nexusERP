@@ -466,6 +466,56 @@ export async function expressCloseServiceOrderAction(data: {
   }
 }
 
+/** Reverte o status de uma Ordem de Serviço de volta para EM_ATENDIMENTO se concluída ou baixada por engano */
+export async function revertServiceOrderStatusAction(input: { serviceOrderId: string; justification?: string }) {
+  try {
+    const session = await requirePermission("os.write");
+    const os = await prisma.serviceOrder.findUnique({
+      where: { id: input.serviceOrderId },
+    });
+
+    if (!os) throw new Error("Ordem de serviço não encontrada.");
+
+    const updated = await prisma.serviceOrder.update({
+      where: { id: os.id },
+      data: {
+        status: "EM_ATENDIMENTO",
+        faturamentoStatus: "PENDENTE",
+        completedAt: null,
+      },
+    });
+
+    await prisma.serviceOrderStatusHistory.create({
+      data: {
+        serviceOrderId: os.id,
+        oldStatus: os.status,
+        newStatus: "EM_ATENDIMENTO",
+        changedById: session.userId,
+        justification: input.justification?.trim() || "Estorno/reversão de status realizada pelo usuário.",
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ESTORNO",
+        entity: "OrdemServico",
+        entityId: os.id,
+        changesJson: JSON.stringify({ oldStatus: os.status, newStatus: "EM_ATENDIMENTO" }),
+      },
+    });
+
+    revalidatePath("/ordens-servico");
+    revalidatePath("/faturamento");
+    revalidatePath("/preventivas");
+    revalidatePath("/financeiro");
+
+    return { success: true as const, error: undefined, serviceOrder: updated };
+  } catch (error: any) {
+    return mutationFailure("service-orders.revert-status", error, "Não foi possível reverter o status da OS.");
+  }
+}
+
 /**
  * Consolida a operação mensal dos contratos por loja para a tela de OS.
  * O contrato é a unidade operacional: uma loja, suas preventivas e chamados.

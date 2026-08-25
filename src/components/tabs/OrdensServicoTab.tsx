@@ -11,6 +11,7 @@ import {
   deleteServiceOrder,
   getContractOperationsOverview,
   getServiceOrders,
+  revertServiceOrderStatusAction,
 } from "@/app/actions/osActions";
 import type { ServiceOrderValueItemInput } from "@/app/actions/osActions";
 import { getClientDetails, getClients } from "@/app/actions/clientActions";
@@ -730,6 +731,27 @@ export default function OrdensServicoTab({
                               title="Baixa Rápida Expressa da OS"
                             >
                               <Zap size={13} className="fill-current" /> Baixa Rápida
+                            </button>
+                          )}
+                          {hasPermission("os.write") && ["CONCLUIDA", "FATURAMENTO", "FATURADA"].includes(os.status) && (
+                            <button
+                              type="button"
+                              onClick={async (event) => {
+                                event.stopPropagation();
+                                if (confirm(`Deseja reverter o status da OS ${os.code} de volta para EM ATENDIMENTO?`)) {
+                                  const res = await revertServiceOrderStatusAction({ serviceOrderId: os.id });
+                                  if (res.success) {
+                                    toast(`Status da OS ${os.code} revertido para Em Atendimento com sucesso!`, "success");
+                                    await loadOrders();
+                                  } else {
+                                    toast((res as any).error || "Erro ao reverter status da OS.", "error");
+                                  }
+                                }
+                              }}
+                              className="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 text-[10px] font-black text-amber-800 transition hover:bg-amber-500 hover:text-white dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+                              title="Reverter status para Em Atendimento"
+                            >
+                              ↩️ Reverter Status
                             </button>
                           )}
                           <button

@@ -693,3 +693,148 @@ export async function updateReceivable(
     return mutationFailure("financial.receivable.update", error, "Não foi possível editar a conta a receber.");
   }
 }
+
+/**
+ * Estorna o recebimento de uma conta a receber, voltando o status para ABERTO,
+ * restaurando o saldo pendente e ajustando o saldo bancário.
+ */
+export async function revertReceivablePaymentAction(receivableId: string) {
+  try {
+    const session = await requirePermission("financeiro.write");
+
+    const rec = await prisma.accountsReceivable.findUnique({
+      where: { id: receivableId },
+      include: { transactions: true },
+    });
+
+    if (!rec) throw new Error("Conta a receber não encontrada.");
+    const receivedVal = Number(rec.receivedValue);
+    if (rec.status !== "PAGO" && receivedVal <= 0) {
+      throw new Error("Esta cobrança não possui valores recebidos para estornar.");
+    }
+
+    const totalVal = Number(rec.totalValue);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Volta o status para ABERTO e zera valor recebido
+      const updatedRec = await tx.accountsReceivable.update({
+        where: { id: receivableId },
+        data: {
+          status: "ABERTO",
+          receivedValue: 0,
+          pendingValue: totalVal,
+          paymentDate: null,
+          paymentMethod: null,
+        },
+      });
+
+      // 2. Decrementa o saldo bancário se houver conta vinculada
+      if (rec.bankAccountId && receivedVal > 0) {
+        await tx.bankAccount.update({
+          where: { id: rec.bankAccountId },
+          data: { balance: { decrement: receivedVal } },
+        });
+      }
+
+      // 3. Deleta a transação de caixa de receita vinculada
+      await tx.financialTransaction.deleteMany({
+        where: { accountsReceivableId: receivableId },
+      });
+
+      return updatedRec;
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ESTORNO",
+        entity: "ContasReceber",
+        entityId: receivableId,
+        changesJson: JSON.stringify({
+          previousStatus: rec.status,
+          revertedAmount: receivedVal,
+        }),
+      },
+    });
+
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+
+    return { success: true as const, error: undefined, receivable: result };
+  } catch (error: unknown) {
+    return mutationFailure("financial.receivable.revert", error, "Não foi possível estornar o recebimento.");
+  }
+}
+
+/**
+ * Estorna o pagamento de uma conta a pagar (Despesa), voltando o status para ABERTO,
+ * restaurando o saldo bancário debitado.
+ */
+export async function revertPayablePaymentAction(payableId: string) {
+  try {
+    const session = await requirePermission("financeiro.write");
+
+    const pay = await prisma.accountsPayable.findUnique({
+      where: { id: payableId },
+    });
+
+    if (!pay) throw new Error("Conta a pagar não encontrada.");
+    if (pay.status !== "PAGO") {
+      throw new Error("Esta conta não está paga para ser estornada.");
+    }
+
+    const val = Number(pay.value);
+
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Volta o status para ABERTO
+      const updatedPay = await tx.accountsPayable.update({
+        where: { id: payableId },
+        data: {
+          status: "ABERTO",
+          paymentDate: null,
+          paymentMethod: null,
+        },
+      });
+
+      // 2. Encontra a última transação de despesa vinculada para saber a conta bancária
+      const txRecord = await tx.financialTransaction.findFirst({
+        where: { accountsPayableId: payableId },
+      });
+
+      const bankId = txRecord?.bankAccountId;
+      if (bankId && val > 0) {
+        await tx.bankAccount.update({
+          where: { id: bankId },
+          data: { balance: { increment: val } },
+        });
+      }
+
+      // 3. Remove as transações financeiras vinculadas
+      await tx.financialTransaction.deleteMany({
+        where: { accountsPayableId: payableId },
+      });
+
+      return updatedPay;
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "ESTORNO",
+        entity: "ContasPagar",
+        entityId: payableId,
+        changesJson: JSON.stringify({
+          previousStatus: "PAGO",
+          revertedAmount: val,
+        }),
+      },
+    });
+
+    revalidatePath("/financeiro");
+    revalidatePath("/");
+
+    return { success: true as const, error: undefined, payable: result };
+  } catch (error: unknown) {
+    return mutationFailure("financial.payable.revert", error, "Não foi possível estornar o pagamento.");
+  }
+}
