@@ -54,7 +54,14 @@ export async function getBillingQueue(): Promise<BillingQueueItem[]> {
 
     const queue = await prisma.serviceOrder.findMany({
       where: {
-        status: "FATURAMENTO",
+        OR: [
+          { status: "FATURAMENTO" },
+          { faturamentoStatus: "AGUARDANDO_FATURAMENTO" },
+          {
+            status: { in: ["CONCLUIDA", "RELATORIO_ENVIADO"] },
+            faturamentoStatus: { notIn: ["NF_EMITIDA", "NF_ENVIADA", "FATURADA"] },
+          },
+        ],
       },
       include: {
         client: { include: { addresses: true } },

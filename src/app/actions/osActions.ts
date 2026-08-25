@@ -365,7 +365,7 @@ export async function expressCloseServiceOrderAction(data: {
 
     const faturamentoStatus = targetStatus === "FATURADA"
       ? "NF_EMITIDA"
-      : targetStatus === "FATURAMENTO"
+      : ["FATURAMENTO", "CONCLUIDA", "RELATORIO_ENVIADO"].includes(targetStatus)
       ? "AGUARDANDO_FATURAMENTO"
       : os.faturamentoStatus;
 
@@ -378,6 +378,44 @@ export async function expressCloseServiceOrderAction(data: {
         technicalDiagnosis: data.solutionNotes?.trim() || os.technicalDiagnosis || "Serviço executado com sucesso e aprovado pelo cliente.",
       },
     });
+
+    // Se o faturamento/faturada for acionado ou a OS for concluída, lançar/atualizar Conta a Receber no Financeiro se houver cliente
+    if (["FATURAMENTO", "FATURADA", "CONCLUIDA"].includes(targetStatus) && os.clientId) {
+      const itemsTotal = os.items.reduce((sum, item) => sum + Number(item.total), 0);
+      const finalVal = itemsTotal > 0 ? itemsTotal : 640;
+
+      const existingReceivable = await prisma.accountsReceivable.findFirst({
+        where: { serviceOrderId: os.id },
+      });
+
+      if (!existingReceivable) {
+        await prisma.accountsReceivable.create({
+          data: {
+            clientId: os.clientId,
+            serviceOrderId: os.id,
+            totalValue: finalVal,
+            pendingValue: targetStatus === "FATURADA" ? 0 : finalVal,
+            receivedValue: targetStatus === "FATURADA" ? finalVal : 0,
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            paymentDate: targetStatus === "FATURADA" ? new Date() : null,
+            status: targetStatus === "FATURADA" ? "PAGO" : "ABERTO",
+            category: "RECEITA_SERVICO",
+            costCenter: "OPERACIONAL",
+            notes: `Faturamento automático da OS ${os.code} via Baixa Rápida`,
+          },
+        });
+      } else if (targetStatus === "FATURADA" && existingReceivable.status !== "PAGO") {
+        await prisma.accountsReceivable.update({
+          where: { id: existingReceivable.id },
+          data: {
+            status: "PAGO",
+            receivedValue: existingReceivable.totalValue,
+            pendingValue: 0,
+            paymentDate: new Date(),
+          },
+        });
+      }
+    }
 
     await prisma.serviceOrderStatusHistory.create({
       data: {
