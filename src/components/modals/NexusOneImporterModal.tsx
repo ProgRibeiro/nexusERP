@@ -133,7 +133,7 @@ export function NexusOneImporterModal({
   onSuccess,
 }: NexusOneImporterModalProps) {
   const { toast } = useToast();
-  const [importTab, setImportTab] = useState<"paste" | "link">("paste");
+  const [importTab, setImportTab] = useState<"file" | "paste" | "link">("file");
   const [googleUrl, setGoogleUrl] = useState(
     "https://docs.google.com/spreadsheets/d/16HxM9rw8P_xApUgRbv53Mof6USS1VV7Uo8OQ8zgHhJU/edit?gid=1888996763#gid=1888996763"
   );
@@ -141,6 +141,8 @@ export function NexusOneImporterModal({
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [pastedText, setPastedText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [result, setResult] = useState<NexusOneImportResult | null>(null);
 
   useEffect(() => {
@@ -151,6 +153,48 @@ export function NexusOneImporterModal({
       setLastSync(cfg.lastSync);
     });
   }, [isOpen]);
+
+  const handleFileUpload = (file: File) => {
+    if (!file) return;
+    setLoading(true);
+    setResult(null);
+    setSelectedFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      if (!text || text.trim().length === 0) {
+        toast("O arquivo selecionado está vazio.", "warning");
+        setLoading(false);
+        return;
+      }
+      setPastedText(text);
+      try {
+        const res = await parseTsvAndImportNexusOne(text);
+        setResult(res);
+        if (res.success) {
+          toast(
+            `Arquivo "${file.name}" lido com sucesso! ${res.productsCreated + res.productsUpdated} produto(s) e ${res.ordersCreated + res.ordersUpdated} OS sincronizados.`,
+            "success"
+          );
+          if (onSuccess) onSuccess();
+        } else {
+          toast(`Arquivo "${file.name}" processado com avisos.`, "warning");
+        }
+      } catch {
+        toast(`Erro ao processar o arquivo "${file.name}".`, "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      toast(`Erro ao carregar o arquivo "${file.name}".`, "error");
+      setLoading(false);
+    };
+
+    reader.readAsText(file, "UTF-8");
+  };
 
   const handleSaveConfig = async (newUrl: string, newAuto: boolean) => {
     try {
@@ -258,7 +302,7 @@ export function NexusOneImporterModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Importador NEXUS ONE — Base Central de Serviços"
+      title="Importador NEXUS ONE — Base Central de Serviços & Estoque"
     >
       <div className="space-y-5 text-xs font-medium">
         
@@ -267,10 +311,10 @@ export function NexusOneImporterModal({
           <div className="space-y-0.5">
             <p className="font-extrabold text-xs text-emerald-950 dark:text-emerald-200 flex items-center gap-1.5">
               <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              Planilha Modelo Padrão ERP (Completa)
+              Planilha Modelo Padrão ERP (Completa com Estoque Futuro e Presente)
             </p>
             <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
-              Preencha com Preços de Custo, Venda, Margem %, Site, Fotos, Estoque, Clientes e OSs.
+              Preencha com Nome, Custo, Venda, Qtd Estoque, Mínimo, Unidade e Estoque (futuro/presente).
             </p>
           </div>
           <Button
@@ -289,10 +333,10 @@ export function NexusOneImporterModal({
             <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
             <div>
               <p className="font-bold text-xs uppercase tracking-wider">
-                Importação Automática de Dados Integrados
+                Leitura Automática de Arquivos de Planilha
               </p>
               <p className="mt-1 leading-relaxed text-[11px]">
-                Sincroniza automaticamente <strong>Produtos (Custo, Venda, Margem, Estoque), Clientes, Ordens de Serviço (OS), CNAE e Títulos Financeiros</strong>.
+                Selecione ou arraste seu arquivo <strong>.CSV, .TSV ou .TXT</strong>. O ERP lê o arquivo imediatamente e sincroniza <strong>Estoque Presente/Futuro, Preços de Custo e Venda, Clientes e OSs</strong>.
               </p>
             </div>
           </div>
@@ -302,14 +346,14 @@ export function NexusOneImporterModal({
         <div className="flex border-b border-zinc-200 font-bold dark:border-zinc-800">
           <button
             type="button"
-            onClick={() => setImportTab("link")}
+            onClick={() => setImportTab("file")}
             className={`flex items-center gap-1.5 px-4 py-2.5 transition border-b-2 ${
-              importTab === "link"
+              importTab === "file"
                 ? "border-blue-600 text-blue-600 font-black"
                 : "border-transparent text-zinc-500 hover:text-zinc-800"
             }`}
           >
-            <Link size={15} /> Link Público do Google Sheets
+            <Upload size={15} /> 📁 Selecionar Arquivo do Computador
           </button>
           <button
             type="button"
@@ -320,12 +364,80 @@ export function NexusOneImporterModal({
                 : "border-transparent text-zinc-500 hover:text-zinc-800"
             }`}
           >
-            <FileSpreadsheet size={15} /> Copiar e Colar Tabela (TSV)
+            <FileSpreadsheet size={15} /> 📋 Copiar e Colar Tabela
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportTab("link")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 transition border-b-2 ${
+              importTab === "link"
+                ? "border-blue-600 text-blue-600 font-black"
+                : "border-transparent text-zinc-500 hover:text-zinc-800"
+            }`}
+          >
+            <Link size={15} /> 🔗 Link do Google Sheets
           </button>
         </div>
 
         {/* MÉTODOS */}
-        {importTab === "link" ? (
+        {importTab === "file" ? (
+          <div className="space-y-4">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handleFileUpload(e.dataTransfer.files[0]);
+                }
+              }}
+              className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition ${
+                isDragging
+                  ? "border-blue-500 bg-blue-50/80 dark:bg-blue-950/40"
+                  : "border-zinc-300 bg-zinc-50 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900"
+              }`}
+            >
+              <input
+                type="file"
+                accept=".csv,.tsv,.txt,.xlsx,.xls"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleFileUpload(e.target.files[0]);
+                  }
+                }}
+                className="hidden"
+                id="file-upload-input"
+              />
+              <label htmlFor="file-upload-input" className="cursor-pointer block space-y-3">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300">
+                  <FileSpreadsheet size={32} />
+                </div>
+                <div>
+                  <p className="font-extrabold text-sm text-zinc-900 dark:text-zinc-100">
+                    Clique aqui para selecionar seu arquivo ou arraste o arquivo da planilha
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Suporta arquivos <strong>.CSV, .TSV, .TXT e planilhas Excel</strong>
+                  </p>
+                </div>
+                {selectedFileName && (
+                  <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    <CheckCircle2 size={14} /> Arquivo lido: {selectedFileName}
+                  </div>
+                )}
+                <div className="pt-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-blue-700">
+                    <Upload size={15} /> Selecionar Arquivo do Computador
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+        ) : importTab === "link" ? (
           <div className="space-y-3">
             <label className="block font-bold text-zinc-900 dark:text-zinc-100">
               URL da Planilha do Google (Google Spreadsheets)
@@ -403,7 +515,7 @@ export function NexusOneImporterModal({
                   void handleImportByText(text);
                 }
               }}
-              placeholder="Cole aqui o conteúdo copiado da planilha (ID, Cliente, Descricao do Servico, Pedido de Compra...)"
+              placeholder="Cole aqui o conteúdo copiado da planilha (nome, preco custo, preco venda, quantidade estoque, estoque minimo, unidade, Estoque...)"
               className="w-full rounded-xl border border-zinc-300 bg-white p-3 font-mono text-[11px] text-zinc-900 focus:border-blue-600 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
             />
 
