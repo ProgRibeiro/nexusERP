@@ -131,11 +131,32 @@ export function DesktopAppLauncherModal({
     }
   };
 
+  const handleDownloadDesktopPackage = async () => {
+    try {
+      const res = await fetch("/api/desktop-app/download");
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      const blob = new Blob([data.files["nexus_erp_desktop.py"]], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "nexus_erp_desktop.py";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast("Download do Software Nativo (Python Engine + C/Java) concluído com sucesso!", "success");
+    } catch {
+      toast("Erro ao baixar o pacote desktop.", "error");
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="🖥️ Software Desktop Nativo & Conexão VPS — Nexus ERP"
+      title="🖥️ Software Desktop Nativo & Multi-Linguagem — Nexus ERP"
       size="lg"
     >
       <div className="space-y-6 text-xs select-none">
@@ -148,13 +169,13 @@ export function DesktopAppLauncherModal({
             <div className="space-y-1">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-300 border border-emerald-500/30">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Software Standalone Ativo
+                Software Nativo Multi-Linguagem (Python / C / Java)
               </span>
               <h3 className="text-base font-black tracking-tight text-white">
-                Nexus ERP Desktop App & Multi-VPS Server Switcher
+                Nexus ERP Desktop Suite & Multi-VPS Server Switcher
               </h3>
               <p className="text-[11px] leading-relaxed text-slate-300">
-                Execute o ERP como um programa nativo no Windows, macOS ou Linux. Conecte-se à sua VPS Hostinger na nuvem ou a servidores privados com 1 clique.
+                Software de alta performance compilado em Python com inicializador em C nativo e Java Enterprise. Conecte qualquer computador diretamente à sua VPS Hostinger na nuvem.
               </p>
             </div>
           </div>
@@ -244,14 +265,33 @@ export function DesktopAppLauncherModal({
 
         {/* 2. OPÇÕES DE INSTALAÇÃO E SOFTWARE NATIVO */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Opção A: Instalação Desktop PWA Standalone */}
+          {/* Opção A: Software Nativo em Python + C/Java */}
+          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/60 to-white p-4 shadow-sm dark:border-emerald-900/50 dark:from-emerald-950/20 dark:to-zinc-900 space-y-3">
+            <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-300 font-black text-xs uppercase tracking-wider">
+              <Terminal size={17} className="text-emerald-600" />
+              <span>Software Nativo Python (C/Java Core)</span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-300">
+              Baixe o aplicativo desktop nativo escrito em <strong>Python</strong> com lançadores em <strong>C</strong> e <strong>Java Enterprise</strong>. Funciona standalone conectando à VPS.
+            </p>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleDownloadDesktopPackage}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 shadow-md flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Download size={15} /> Baixar App Nativo Python (.py / C / Java)
+            </Button>
+          </div>
+
+          {/* Opção B: Instalação PWA Standalone 1-Clique */}
           <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/50 to-white p-4 shadow-sm dark:border-blue-900/50 dark:from-blue-950/20 dark:to-zinc-900 space-y-3">
             <div className="flex items-center gap-2 text-blue-900 dark:text-blue-300 font-black text-xs uppercase tracking-wider">
               <Monitor size={17} className="text-blue-600" />
-              <span>Instalação Desktop 1-Clique</span>
+              <span>Instalação PWA Desktop 1-Clique</span>
             </div>
             <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-300">
-              Crie o ícone nativo do software na sua Área de Trabalho e Barra de Tarefas. Funciona sem abas de navegador.
+              Instale o aplicativo diretamente na sua Área de Trabalho e Barra de Tarefas do Windows/Mac sem abas de navegador.
             </p>
             <Button
               type="button"
@@ -259,22 +299,8 @@ export function DesktopAppLauncherModal({
               onClick={handleInstallDesktopPwa}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 shadow-md flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Download size={15} /> Instalar Software Desktop Nativo
+              <Download size={15} /> Instalar Aplicativo Desktop
             </Button>
-          </div>
-
-          {/* Opção B: Pacote Standalone Electron / Desktop Binary */}
-          <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50/50 to-white p-4 shadow-sm dark:border-purple-900/50 dark:from-purple-950/20 dark:to-zinc-900 space-y-3">
-            <div className="flex items-center gap-2 text-purple-900 dark:text-purple-300 font-black text-xs uppercase tracking-wider">
-              <Terminal size={17} className="text-purple-600" />
-              <span>Pacote Standalone Electron (.exe)</span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-300">
-              O projeto possui o script <code>electron-main.js</code> integrado. Empacote executáveis standalone (.exe / .dmg) com 1 comando:
-            </p>
-            <div className="rounded-xl bg-zinc-950 p-2.5 font-mono text-[10px] text-emerald-400 overflow-x-auto border border-zinc-800">
-              npx electron electron-main.js
-            </div>
           </div>
         </div>
 
