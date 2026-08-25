@@ -30,6 +30,7 @@ import {
   ChevronDown,
   User as UserIcon,
   Laptop,
+  BookOpen,
 } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { CommandPalette } from "./ui/CommandPalette";
@@ -37,6 +38,7 @@ import { getSearchResultTarget } from "@/lib/searchNavigation";
 import PwaInstallButton from "./PwaInstallButton";
 import { CompanyRegistrationModal } from "./modals/CompanyRegistrationModal";
 import { DesktopAppLauncherModal } from "./modals/DesktopAppLauncherModal";
+import { ERPInteractiveTutorialModal } from "./modals/ERPInteractiveTutorialModal";
 
 
 // Badge color shown next to each global search result type.
@@ -81,6 +83,7 @@ export default function Header() {
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isDesktopModalOpen, setIsDesktopModalOpen] = useState(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [avatarUrl, setAvatarUrl] = useState<string>("");
@@ -674,6 +677,16 @@ export default function Header() {
           )}
         </div>
 
+        {/* Botão Guia e Tutorial Interativo */}
+        <button
+          onClick={() => setIsTutorialOpen(true)}
+          className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-900/60 text-xs font-black text-amber-700 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-all cursor-pointer shadow-sm"
+          title="Guia & Tutorial de Uso Interativo"
+        >
+          <BookOpen size={15} className="text-amber-600 dark:text-amber-400" />
+          <span>Guia & Tutorial</span>
+        </button>
+
         {/* Botão Software Desktop & VPS */}
         <button
           onClick={() => setIsDesktopModalOpen(true)}
@@ -1021,6 +1034,14 @@ export default function Header() {
         <DesktopAppLauncherModal
           isOpen={isDesktopModalOpen}
           onClose={() => setIsDesktopModalOpen(false)}
+        />
+      )}
+
+      {/* Modal Guia & Tutorial Interativo */}
+      {isTutorialOpen && (
+        <ERPInteractiveTutorialModal
+          isOpen={isTutorialOpen}
+          onClose={() => setIsTutorialOpen(false)}
         />
       )}
     </header>

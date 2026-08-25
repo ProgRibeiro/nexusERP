@@ -30,6 +30,8 @@ import {
   Building2,
   Code2,
   ExternalLink,
+  BookOpen,
+  Laptop,
 } from "lucide-react";
 import {
   getNavigationIndicators,
@@ -38,6 +40,8 @@ import {
 import { getModuleFlags } from "@/app/actions/moduleActions";
 import { getCompanySettingsAction } from "@/app/actions/settingsActions";
 import { PrestadorBrand } from "@/components/brand/PrestadorBrand";
+import { ERPInteractiveTutorialModal } from "./modals/ERPInteractiveTutorialModal";
+import { DesktopAppLauncherModal } from "./modals/DesktopAppLauncherModal";
 
 interface MenuItem {
   title: string;
@@ -57,7 +61,8 @@ export default function Sidebar() {
   const { hasPermission, user, logout } = useAuth();
   const { activeTabId, openTab, sidebarOpen, setSidebarOpen } = useWorkspace();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [isDesktopModalOpen, setIsDesktopModalOpen] = useState(false);
   const [moduleFlags,setModuleFlags] = useState<Record<string,boolean>>({});
   const [indicators, setIndicators] = useState<NavigationIndicators>({
     os: 0,
@@ -228,6 +233,17 @@ export default function Sidebar() {
         },
       ],
     },
+    {
+      name: "Dev & Auditoria",
+      items: [
+        {
+          title: "Central Dev & Logs",
+          href: "/dev",
+          icon: Code2,
+          permission: "admin.all",
+        },
+      ],
+    },
   ];
 
   // Match active links with Workspace Active Tab ID
@@ -383,27 +399,23 @@ export default function Sidebar() {
               </button>;
             })}
 
-            {!isCollapsed && <button type="button" onClick={() => setMoreOpen((value) => !value)} className="mt-4 flex min-h-10 w-full items-center gap-3 rounded-xl border border-white/[.06] bg-white/[.025] px-3.5 py-2 text-left text-xs font-bold text-slate-400 transition hover:bg-white/[.06] hover:text-white" aria-expanded={moreOpen}>
-              <Settings size={16}/><span>Mais ferramentas</span><ChevronDown size={14} className={`ml-auto transition-transform ${moreOpen ? "rotate-180" : ""}`}/>
-            </button>}
-
-            {/* Recursos menos frequentes continuam disponíveis sem poluir o fluxo principal. */}
-            {(isCollapsed || moreOpen || sections.some((section) => section.items.some((item) => isLinkActive(item.href)))) && sections.map((section) => {
+            {/* Renderização Direta e Organizada de Todas as Seções do Sistema */}
+            {sections.map((section) => {
               const filteredItems = section.items.filter((item) => {
-                const moduleId=item.href.split("?")[0].replace("/","");
+                const moduleId = item.href.split("?")[0].replace("/", "");
                 return hasPermission(item.permission) && moduleFlags[moduleId] !== false;
               });
 
               if (filteredItems.length === 0) return null;
 
               return (
-                <div key={section.name} className="flex flex-col gap-0.5 mt-4">
+                <div key={section.name} className="flex flex-col gap-0.5 mt-3">
                   {!isCollapsed ? (
-                    <span className="mb-1.5 block px-3.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">
+                    <span className="mb-1 block px-3.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
                       {section.name}
                     </span>
                   ) : (
-                    <div className="my-2 border-t border-white/8" />
+                    <div className="my-1.5 border-t border-white/8" />
                   )}
 
                   {filteredItems.map((item) => {
@@ -454,6 +466,33 @@ export default function Sidebar() {
                 </div>
               );
             })}
+
+            {/* Seção de Suporte, Guia e App Desktop */}
+            <div className="flex flex-col gap-0.5 mt-4 pt-2 border-t border-white/10">
+              {!isCollapsed && (
+                <span className="mb-1 block px-3.5 text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Suporte & Apps
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsTutorialOpen(true)}
+                className="group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold text-amber-300 hover:bg-amber-500/10 transition-all duration-150"
+                title="Guia & Tutorial de Uso Interativo"
+              >
+                <BookOpen size={16} className="shrink-0 text-amber-400" />
+                {!isCollapsed && <span className="truncate">📖 Guia & Tutorial</span>}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDesktopModalOpen(true)}
+                className="group relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3.5 py-2 text-left text-xs font-bold text-blue-300 hover:bg-blue-500/10 transition-all duration-150"
+                title="Software Desktop Nativo & VPS"
+              >
+                <Laptop size={16} className="shrink-0 text-blue-400" />
+                {!isCollapsed && <span className="truncate">🖥️ App Desktop & VPS</span>}
+              </button>
+            </div>
           </nav>
         </div>
 
@@ -473,6 +512,28 @@ export default function Sidebar() {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Modais de Suporte e App Desktop */}
+        {isTutorialOpen && (
+          <ERPInteractiveTutorialModal
+            isOpen={isTutorialOpen}
+            onClose={() => setIsTutorialOpen(false)}
+            onNavigateTab={(tabId, title) => {
+              if (tabId === "desktop") {
+                setIsDesktopModalOpen(true);
+              } else {
+                openTab(tabId, title);
+              }
+            }}
+          />
+        )}
+
+        {isDesktopModalOpen && (
+          <DesktopAppLauncherModal
+            isOpen={isDesktopModalOpen}
+            onClose={() => setIsDesktopModalOpen(false)}
+          />
         )}
       </aside>
     </>
