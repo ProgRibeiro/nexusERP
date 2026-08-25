@@ -64,7 +64,7 @@ import {
   addStoreAssetPhotos,
   createStoreProject,
 } from "@/app/actions/preventiveCentralActions";
-import { getClients } from "@/app/actions/clientActions";
+import { getClients, createClientWithAddress } from "@/app/actions/clientActions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
 import { useWorkspace } from "@/contexts/WorkspaceContext";
@@ -231,10 +231,10 @@ export default function PreventiveCentralTab() {
   const { openTab } = useWorkspace();
 
   // --- STATES ---
-  const [stores, setStores] = useState<any[]>(INITIAL_STORES_LIST);
-  const [selectedStore, setSelectedStore] = useState<any>(INITIAL_STORES_LIST[0]);
-  const [equipmentList, setEquipmentList] = useState<any[]>(INITIAL_EQUIPMENT_LIST);
-  const [selectedEquipment, setSelectedEquipment] = useState<any>(INITIAL_EQUIPMENT_LIST[0]);
+  const [stores, setStores] = useState<any[]>([]);
+  const [selectedStore, setSelectedStore] = useState<any>(null);
+  const [equipmentList, setEquipmentList] = useState<any[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<any>(null);
   
   // Filters
   const [storeSearch, setStoreSearch] = useState("");
@@ -306,7 +306,7 @@ export default function PreventiveCentralTab() {
     email: "campinas@oprestador.tech",
   });
 
-  // --- CARREGAR DADOS REAIS DO POSTGRESQL (SE EXISTIREM NO BANCO) ---
+  // --- CARREGAR DADOS REAIS DO POSTGRESQL ---
   useEffect(() => {
     async function loadRealData() {
       try {
@@ -315,16 +315,20 @@ export default function PreventiveCentralTab() {
           const mapped = dbStores.map((s: any, idx: number) => ({
             id: s.id || `db-store-${idx}`,
             name: s.name || s.label || `Unidade ${idx + 1}`,
-            cnpj: s.cnpj || s.client?.cpfCnpj || "11.111.111/0001-01",
-            score: s.score || 90.0,
+            cnpj: s.cnpj || s.client?.cpfCnpj || "00.000.000/0001-00",
+            score: s.score || 100.0,
             status: s.status || "BOM",
             raw: s,
           }));
           setStores(mapped);
           setSelectedStore(mapped[0]);
+        } else {
+          setStores([]);
+          setSelectedStore(null);
         }
       } catch (err) {
-        console.warn("[PreventivaLojas] Usando conjunto de dados padrão de alta fidelidade.");
+        setStores([]);
+        setSelectedStore(null);
       }
     }
     void loadRealData();
@@ -394,23 +398,66 @@ export default function PreventiveCentralTab() {
     toast("Nova Ordem de Serviço Preventiva agendada com sucesso!", "success");
   };
 
-  const handleSaveStore = (e: React.FormEvent) => {
+  const handleSaveStore = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStoreForm.name) {
-      toast("Informe o nome da unidade.", "warning");
+    if (!newStoreForm.name?.trim()) {
+      toast("Informe o nome da unidade/loja.", "warning");
       return;
     }
-    const created = {
-      id: `store-${Date.now()}`,
-      name: newStoreForm.name,
-      cnpj: newStoreForm.cnpj || "12.345.678/0001-90",
-      score: 100.0,
-      status: "BOM",
-    };
-    setStores([created, ...stores]);
-    setSelectedStore(created);
-    setIsNewStoreOpen(false);
-    toast("Nova unidade/loja cadastrada com sucesso no ERP O Prestador!", "success");
+
+    try {
+      const res = await createClientWithAddress({
+        client: {
+          name: newStoreForm.name.trim(),
+          fancyName: newStoreForm.fancyName?.trim() || newStoreForm.name.trim(),
+          cpfCnpj: newStoreForm.cnpj?.trim() || "00.000.000/0001-00",
+          email: newStoreForm.email?.trim() || "loja@contato.com",
+          phone: newStoreForm.phone?.trim() || "(11) 99999-9999",
+        },
+        address: {
+          label: "Matriz / Loja",
+          street: newStoreForm.address?.trim() || "Rua Principal",
+          number: "100",
+          neighborhood: "Centro",
+          city: newStoreForm.city?.trim() || "São Paulo",
+          state: newStoreForm.state?.trim() || "SP",
+          cep: newStoreForm.cep?.trim() || "01000000",
+        },
+      });
+
+      if (res.success) {
+        toast(`Loja "${newStoreForm.name}" cadastrada com sucesso no banco de dados!`, "success");
+        setIsNewStoreOpen(false);
+
+        const dbStores = await getPreventiveStores();
+        if (dbStores && dbStores.length > 0) {
+          const mapped = dbStores.map((s: any, idx: number) => ({
+            id: s.id || `db-store-${idx}`,
+            name: s.name || s.label || `Unidade ${idx + 1}`,
+            cnpj: s.cnpj || s.client?.cpfCnpj || "00.000.000/0001-00",
+            score: s.score || 100.0,
+            status: s.status || "BOM",
+            raw: s,
+          }));
+          setStores(mapped);
+          setSelectedStore(mapped[0]);
+        } else {
+          const createdStoreObj = {
+            id: res.client?.id || `store-${Date.now()}`,
+            name: newStoreForm.name.trim(),
+            cnpj: newStoreForm.cnpj?.trim() || "00.000.000/0001-00",
+            score: 100.0,
+            status: "BOM",
+          };
+          setStores([createdStoreObj]);
+          setSelectedStore(createdStoreObj);
+        }
+      } else {
+        toast(res.error || "Não foi possível cadastrar a loja.", "error");
+      }
+    } catch (err: any) {
+      toast(err?.message || "Erro de conexão ao cadastrar a loja.", "error");
+    }
   };
 
   return (
@@ -540,6 +587,32 @@ export default function PreventiveCentralTab() {
           <FileCheck size={15} /> 📑 Laudos & Documentos
         </button>
       </div>
+
+      {/* SE NÃO HOUVER NENHUMA LOJA CADASTRADA NO BANCO AINDA */}
+      {stores.length === 0 && (
+        <Card className="rounded-2xl border border-dashed border-[#E4E7EC] bg-white p-10 text-center shadow-sm space-y-4">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#155EEF]">
+            <Building2 size={32} />
+          </div>
+          <div className="max-w-md mx-auto">
+            <h3 className="text-base font-black text-[#101828]">
+              Nenhuma Loja ou Unidade Cadastrada Ainda
+            </h3>
+            <p className="mt-1 text-xs text-[#667085]">
+              Sua Central de Preventivas está limpa e pronta para receber seus dados reais. Cadastre sua primeira loja ou unidade operacional para liberar os relatórios, cadastros de equipamentos e prontuários.
+            </p>
+          </div>
+          <div>
+            <Button
+              variant="primary"
+              onClick={() => setIsNewStoreOpen(true)}
+              className="bg-[#155EEF] text-white font-bold px-6 py-2.5 shadow-md hover:bg-[#114abb]"
+            >
+              <Plus size={18} className="mr-1.5" /> Cadastrar Primeira Loja / Unidade
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* 2. BARRA DE FILTROS SUPERIORES */}
       <Card className="rounded-2xl border border-[#E4E7EC] bg-white p-4 shadow-sm">
