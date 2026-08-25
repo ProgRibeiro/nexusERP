@@ -34,6 +34,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Clock3,
+  FileSpreadsheet,
   FileText,
   Link2,
   Loader2,
@@ -48,6 +49,7 @@ import {
   Wrench,
   Zap,
 } from "lucide-react";
+import { NexusOneImporterModal } from "../modals/NexusOneImporterModal";
 import { StatusBadge } from "../ui/StatusBadge";
 import {
   getServiceChecklistTemplate,
@@ -132,6 +134,8 @@ export default function OrdensServicoTab({
     notes: "",
     referenceMonth: new Date().toISOString().slice(0, 7),
   });
+
+  const [isNexusImporterOpen, setIsNexusImporterOpen] = useState(false);
 
   const serviceItemsTotal = useMemo(
     () => serviceItems.reduce((total, item) => total + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0),
@@ -379,21 +383,32 @@ export default function OrdensServicoTab({
             loja.
           </p>
         </div>
-        <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-zinc-700 dark:bg-zinc-800">
-          <button
-            type="button"
-            onClick={() => setViewMode("orders")}
-            className={`flex h-10 items-center gap-2 rounded-lg px-4 text-xs font-black transition ${viewMode === "orders" ? "bg-white text-blue-700 shadow-sm dark:bg-zinc-900 dark:text-blue-300" : "text-zinc-500"}`}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setIsNexusImporterOpen(true)}
+            className="border-blue-200 bg-blue-50/80 font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-300"
           >
-            <ClipboardList size={15} /> Todas as OS
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode("contracts")}
-            className={`flex h-10 items-center gap-2 rounded-lg px-4 text-xs font-black transition ${viewMode === "contracts" ? "bg-white text-blue-700 shadow-sm dark:bg-zinc-900 dark:text-blue-300" : "text-zinc-500"}`}
-          >
-            <ShieldCheck size={15} /> Contratos & Preventivas
-          </button>
+            <FileSpreadsheet size={15} className="mr-1.5 text-blue-600" /> Importar Planilha NEXUS ONE
+          </Button>
+
+          <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-zinc-700 dark:bg-zinc-800">
+            <button
+              type="button"
+              onClick={() => setViewMode("orders")}
+              className={`flex h-10 items-center gap-2 rounded-lg px-4 text-xs font-black transition ${viewMode === "orders" ? "bg-white text-blue-700 shadow-sm dark:bg-zinc-900 dark:text-blue-300" : "text-zinc-500"}`}
+            >
+              <ClipboardList size={15} /> Todas as OS
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("contracts")}
+              className={`flex h-10 items-center gap-2 rounded-lg px-4 text-xs font-black transition ${viewMode === "contracts" ? "bg-white text-blue-700 shadow-sm dark:bg-zinc-900 dark:text-blue-300" : "text-zinc-500"}`}
+            >
+              <ShieldCheck size={15} /> Contratos & Preventivas
+            </button>
+          </div>
         </div>
       </section>
 
@@ -1414,6 +1429,12 @@ export default function OrdensServicoTab({
           </div>
         )}
       </Modal>
+
+      <NexusOneImporterModal
+        isOpen={isNexusImporterOpen}
+        onClose={() => setIsNexusImporterOpen(false)}
+        onSuccess={() => void loadOrders()}
+      />
     </div>
   );
 }
