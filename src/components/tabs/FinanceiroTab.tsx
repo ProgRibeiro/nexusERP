@@ -87,11 +87,12 @@ export default function FinanceiroTab({
   const [simplesAnnex, setSimplesAnnex] = useState<SimplesAnnex>("III");
 
   const [activeSubTab, setActiveSubTab] = useState<
-    "visao" | "receber" | "pagar" | "extrato" | "dre"
+    "visao" | "receber" | "pagar" | "nfe_center" | "extrato" | "dre"
   >(
     (defaultTab === "extrato" ||
     defaultTab === "pagar" ||
     defaultTab === "receber" ||
+    defaultTab === "nfe_center" ||
     defaultTab === "dre"
       ? defaultTab
       : "visao") as any,
@@ -476,56 +477,73 @@ export default function FinanceiroTab({
 
   return (
     <div className="financeiro-tab space-y-6 select-none animate-in fade-in duration-200">
-      {/* Title block */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-150 font-bold text-sm">
-          <DollarSign size={18} className="text-teal-500" />
-          <span>Gestão e Caixa Financeiro</span>
-        </div>
-        {hasPermission("financeiro.write") && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setIsSmartNfOpen(true)}
-              className="border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 font-bold"
-            >
-              <Sparkles size={15} className="mr-1 text-teal-500" /> ⚡ Leitor Inteligente de NF
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setIsBatchXmlOpen(true)}
-              className="border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 font-bold"
-            >
-              <Upload size={15} className="mr-1 text-indigo-500" /> 📑 Anexar XMLs em Lote
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setIsNewBankAccountOpen(true)}
-              className="border-zinc-300 dark:border-zinc-700"
-            >
-              <Building size={15} className="mr-1 text-teal-600" /> Cadastrar Conta / Caixa
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setEditingLaunch(null);
-                setLaunchForm({
-                  type: "DESPESA",
-                  providerName: "",
-                  clientId: clients[0]?.id || "",
-                  description: "",
-                  category: "PECA",
-                  costCenter: "GERAL",
-                  value: "",
-                  dueDate: "",
-                });
-                setIsLaunchOpen(true);
-              }}
-            >
-              <Plus size={16} /> Novo Lançamento
-            </Button>
+      {/* Executive Command Header */}
+      <div className="rounded-3xl border border-zinc-200/80 bg-gradient-to-r from-zinc-900 via-zinc-850 to-zinc-900 text-white p-6 shadow-2xl relative overflow-hidden dark:border-zinc-800">
+        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 -mb-12 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
+                <DollarSign size={20} />
+              </div>
+              <h1 className="text-xl font-black tracking-tight">Gestão & Caixa Financeiro</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                Fintech Enterprise
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 mt-1">
+              Cockpit de conciliação bancária, faturamento com Leitor de NFs, DRE gerencial e estorno de títulos.
+            </p>
           </div>
-        )}
+
+          {hasPermission("financeiro.write") && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => setIsSmartNfOpen(true)}
+                className="bg-teal-500/20 text-teal-300 border-teal-500/40 hover:bg-teal-500/30 font-bold text-xs shadow-lg shadow-teal-500/10"
+              >
+                <Sparkles size={14} className="mr-1.5 text-teal-400" /> ⚡ Leitor Inteligente NF
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setIsBatchXmlOpen(true)}
+                className="bg-indigo-500/20 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/30 font-bold text-xs shadow-lg shadow-indigo-500/10"
+              >
+                <Upload size={14} className="mr-1.5 text-indigo-400" /> 📑 Importar XML Lote
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setIsNewBankAccountOpen(true)}
+                className="bg-white/10 text-white border-white/20 hover:bg-white/20 font-bold text-xs"
+              >
+                <Building size={14} className="mr-1.5 text-teal-400" /> Cadastrar Caixa
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setEditingLaunch(null);
+                  setLaunchForm({
+                    type: "DESPESA",
+                    providerName: "",
+                    clientId: clients[0]?.id || "",
+                    description: "",
+                    category: "PECA",
+                    costCenter: "GERAL",
+                    value: "",
+                    dueDate: "",
+                  });
+                  setIsLaunchOpen(true);
+                }}
+                className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-bold text-xs shadow-xl shadow-teal-500/20"
+              >
+                <Plus size={15} className="mr-1" /> Novo Lançamento
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       <InsightBar insights={insights} />
@@ -630,31 +648,40 @@ export default function FinanceiroTab({
       {/* Main Tabs Container */}
       <Card className="p-0 overflow-hidden shadow-premium">
         {/* Tab switch */}
-        <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-2 gap-1 overflow-x-auto">
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/70 dark:bg-zinc-900/70 p-2 gap-1.5 overflow-x-auto scrollbar-none">
           {[
-            { id: "visao", label: "📊 Visão Geral & Caixa" },
+            { id: "visao", label: "📊 Cockpit Executivo & Caixa" },
             {
               id: "receber",
-              label: `💵 Contas a Receber ${
-                receivables.filter((r) => !r.hasAttachedNf).length > 0
-                  ? `(⚠️ ${receivables.filter((r) => !r.hasAttachedNf).length} sem NF)`
-                  : ""
-              }`,
+              label: `💵 Contas a Receber (${receivables.filter(r => ["ABERTO","PENDENTE","PARCIAL","VENCIDO"].includes(r.status)).length})`,
             },
-            { id: "pagar", label: "💸 Contas a Pagar" },
-            { id: "extrato", label: "📜 Extrato / Movimentações" },
+            {
+              id: "pagar",
+              label: `💸 Contas a Pagar (${payables.filter(p => ["ABERTO","PENDENTE","VENCIDO"].includes(p.status)).length})`,
+            },
+            {
+              id: "nfe_center",
+              label: `📑 Central de NFs (${receivables.filter((r) => !r.hasAttachedNf).length} Pendentes)`,
+              badge: receivables.filter((r) => !r.hasAttachedNf).length > 0 ? "⚠️ Requer Anexo" : null,
+            },
+            { id: "extrato", label: "📜 Extrato & Conciliação" },
             { id: "dre", label: "🏛️ DRE & Simples Nacional" },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`py-2 px-4 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+              className={`py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
                 activeSubTab === tab.id
-                  ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-200 dark:border-zinc-700"
-                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                  ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-md border border-zinc-200 dark:border-zinc-700"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-white/50"
               }`}
             >
-              {tab.label}
+              <span>{tab.label}</span>
+              {tab.badge && (
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 animate-pulse">
+                  {tab.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -668,7 +695,7 @@ export default function FinanceiroTab({
           ) : (
             <>
               {/* Visão Geral */}
-              {true && (
+              {activeSubTab === "visao" && (
                 <div className="space-y-6">
                   {/* Bank Accounts */}
                   <div>
@@ -766,7 +793,7 @@ export default function FinanceiroTab({
               )}
 
               {/* Contas a Receber */}
-              {true && (
+              {activeSubTab === "receber" && (
                 <div className="space-y-4">
                   {/* Barra de Rastreio e Liquidação Consolidada */}
                   <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
@@ -969,7 +996,7 @@ export default function FinanceiroTab({
               )}
 
               {/* Contas a Pagar */}
-              {true && (
+              {activeSubTab === "pagar" && (
                 <div className="space-y-4">
                   {payables.length === 0 ? (
                     <p className="text-xs text-zinc-400 text-center py-6">
@@ -1105,8 +1132,123 @@ export default function FinanceiroTab({
                 </div>
               )}
 
+              {/* Central de Notificações de NFs e Importador XML */}
+              {activeSubTab === "nfe_center" && (
+                <div className="space-y-6">
+                  {/* Banner de Status */}
+                  <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="h-6 w-6 animate-bounce" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-zinc-900 dark:text-zinc-100">
+                            Central de Notificação de Notas Fiscais (NF-e/NFS-e)
+                          </h3>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                            {receivables.filter((r) => !r.hasAttachedNf).length} título(s) aguardam anexo ou importação de arquivo XML/PDF de Nota Fiscal.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => setIsSmartNfOpen(true)}
+                          className="border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400 font-bold"
+                        >
+                          <Sparkles size={15} className="mr-1 text-teal-500" /> ⚡ Leitor Inteligente (1 NF)
+                        </Button>
+                        <Button
+                          variant="primary"
+                          onClick={() => setIsBatchXmlOpen(true)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                        >
+                          <Upload size={15} className="mr-1" /> 📑 Importar Lote de XMLs
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tabela de Títulos Pendentes de Anexo */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                      Títulos Financeiros Pendentes de Nota Fiscal
+                    </h4>
+
+                    {receivables.filter((r) => !r.hasAttachedNf).length === 0 ? (
+                      <div className="p-8 text-center rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
+                        <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-2" />
+                        <span className="font-bold text-sm text-emerald-700 dark:text-emerald-300 block">
+                          Tudo em Dia!
+                        </span>
+                        <span className="text-xs text-zinc-500">
+                          Todos os títulos a receber possuem Notas Fiscais anexadas e conciliadas.
+                        </span>
+                      </div>
+                    ) : (
+                      <Table
+                        headers={[
+                          "Cliente",
+                          "Ref / OS",
+                          "Vencimento",
+                          "Valor Pendente",
+                          "Número Copiável da Nota / OS",
+                          "Ação de Anexo",
+                        ]}
+                      >
+                        {receivables
+                          .filter((r) => !r.hasAttachedNf)
+                          .map((r) => (
+                            <TableRow key={r.id}>
+                              <TableCell className="font-bold text-zinc-850 dark:text-zinc-100">
+                                {r.clientName}
+                              </TableCell>
+                              <TableCell className="font-bold text-zinc-650 dark:text-zinc-400">
+                                #{r.osCode || r.invoiceCode || "N/A"}
+                              </TableCell>
+                              <TableCell className="text-xs text-zinc-500">
+                                {formatDate(r.dueDate)}
+                              </TableCell>
+                              <TableCell className="font-bold text-emerald-600 dark:text-emerald-400">
+                                {formatCurrency(r.pendingValue)}
+                              </TableCell>
+                              <TableCell>
+                                {(r.invoiceCode || r.osCode) && (
+                                  <button
+                                    onClick={() => {
+                                      const codeToCopy = r.invoiceCode || r.osCode || "";
+                                      navigator.clipboard.writeText(codeToCopy);
+                                      toast(`Número ${codeToCopy} copiado para a área de transferência!`, "info");
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs font-mono font-bold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 cursor-pointer flex items-center gap-1.5"
+                                    title="Copiar número para buscar no emissor ou planilha"
+                                  >
+                                    <Copy size={12} className="text-teal-500" />
+                                    <span>nº {r.invoiceCode || r.osCode}</span>
+                                  </button>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setIsBatchXmlOpen(true)}
+                                  className="text-xs font-bold border-indigo-500/30 text-indigo-600 dark:text-indigo-400"
+                                >
+                                  <Upload size={12} className="mr-1" /> Anexar XML
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                      </Table>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Extrato Completo */}
-              {true && (
+              {activeSubTab === "extrato" && (
                 <div className="space-y-4">
                   {transactions.length === 0 ? (
                     <p className="text-xs text-zinc-400 text-center py-6">
@@ -1162,7 +1304,7 @@ export default function FinanceiroTab({
               )}
 
               {/* DRE Gerencial */}
-              {true && (
+              {activeSubTab === "dre" && (
                 <div className="space-y-4">
                   <div className="bg-zinc-50 dark:bg-zinc-800/20 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs leading-relaxed text-zinc-500 dark:text-zinc-455">
                     <p className="font-bold text-zinc-700 dark:text-zinc-300 mb-1 flex items-center gap-1">
