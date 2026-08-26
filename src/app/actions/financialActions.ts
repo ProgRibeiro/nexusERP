@@ -60,13 +60,14 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
     const list = await prisma.accountsReceivable.findMany({
       include: {
         client: true,
-        serviceOrder: { select: { code: true, purchaseOrder: true } },
+        serviceOrder: { select: { code: true } },
         invoice: { select: { id: true, code: true, pdfUrl: true, xmlUrl: true } },
       },
       orderBy: { dueDate: "desc" },
     });
 
     return list.map((r) => {
+      const rec = r as any;
       const hasAttachedNf = Boolean(
         r.invoice?.xmlUrl || r.invoice?.pdfUrl || (r.notes && (r.notes.includes("http") || r.notes.includes(".xml") || r.notes.includes("ANEXO_XML")))
       );
@@ -74,12 +75,12 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
         id: r.id,
         clientId: r.clientId || "",
         clientName: r.client?.name || "Cliente não informado",
-        clientDocument: r.client?.cpfCnpj || null,
-        purchaseOrder: r.serviceOrder?.purchaseOrder || null,
-        invoiceNumber: r.invoice?.code || null,
+        clientDocument: rec.documentNumber || r.client?.cpfCnpj || null,
+        purchaseOrder: rec.purchaseOrder || null,
+        invoiceNumber: rec.invoiceNumber || r.invoice?.code || null,
         osCode: r.serviceOrder?.code || null,
         invoiceId: r.invoiceId || r.invoice?.id || null,
-        invoiceCode: r.invoice?.code || null,
+        invoiceCode: rec.invoiceNumber || r.invoice?.code || null,
         invoicePdfUrl: r.invoice?.pdfUrl || null,
         invoiceXmlUrl: r.invoice?.xmlUrl || null,
         hasAttachedNf,
@@ -110,19 +111,22 @@ export async function getPayables(): Promise<PayableDTO[]> {
 
     const list = await prisma.accountsPayable.findMany({
       include: {
-        serviceOrder: { select: { code: true, purchaseOrder: true } },
+        serviceOrder: { select: { code: true } },
       },
       orderBy: { dueDate: "desc" },
     });
 
-    return list.map((item) => ({
-      ...item,
-      value: Number(item.value),
-      providerDocument: null,
-      osCode: item.serviceOrder?.code || null,
-      purchaseOrder: item.serviceOrder?.purchaseOrder || null,
-      invoiceNumber: null,
-    }));
+    return list.map((item) => {
+      const pay = item as any;
+      return {
+        ...item,
+        value: Number(item.value || 0),
+        providerDocument: pay.documentNumber || pay.providerDocument || null,
+        osCode: item.serviceOrder?.code || null,
+        purchaseOrder: pay.purchaseOrder || null,
+        invoiceNumber: pay.invoiceNumber || null,
+      };
+    });
   } catch (error) {
     failDataAccess("financial.payables.list", error);
   }
