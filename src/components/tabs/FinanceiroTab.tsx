@@ -197,8 +197,11 @@ export default function FinanceiroTab({
     setIsLaunchOpen(true);
   }, [newRecord, newType, requestId, clientId]);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   async function loadFinancialData() {
     setLoading(true);
+    setLoadError(null);
     try {
       const [recsRes, paysRes, banksRes, txsRes, clientsRes] = await Promise.allSettled([
         getReceivables(),
@@ -208,16 +211,20 @@ export default function FinanceiroTab({
         getClients(),
       ]);
 
+      const errs: string[] = [];
+
       if (recsRes.status === "fulfilled" && recsRes.value) {
         setReceivables(recsRes.value);
       } else if (recsRes.status === "rejected") {
         console.error("Erro getReceivables:", recsRes.reason);
+        errs.push(`Contas a Receber: ${recsRes.reason?.message || "Erro de consulta"}`);
       }
 
       if (paysRes.status === "fulfilled" && paysRes.value) {
         setPayables(paysRes.value);
       } else if (paysRes.status === "rejected") {
         console.error("Erro getPayables:", paysRes.reason);
+        errs.push(`Contas a Pagar: ${paysRes.reason?.message || "Erro de consulta"}`);
       }
 
       if (banksRes.status === "fulfilled" && banksRes.value) {
@@ -227,6 +234,7 @@ export default function FinanceiroTab({
         }
       } else if (banksRes.status === "rejected") {
         console.error("Erro getBankAccounts:", banksRes.reason);
+        errs.push(`Bancos: ${banksRes.reason?.message || "Erro de consulta"}`);
       }
 
       if (txsRes.status === "fulfilled" && txsRes.value) {
@@ -238,8 +246,13 @@ export default function FinanceiroTab({
       if (clientsRes.status === "fulfilled" && clientsRes.value) {
         setClients(clientsRes.value);
       }
-    } catch (err) {
+
+      if (errs.length > 0) {
+        setLoadError(errs.join(" | "));
+      }
+    } catch (err: any) {
       console.error("Erro ao carregar dados financeiros:", err);
+      setLoadError(err?.message || "Erro inesperado de comunicação com o servidor.");
     } finally {
       setLoading(false);
     }
@@ -665,6 +678,24 @@ export default function FinanceiroTab({
         </div>
         <div className="space-y-3 p-5"><div className="h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"><div className="h-full rounded-full bg-emerald-500" style={{width:`${Math.min(100,(rbt12/simples.limit)*100)}%`}}/></div><div className="flex flex-wrap justify-between gap-2 text-[10px] text-zinc-500"><span>{formatCurrency(simples.remaining)} até a próxima faixa</span><span>Fator R: {(factorR*100).toFixed(2)}% {factorR >= .28 ? '· pode enquadrar no Anexo III, conforme atividade' : '· abaixo de 28%; algumas atividades ficam no Anexo V'}</span></div>{simples.exceeded&&<p className="rounded-lg bg-red-50 p-3 text-xs font-bold text-red-600">RBT12 acima de R$ 4,8 milhões: possível desenquadramento do Simples. Confirme imediatamente com a contabilidade.</p>}<p className="text-[10px] leading-relaxed text-zinc-400">Estimativa gerencial. O anexo depende do CNAE, natureza do serviço, fator R, retenções e regras vigentes; confira o PGDAS-D e seu contador antes do recolhimento.</p></div>
       </Card>
+
+      {loadError && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-700 dark:text-red-300 flex items-center justify-between gap-4 shadow-md animate-shake">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+            <div>
+              <strong className="text-xs block font-bold">Aviso de Comunicação do Banco de Dados</strong>
+              <p className="text-[11px] opacity-90">{loadError}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => loadFinancialData()}
+            className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition-colors shrink-0 cursor-pointer"
+          >
+            🔄 Tentar Novamente
+          </button>
+        </div>
+      )}
 
       {/* Main Tabs Container */}
       <Card className="p-0 overflow-hidden shadow-premium">
