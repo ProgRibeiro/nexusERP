@@ -22,6 +22,8 @@ import {
   PayableDTO,
 } from "@/app/actions/financialActions";
 import { NewBankAccountModal } from "../modals/NewBankAccountModal";
+import { SmartNfReaderModal } from "../modals/SmartNfReaderModal";
+import { BatchXmlUploadModal } from "../modals/BatchXmlUploadModal";
 import { getClients } from "@/app/actions/clientActions";
 import { getInsightsForModule } from "@/app/actions/insightsActions";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -48,6 +50,13 @@ import {
   CheckCircle2,
   Edit,
   HandCoins,
+  FileCheck,
+  FileSpreadsheet,
+  Sparkles,
+  Upload,
+  Copy,
+  Receipt,
+  FileText,
 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { calculateSimples, SimplesAnnex } from "@/lib/simplesNacional";
@@ -102,6 +111,9 @@ export default function FinanceiroTab({
     useState<ReceivableDTO | null>(null);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
   const [isNewBankAccountOpen, setIsNewBankAccountOpen] = useState(false);
+  const [isSmartNfOpen, setIsSmartNfOpen] = useState(false);
+  const [isBatchXmlOpen, setIsBatchXmlOpen] = useState(false);
+  const [showMissingNfOnly, setShowMissingNfOnly] = useState(false);
   const [editingLaunch, setEditingLaunch] = useState<{
     id: string;
     status: string;
@@ -431,7 +443,21 @@ export default function FinanceiroTab({
           <span>Gestão e Caixa Financeiro</span>
         </div>
         {hasPermission("financeiro.write") && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setIsSmartNfOpen(true)}
+              className="border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 font-bold"
+            >
+              <Sparkles size={15} className="mr-1 text-teal-500" /> ⚡ Leitor Inteligente de NF
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setIsBatchXmlOpen(true)}
+              className="border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 font-bold"
+            >
+              <Upload size={15} className="mr-1 text-indigo-500" /> 📑 Anexar XMLs em Lote
+            </Button>
             <Button
               variant="secondary"
               onClick={() => setIsNewBankAccountOpen(true)}
@@ -465,7 +491,7 @@ export default function FinanceiroTab({
       <InsightBar insights={insights} />
 
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <Card className="p-4 flex items-center justify-between shadow-premium border-l-4 border-l-emerald-500">
           <div>
             <span className="text-[9px] font-bold text-zinc-400 block uppercase">
@@ -525,6 +551,29 @@ export default function FinanceiroTab({
           </div>
           <AlertTriangle size={22} className="text-red-500 opacity-90" />
         </Card>
+
+        <Card className={`p-4 flex flex-col justify-between shadow-premium border-l-4 ${receivables.filter(r => !r.hasAttachedNf).length > 0 ? 'border-l-amber-500 bg-amber-500/5' : 'border-l-emerald-500'}`}>
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold text-zinc-400 block uppercase">
+              NF-e Sem Anexo
+            </span>
+            <Receipt size={18} className={receivables.filter(r => !r.hasAttachedNf).length > 0 ? "text-amber-500 animate-pulse" : "text-emerald-500"} />
+          </div>
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className={`text-lg font-bold ${receivables.filter(r => !r.hasAttachedNf).length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+              {receivables.filter(r => !r.hasAttachedNf).length} títulos
+            </span>
+            <button
+              onClick={() => {
+                setShowMissingNfOnly(!showMissingNfOnly);
+                setActiveSubTab("receber");
+              }}
+              className="text-[10px] font-bold text-amber-600 hover:underline"
+            >
+              {showMissingNfOnly ? "Ver Todos" : "⚠️ Filtrar"}
+            </button>
+          </div>
+        </Card>
       </div>
 
       <Card className="overflow-hidden p-0 shadow-premium">
@@ -541,21 +590,28 @@ export default function FinanceiroTab({
       {/* Main Tabs Container */}
       <Card className="p-0 overflow-hidden shadow-premium">
         {/* Tab switch */}
-        <div className="hidden">
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50 p-2 gap-1 overflow-x-auto">
           {[
-            { id: "visao", label: "Visão Geral" },
-            { id: "receber", label: "Contas a Receber" },
-            { id: "pagar", label: "Contas a Pagar" },
-            { id: "extrato", label: "Extrato / Caixa" },
-            { id: "dre", label: "DRE Gerencial" },
+            { id: "visao", label: "📊 Visão Geral & Caixa" },
+            {
+              id: "receber",
+              label: `💵 Contas a Receber ${
+                receivables.filter((r) => !r.hasAttachedNf).length > 0
+                  ? `(⚠️ ${receivables.filter((r) => !r.hasAttachedNf).length} sem NF)`
+                  : ""
+              }`,
+            },
+            { id: "pagar", label: "💸 Contas a Pagar" },
+            { id: "extrato", label: "📜 Extrato / Movimentações" },
+            { id: "dre", label: "🏛️ DRE & Simples Nacional" },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveSubTab(tab.id as any)}
-              className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
+              className={`py-2 px-4 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                 activeSubTab === tab.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-zinc-400 hover:text-zinc-650"
+                  ? "bg-white dark:bg-zinc-800 text-teal-600 dark:text-teal-400 shadow-sm border border-zinc-200 dark:border-zinc-700"
+                  : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
               }`}
             >
               {tab.label}
@@ -728,20 +784,64 @@ export default function FinanceiroTab({
                     <Table
                       headers={[
                         "Cliente",
-                        "Código OS",
+                        "Código OS / Ref",
+                        "Nota Fiscal",
                         "Vencimento",
                         "Valor da Parcela",
                         "Status",
                         "Ações",
                       ]}
                     >
-                      {receivables.map((r) => (
+                      {(showMissingNfOnly
+                        ? receivables.filter((r) => !r.hasAttachedNf)
+                        : receivables
+                      ).map((r) => (
                         <TableRow key={r.id}>
                           <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">
                             {r.clientName}
                           </TableCell>
                           <TableCell className="font-bold text-zinc-650 dark:text-zinc-450">
-                            #{r.osCode || "N/A"}
+                            #{r.osCode || r.invoiceCode || "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            {r.hasAttachedNf ? (
+                              <div className="flex flex-col gap-1">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  <FileCheck size={12} />
+                                  {r.invoiceCode ? `NF ${r.invoiceCode}` : "NF-e Anexada"}
+                                </span>
+                                {r.invoiceXmlUrl && (
+                                  <a
+                                    href={r.invoiceXmlUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                                  >
+                                    [ Baixar XML ]
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 animate-pulse">
+                                  <AlertTriangle size={12} />
+                                  NF Pendente de Anexo
+                                </span>
+                                {(r.invoiceCode || r.osCode) && (
+                                  <button
+                                    onClick={() => {
+                                      const codeToCopy = r.invoiceCode || r.osCode || "";
+                                      navigator.clipboard.writeText(codeToCopy);
+                                      toast(`Número ${codeToCopy} copiado! Use para anexar o XML.`, "info");
+                                    }}
+                                    className="text-[9px] text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 font-bold bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 w-fit cursor-pointer"
+                                    title="Clique para copiar o número e buscar a nota"
+                                  >
+                                    🏷️ nº {r.invoiceCode || r.osCode} (Copiar)
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="font-semibold text-zinc-650 dark:text-zinc-400">
                             {formatDate(r.dueDate)}
@@ -1426,6 +1526,19 @@ export default function FinanceiroTab({
       <NewBankAccountModal
         isOpen={isNewBankAccountOpen}
         onClose={() => setIsNewBankAccountOpen(false)}
+        onSuccess={() => void loadFinancialData()}
+      />
+
+      <SmartNfReaderModal
+        isOpen={isSmartNfOpen}
+        onClose={() => setIsSmartNfOpen(false)}
+        clients={clients}
+        onSuccess={() => void loadFinancialData()}
+      />
+
+      <BatchXmlUploadModal
+        isOpen={isBatchXmlOpen}
+        onClose={() => setIsBatchXmlOpen(false)}
         onSuccess={() => void loadFinancialData()}
       />
     </div>

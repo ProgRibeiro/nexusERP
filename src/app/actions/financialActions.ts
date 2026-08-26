@@ -13,6 +13,11 @@ export interface ReceivableDTO {
   clientId: string;
   clientName: string;
   osCode: string | null;
+  invoiceId: string | null;
+  invoiceCode: string | null;
+  invoicePdfUrl: string | null;
+  invoiceXmlUrl: string | null;
+  hasAttachedNf: boolean;
   totalValue: number;
   receivedValue: number;
   pendingValue: number;
@@ -49,27 +54,38 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
       include: {
         client: true,
         serviceOrder: { select: { code: true } },
+        invoice: { select: { id: true, code: true, pdfUrl: true, xmlUrl: true } },
       },
       orderBy: { dueDate: "desc" },
     });
 
-    return list.map((r) => ({
-      id: r.id,
-      clientId: r.clientId,
-      clientName: r.client.name,
-      osCode: r.serviceOrder?.code || null,
-      totalValue: Number(r.totalValue),
-      receivedValue: Number(r.receivedValue),
-      pendingValue: Number(r.pendingValue),
-      issueDate: r.issueDate,
-      dueDate: r.dueDate,
-      paymentDate: r.paymentDate,
-      status: r.status,
-      paymentMethod: r.paymentMethod,
-      category: r.category,
-      costCenter: r.costCenter,
-      notes: r.notes,
-    }));
+    return list.map((r) => {
+      const hasAttachedNf = Boolean(
+        r.invoice?.xmlUrl || r.invoice?.pdfUrl || (r.notes && (r.notes.includes("http") || r.notes.includes(".xml") || r.notes.includes("ANEXO_XML")))
+      );
+      return {
+        id: r.id,
+        clientId: r.clientId,
+        clientName: r.client.name,
+        osCode: r.serviceOrder?.code || null,
+        invoiceId: r.invoiceId || r.invoice?.id || null,
+        invoiceCode: r.invoice?.code || null,
+        invoicePdfUrl: r.invoice?.pdfUrl || null,
+        invoiceXmlUrl: r.invoice?.xmlUrl || null,
+        hasAttachedNf,
+        totalValue: Number(r.totalValue),
+        receivedValue: Number(r.receivedValue),
+        pendingValue: Number(r.pendingValue),
+        issueDate: r.issueDate,
+        dueDate: r.dueDate,
+        paymentDate: r.paymentDate,
+        status: r.status,
+        paymentMethod: r.paymentMethod,
+        category: r.category,
+        costCenter: r.costCenter,
+        notes: r.notes,
+      };
+    });
   } catch (error) {
     failDataAccess("financial.receivables.list", error);
   }

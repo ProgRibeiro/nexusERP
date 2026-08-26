@@ -251,3 +251,110 @@ export async function attachBatchXmlAction(
     results,
   };
 }
+
+export interface SingleNfParseResult {
+  success: boolean;
+  nNF: string;
+  vNF: number;
+  issueDate: string;
+  clientDoc: string;
+  clientName: string;
+  description: string;
+  accessKey: string;
+  matchedClientId?: string;
+  matchedClientName?: string;
+  matchedOsId?: string;
+  matchedOsCode?: string;
+  matchedReceivableId?: string;
+  error?: string;
+}
+
+/**
+ * Lê uma Nota Fiscal (XML NFe/NFSe) e extrai os dados para preenchimento automático no financeiro/OS
+ */
+export async function parseSingleNfXmlAction(xmlContentOrBase64: string): Promise<SingleNfParseResult> {
+  try {
+    const content = xmlContentOrBase64.includes("base64,")
+      ? Buffer.from(xmlContentOrBase64.split("base64,")[1], "base64").toString("utf-8")
+      : xmlContentOrBase64;
+
+    const nNfMatch = content.match(/<(?:nNF|NumeroNF|Numero)>(\d+)<\/(?:nNF|NumeroNF|Numero)>/i);
+    const nNF = nNfMatch ? nNfMatch[1].trim() : "";
+
+    const vNfMatch = content.match(/<(?:vNF|ValorNf|ValorServicos|ValorTotal)>([\d.]+)<\/(?:vNF|ValorNf|ValorServicos|ValorTotal)>/i);
+    const vNF = vNfMatch ? parseFloat(vNfMatch[1]) : 0;
+
+    const cnpjMatch = content.match(/<(?:CNPJ|CPF)>(\d+)<\/(?:CNPJ|CPF)>/i);
+    const clientDoc = cnpjMatch ? cnpjMatch[1].trim() : "";
+
+    const nameMatch = content.match(/<(?:xNome|RazaoSocial|NomeTomador)>([^<]+)<\/(?:xNome|RazaoSocial|NomeTomador)>/i);
+    const clientName = nameMatch ? nameMatch[1].trim() : "";
+
+    const dateMatch = content.match(/<(?:dhEmi|dEmi|DataEmissao)>([^<]+)<\/(?:dhEmi|dEmi|DataEmissao)>/i);
+    const issueDate = dateMatch ? dateMatch[1].trim().slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+    const keyMatch = content.match(/\b(NFe\d{44}|\d{44})\b/i);
+    const accessKey = keyMatch ? keyMatch[1] : "";
+
+    const descMatch = content.match(/<(?:infCpl|xServ|OutrasInformacoes|xProd)>([^<]+)<\/(?:infCpl|xServ|OutrasInformacoes|xProd)>/i);
+    const description = descMatch ? descMatch[1].trim() : `Fatura referente à NF nº ${nNF} - ${clientName}`;
+
+    const client = clientDoc
+      ? await prisma.client.findFirst({
+          where: { cpfCnpj: { contains: clientDoc } },
+        })
+      : null;
+
+    const osMatch = content.match(/\b(OS-\d{4}-\d+|\d{4}-\d+|NX-\d+)\b/i);
+    const mentionedOsCode = osMatch ? osMatch[1].toUpperCase() : undefined;
+    const matchedOs = mentionedOsCode
+      ? await prisma.serviceOrder.findFirst({
+          where: {
+            OR: [
+              { code: mentionedOsCode },
+              { code: `OS-${mentionedOsCode}` },
+            ],
+          },
+        })
+      : null;
+
+    const receivable = matchedOs
+      ? await prisma.accountsReceivable.findFirst({
+          where: { serviceOrderId: matchedOs.id },
+        })
+      : nNF
+      ? await prisma.accountsReceivable.findFirst({
+          where: { notes: { contains: nNF } },
+        })
+      : null;
+
+    return {
+      success: true,
+      nNF,
+      vNF,
+      issueDate,
+      clientDoc,
+      clientName,
+      description,
+      accessKey,
+      matchedClientId: client?.id,
+      matchedClientName: client?.name,
+      matchedOsId: matchedOs?.id,
+      matchedOsCode: matchedOs?.code,
+      matchedReceivableId: receivable?.id,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      nNF: "",
+      vNF: 0,
+      issueDate: "",
+      clientDoc: "",
+      clientName: "",
+      description: "",
+      accessKey: "",
+      error: err.message || "Erro ao ler dados da Nota Fiscal.",
+    };
+  }
+}
+
