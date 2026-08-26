@@ -7,6 +7,9 @@ const { Pool } = pg;
 const mode = process.argv[2];
 const manifestPath = path.resolve(process.argv[3] || "critical-data-manifest.json");
 const criticalTables = [
+  "Client",
+  "ClientContact",
+  "ClientAddress",
   "Quote",
   "QuoteItem",
   "Service",
@@ -18,14 +21,22 @@ const criticalTables = [
   "NfseRecord",
   "AccountsReceivable",
   "AccountsPayable",
+  "FinancialTransaction",
+  "BankAccount",
+  "Product",
+  "InventoryTransaction",
+  "User",
+  "Tenant",
 ];
 const moneyColumns = {
   Quote: ["subtotal", "total", "costEstimate"],
   QuoteItem: ["total"],
   ServiceOrder: ["estimatedValue", "realCost"],
   Invoice: ["value", "taxValue"],
-  AccountsReceivable: ["totalValue", "pendingValue", "paidValue"],
-  AccountsPayable: ["value", "paidValue"],
+  AccountsReceivable: ["totalValue", "pendingValue", "receivedValue"],
+  AccountsPayable: ["value"],
+  BankAccount: ["balance"],
+  FinancialTransaction: ["value"],
 };
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL não configurada.");

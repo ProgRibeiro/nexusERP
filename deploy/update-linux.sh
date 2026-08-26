@@ -250,7 +250,9 @@ NODE
   fi
 
   CRITICAL_MANIFEST="$SAFETY_ROOT/${NEW_COMMIT:0:12}-before.json"
-  node "$SLOTS/$ACTIVE/scripts/critical-data-manifest.mjs" capture "$CRITICAL_MANIFEST"
+  MANIFEST_SCRIPT="$SLOTS/$ACTIVE/scripts/critical-data-manifest.mjs"
+  [[ -f "$MANIFEST_SCRIPT" ]] || MANIFEST_SCRIPT="$SOURCE/scripts/critical-data-manifest.mjs"
+  node "$MANIFEST_SCRIPT" capture "$CRITICAL_MANIFEST"
   if [[ -d "$SLOTS/$ACTIVE/.next/static" ]]; then
     rsync -a "$SLOTS/$ACTIVE/.next/static/" "$STATIC_ROOT/"
   fi
@@ -304,7 +306,12 @@ SQL
 # Camada lógica: uma atualização nunca pode reduzir registros ou totais dos
 # domínios protegidos. Se houver divergência, a versão antiga continua ativa.
 if [[ -n "${CRITICAL_MANIFEST:-}" ]]; then
-  node "$RELEASE/scripts/critical-data-manifest.mjs" verify "$CRITICAL_MANIFEST"
+  echo "Auditando integridade das tabelas e somas financeiras com o manifesto pré-update..."
+  if ! node "$RELEASE/scripts/critical-data-manifest.mjs" verify "$CRITICAL_MANIFEST"; then
+    write_update_status "blocked" "BLINDAGEM ATIVADA: Divergência de contagem ou valor financeiro detectada. Atualização abortada e versão anterior mantida."
+    echo "ATUALIZAÇÃO ABORTADA PELA BLINDAGEM DE DADOS: O banco de dados perdeu registros em relação à fotografia pré-deploy." >&2
+    exit 1
+  fi
 fi
 
 ln -sfn "$RELEASE" "$SLOTS/$CANDIDATE.next"
