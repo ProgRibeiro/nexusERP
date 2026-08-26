@@ -50,6 +50,14 @@ O **NEXUS ERP** é uma plataforma completa de gestão de serviços e engenharia 
 ### G. Tutorial Interativo Integrado
 * Botão **`[ 📖 Guia & Tutorial ]`** no Header e Sidebar aciona a modal `<ERPInteractiveTutorialModal>` com treinamento em 5 etapas para novos colaboradores.
 
+### H. Ordem de Serviço (OS): Modo Rápido (Serviço Comum) vs. Modo Elaborado (Preventiva de Loja)
+* **OS de Serviço Comum (Sem Burocracia):** Inicia automaticamente no **Modo Rápido / Simplificado**, concentrado nos 3 blocos essenciais:
+  1. 📅 **Agendamento & Técnico** (Data, Horário, Técnico Responsável, Local de Execução).
+  2. 🏢 **Pedido de Compra (PO) & Fiscal do Cliente** (Cliente, CNPJ/CPF, Campo para Salvar PO do Cliente, Valor).
+  3. 📋 **Relatório & Fotos Rápido** (Descrição da Execução, Fotos Antes/Depois e Conclusão Rápida em 1 Clique).
+* **OS de Preventiva de Contrato (Loja):** Quando a OS é vinculada a um contrato de loja (`contractId` / `operationKind === "VISITA_PREVENTIVA"`), ela ativa o **Modo Elaborado Completo**, com o checklist técnico de inspeção da loja, medições de PMOC, ativos da loja e rotinas de auditoria.
+* **Alternância em 1 Clique:** O botão no topo da OS permite alternar entre `[ ⚡ Modo Rápido ]` e `[ 📋 Modo Elaborado ]` a qualquer momento.
+
 ---
 
 ## 🛠️ 3. Principais Arquivos do Código
