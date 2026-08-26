@@ -1000,6 +1000,9 @@ model AccountsReceivable {
   quote          Quote?                 @relation(fields: [quoteId], references: [id])
   invoiceId      String?
   invoice        Invoice?               @relation(fields: [invoiceId], references: [id])
+  invoiceNumber  String? // Nº Nota Fiscal
+  purchaseOrder  String? // Pedido de Compra (PO)
+  documentNumber String? // CNPJ / CPF do Cliente
   totalValue     Decimal                @db.Decimal(10, 2)
   receivedValue  Decimal                @default(0.0) @db.Decimal(10, 2)
   pendingValue   Decimal                @db.Decimal(10, 2)
@@ -1023,6 +1026,9 @@ model AccountsPayable {
   providerName   String // Fornecedor
   serviceOrderId String?
   serviceOrder   ServiceOrder?          @relation(fields: [serviceOrderId], references: [id])
+  invoiceNumber  String? // Nº Nota Fiscal / Fatura do Fornecedor
+  purchaseOrder  String? // Pedido de Compra / PO
+  documentNumber String? // CNPJ / CPF do Fornecedor
   description    String
   category       String // PECA, COMBUSTIVEL, ALUGUEL, FERRAMENTAS, IMPOSTOS, FOLHA, MARKETING, OUTROS
   costCenter     String                 @default("GERAL")

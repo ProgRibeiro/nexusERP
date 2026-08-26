@@ -12,7 +12,10 @@ export interface ReceivableDTO {
   id: string;
   clientId: string;
   clientName: string;
+  clientDocument: string | null;
   osCode: string | null;
+  purchaseOrder: string | null;
+  invoiceNumber: string | null;
   totalValue: number;
   receivedValue: number;
   pendingValue: number;
@@ -29,6 +32,10 @@ export interface ReceivableDTO {
 export interface PayableDTO {
   id: string;
   providerName: string;
+  providerDocument: string | null;
+  osCode: string | null;
+  purchaseOrder: string | null;
+  invoiceNumber: string | null;
   description: string;
   category: string;
   costCenter: string;
@@ -48,7 +55,8 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
     const list = await prisma.accountsReceivable.findMany({
       include: {
         client: true,
-        serviceOrder: { select: { code: true } },
+        serviceOrder: { select: { code: true, purchaseOrder: true } },
+        invoice: { select: { code: true } },
       },
       orderBy: { dueDate: "desc" },
     });
@@ -56,8 +64,11 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
     return list.map((r) => ({
       id: r.id,
       clientId: r.clientId,
-      clientName: r.client.name,
+      clientName: r.client?.fancyName || r.client?.name || "Cliente não informado",
+      clientDocument: r.documentNumber || r.client?.cpfCnpj || null,
       osCode: r.serviceOrder?.code || null,
+      purchaseOrder: r.purchaseOrder || r.serviceOrder?.purchaseOrder || null,
+      invoiceNumber: r.invoiceNumber || r.invoice?.code || null,
       totalValue: Number(r.totalValue),
       receivedValue: Number(r.receivedValue),
       pendingValue: Number(r.pendingValue),
@@ -83,9 +94,20 @@ export async function getPayables(): Promise<PayableDTO[]> {
     await requireAuth();
 
     const list = await prisma.accountsPayable.findMany({
+      include: {
+        serviceOrder: { select: { code: true, purchaseOrder: true } },
+      },
       orderBy: { dueDate: "desc" },
     });
-    return list.map((item) => ({ ...item, value: Number(item.value) }));
+
+    return list.map((item) => ({
+      ...item,
+      value: Number(item.value),
+      providerDocument: item.documentNumber || null,
+      osCode: item.serviceOrder?.code || null,
+      purchaseOrder: item.purchaseOrder || item.serviceOrder?.purchaseOrder || null,
+      invoiceNumber: item.invoiceNumber || null,
+    }));
   } catch (error) {
     failDataAccess("financial.payables.list", error);
   }
@@ -836,5 +858,93 @@ export async function revertPayablePaymentAction(payableId: string) {
     return { success: true as const, error: undefined, payable: result };
   } catch (error: unknown) {
     return mutationFailure("financial.payable.revert", error, "Não foi possível estornar o pagamento.");
+  }
+}
+
+/**
+ * Realiza a liquidação consolidada em lote de múltiplos títulos de faturas/POs
+ */
+export async function bulkSettleConsolidatedInvoiceAction(data: {
+  receivableIds: string[];
+  paymentMethod: string;
+  bankAccountId?: string;
+  notes?: string;
+}) {
+  try {
+    const session = await requirePermission("financeiro.write");
+
+    if (!data.receivableIds || data.receivableIds.length === 0) {
+      return { success: false, error: "Nenhum título selecionado para baixa." };
+    }
+
+    const receivables = await prisma.accountsReceivable.findMany({
+      where: { id: { in: data.receivableIds } },
+      include: { client: true, serviceOrder: true },
+    });
+
+    if (receivables.length === 0) {
+      return { success: false, error: "Títulos não encontrados." };
+    }
+
+    let caixaGeralId = data.bankAccountId;
+    if (!caixaGeralId) {
+      const caixaGeral = await prisma.bankAccount.findFirst({
+        where: { name: { contains: "Caixa Geral" } },
+      });
+      caixaGeralId = caixaGeral?.id;
+    }
+
+    let totalLiquidated = 0;
+    const now = new Date();
+
+    const result = await prisma.$transaction(async (tx) => {
+      for (const rec of receivables) {
+        const val = Number(rec.pendingValue);
+        if (val <= 0 || rec.status === "PAGO") continue;
+
+        totalLiquidated += val;
+
+        await tx.accountsReceivable.update({
+          where: { id: rec.id },
+          data: {
+            status: "PAGO",
+            receivedValue: Number(rec.totalValue),
+            pendingValue: 0,
+            paymentDate: now,
+            paymentMethod: data.paymentMethod,
+            bankAccountId: caixaGeralId || null,
+          },
+        });
+
+        await tx.financialTransaction.create({
+          data: {
+            type: "RECEITA",
+            value: val,
+            date: now,
+            category: rec.category || "RECEITA_CONSOLIDADA",
+            costCenter: rec.costCenter || "GERAL",
+            accountsReceivableId: rec.id,
+            description: `Baixa Fatura Consolidada — Cliente: ${rec.client?.name || "N/A"} ${rec.purchaseOrder ? `(PO: ${rec.purchaseOrder})` : ""}`,
+            bankAccountId: caixaGeralId || null,
+          },
+        });
+      }
+
+      if (caixaGeralId && totalLiquidated > 0) {
+        await tx.bankAccount.update({
+          where: { id: caixaGeralId },
+          data: { balance: { increment: totalLiquidated } },
+        });
+      }
+
+      return { totalLiquidated, count: receivables.length };
+    });
+
+    revalidatePath("/financeiro");
+    revalidatePath("/faturamento");
+    return { success: true, ...result };
+  } catch (error: any) {
+    logger.error("Erro na liquidação consolidada em lote:", error);
+    return { success: false, error: error.message || "Erro ao dar baixa consolidada." };
   }
 }
