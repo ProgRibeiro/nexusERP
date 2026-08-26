@@ -286,9 +286,8 @@ chown -R nexus:www-data "$STATIC_ROOT"
 find "$STATIC_ROOT" -type d -exec chmod 0750 {} +
 find "$STATIC_ROOT" -type f -exec chmod 0640 {} +
 write_update_status "migrating" "Aplicando somente migrações compatíveis e aditivas no PostgreSQL."
-runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate deploy || true
-runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma db push --accept-data-loss || true
-runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate status || true
+runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate deploy
+runuser -u nexus --preserve-environment -- /usr/bin/npx --no-install prisma migrate status
 
 # Migrations criam objetos como nexus_migrate. Reaplica privilégios mínimos
 # para o runtime e leitura completa somente para a conta de backup.
