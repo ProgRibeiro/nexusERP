@@ -30,6 +30,12 @@ O **NEXUS ERP** é uma plataforma completa de gestão de serviços e engenharia 
 
 ### C. Módulo Financeiro & Estorno Seguro
 * Baixa rápida de OS gera lançamento financeiro automático.
+* **Rastreio Completo de Títulos:** Cada lançamento em Contas a Receber e Contas a Pagar exibe os campos de rastreio explícitos:
+  - 📄 **Número da Nota Fiscal (NFS-e / NF)**
+  - 🛒 **Pedido de Compra (PO / Ordem do Cliente)**
+  - 🏢 **CNPJ / CPF do Cliente ou Fornecedor**
+  - 🔗 **Código da OS / Referência**
+* **Liquidação de Fatura Consolidada (Em Lote):** Suporta clientes B2B que pagam uma fatura unificada cobrindo múltiplas notas/OSs em um único pagamento. O usuário pode buscar por PO, Nota Fiscal ou CNPJ, selecionar múltiplos títulos e dar baixa consolidada em 1 clique com o botão **`[ ⚡ Liquidar Fatura Consolidada ]`**.
 * **Recurso de Estorno:** Qualquer título ou recebimento baixado possui a opção **`[ ↩️ Estornar para Não Recebido ]`**, permitindo retornar ao estado anterior sem perda de histórico de auditoria.
 
 ### D. Interface do Usuário e Foto de Perfil
