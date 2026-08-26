@@ -499,73 +499,70 @@ export default function FinanceiroTab({
 
   return (
     <div className="financeiro-tab space-y-6 select-none animate-in fade-in duration-200">
-      {/* Executive Command Header */}
-      <div className="rounded-3xl border border-zinc-200/80 bg-gradient-to-r from-zinc-900 via-zinc-850 to-zinc-900 text-white p-6 shadow-2xl relative overflow-hidden dark:border-zinc-800">
-        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 -mb-12 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
-                <DollarSign size={20} />
-              </div>
-              <h1 className="text-xl font-black tracking-tight">Gestão & Caixa Financeiro</h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                Fintech Enterprise
-              </span>
+      {/* Clean Executive Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20">
+              <DollarSign size={20} />
             </div>
-            <p className="text-xs text-zinc-400 mt-1">
-              Cockpit de conciliação bancária, faturamento com Leitor de NFs, DRE gerencial e estorno de títulos.
-            </p>
+            <h1 className="text-lg font-black text-zinc-900 dark:text-zinc-100 tracking-tight">
+              Gestão & Caixa Financeiro
+            </h1>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              ● Fluxo de Caixa Ativo
+            </span>
           </div>
-
-          {hasPermission("financeiro.write") && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => setIsSmartNfOpen(true)}
-                className="bg-teal-500/20 text-teal-300 border-teal-500/40 hover:bg-teal-500/30 font-bold text-xs shadow-lg shadow-teal-500/10"
-              >
-                <Sparkles size={14} className="mr-1.5 text-teal-400" /> ⚡ Leitor Inteligente NF
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setIsBatchXmlOpen(true)}
-                className="bg-indigo-500/20 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/30 font-bold text-xs shadow-lg shadow-indigo-500/10"
-              >
-                <Upload size={14} className="mr-1.5 text-indigo-400" /> 📑 Importar XML Lote
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setIsNewBankAccountOpen(true)}
-                className="bg-white/10 text-white border-white/20 hover:bg-white/20 font-bold text-xs"
-              >
-                <Building size={14} className="mr-1.5 text-teal-400" /> Cadastrar Caixa
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setEditingLaunch(null);
-                  setLaunchForm({
-                    type: "DESPESA",
-                    providerName: "",
-                    clientId: clients[0]?.id || "",
-                    description: "",
-                    category: "PECA",
-                    costCenter: "GERAL",
-                    value: "",
-                    dueDate: "",
-                  });
-                  setIsLaunchOpen(true);
-                }}
-                className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white font-bold text-xs shadow-xl shadow-teal-500/20"
-              >
-                <Plus size={15} className="mr-1" /> Novo Lançamento
-              </Button>
-            </div>
-          )}
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+            Cockpit de conciliação bancária, faturamento com Leitor de NFs, DRE gerencial e estorno de títulos.
+          </p>
         </div>
+
+        {hasPermission("financeiro.write") && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setIsSmartNfOpen(true)}
+              className="border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:bg-teal-500/20 font-bold text-xs"
+            >
+              <Sparkles size={14} className="mr-1.5 text-teal-500" /> ⚡ Leitor de NF
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setIsBatchXmlOpen(true)}
+              className="border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 font-bold text-xs"
+            >
+              <Upload size={14} className="mr-1.5 text-indigo-500" /> 📑 Importar Lote XML
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setIsNewBankAccountOpen(true)}
+              className="border-zinc-300 dark:border-zinc-700 font-bold text-xs"
+            >
+              <Building size={14} className="mr-1.5 text-teal-600" /> + Conta Bancária
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setEditingLaunch(null);
+                setLaunchForm({
+                  type: "DESPESA",
+                  providerName: "",
+                  clientId: clients[0]?.id || "",
+                  description: "",
+                  category: "PECA",
+                  costCenter: "GERAL",
+                  value: "",
+                  dueDate: "",
+                });
+                setIsLaunchOpen(true);
+              }}
+              className="bg-primary hover:bg-primary/90 text-white font-bold text-xs shadow-md"
+            >
+              <Plus size={15} className="mr-1" /> Novo Lançamento
+            </Button>
+          </div>
+        )}
       </div>
 
       <InsightBar insights={insights} />
