@@ -18,6 +18,7 @@ import {
   deleteBankAccountAction,
   revertReceivablePaymentAction,
   revertPayablePaymentAction,
+  bulkSettleConsolidatedInvoiceAction,
   ReceivableDTO,
   PayableDTO,
 } from "@/app/actions/financialActions";
@@ -140,6 +141,44 @@ export default function FinanceiroTab({
     paymentMethod: "PIX",
     bankAccountId: "",
   });
+
+  // Busca & Rastreio (PO, Nota Fiscal, CNPJ/CPF, OS, Cliente, Fornecedor)
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Seleção Múltipla & Liquidação Consolidada de Faturas
+  const [selectedReceivableIds, setSelectedReceivableIds] = useState<string[]>([]);
+  const [isBulkReceiveOpen, setIsBulkReceiveOpen] = useState(false);
+  const [bulkReceiveForm, setBulkReceiveForm] = useState({
+    paymentMethod: "PIX",
+    bankAccountId: "",
+    notes: "",
+  });
+
+  const handleBulkSettleConsolidated = async () => {
+    if (selectedReceivableIds.length === 0) return;
+    setActionLoading(true);
+    try {
+      const res = await bulkSettleConsolidatedInvoiceAction({
+        receivableIds: selectedReceivableIds,
+        paymentMethod: bulkReceiveForm.paymentMethod,
+        bankAccountId: bulkReceiveForm.bankAccountId || bankAccounts[0]?.id,
+        notes: bulkReceiveForm.notes,
+      });
+
+      if (res.success && 'count' in res) {
+        toast(`Fatura consolidada liquidada com sucesso! (${res.count} títulos quitados - Total: ${formatCurrency(res.totalLiquidated || 0)})`, "success");
+        setIsBulkReceiveOpen(false);
+        setSelectedReceivableIds([]);
+        loadFinancialData();
+      } else {
+        toast((res as any).error || "Erro ao liquidar fatura consolidada", "error");
+      }
+    } catch {
+      toast("Erro de conexão ao efetuar liquidação consolidada", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!newRecord) {
@@ -728,6 +767,28 @@ export default function FinanceiroTab({
               {/* Contas a Receber */}
               {true && (
                 <div className="space-y-4">
+                  {/* Barra de Rastreio e Liquidação Consolidada */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                    <div className="flex-1 min-w-[280px]">
+                      <Input
+                        placeholder="🔍 Rastrear por Nº da Nota Fiscal, PO (Pedido de Compra), CNPJ/CPF, Cliente ou OS..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full bg-white dark:bg-zinc-900 font-bold text-xs"
+                      />
+                    </div>
+                    {selectedReceivableIds.length > 0 && (
+                      <Button
+                        variant="primary"
+                        onClick={() => setIsBulkReceiveOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 px-4 rounded-xl shadow-lg"
+                      >
+                        <Zap size={16} className="mr-1.5" />
+                        Liquidar Fatura Consolidada ({selectedReceivableIds.length} título{selectedReceivableIds.length > 1 ? "s" : ""}) · Total: {formatCurrency(receivables.filter(r => selectedReceivableIds.includes(r.id)).reduce((sum, r) => sum + (r.pendingValue || 0), 0))}
+                      </Button>
+                    )}
+                  </div>
+
                   {/* Summary Bar for Receivables / Baixa de Pagamentos */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="rounded-2xl border border-blue-200/80 bg-blue-50/60 p-4 dark:border-blue-900/30 dark:bg-blue-950/20">
@@ -787,7 +848,7 @@ export default function FinanceiroTab({
                         "Código OS / Ref",
                         "Nota Fiscal",
                         "Vencimento",
-                        "Valor da Parcela",
+                        "Valor Parcela",
                         "Status",
                         "Ações",
                       ]}
@@ -891,23 +952,88 @@ export default function FinanceiroTab({
                                     <CheckCircle2 size={13} />
                                     Recebido
                                   </span>
+                                ) : (
+                                  <span className="text-zinc-400 text-[11px]">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
+                                {r.purchaseOrder ? (
+                                  <span className="bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800">
+                                    PO: {r.purchaseOrder}
+                                  </span>
+                                ) : (
+                                  <span className="text-zinc-400 text-[11px]">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="font-bold text-zinc-650 dark:text-zinc-450">
+                                {r.osCode ? `#${r.osCode}` : <span className="text-zinc-400 text-[11px]">—</span>}
+                              </TableCell>
+                              <TableCell className="font-semibold text-zinc-650 dark:text-zinc-400">
+                                {formatDate(r.dueDate)}
+                              </TableCell>
+                              <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">
+                                <div>
+                                  <span className="font-bold text-xs">{formatCurrency(r.totalValue)}</span>
+                                  {r.pendingValue < r.totalValue && r.pendingValue > 0 && (
+                                    <span className="text-[10px] text-amber-600 font-bold block">
+                                      Pendente: {formatCurrency(r.pendingValue)}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <StatusBadge status={r.status} />
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex min-w-[200px] flex-nowrap items-center gap-2">
                                   {hasPermission("financeiro.write") && (
                                     <Button
                                       variant="secondary"
                                       size="sm"
-                                      className="h-9 px-2 text-[10px] font-bold border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300"
-                                      title="Estornar recebimento e voltar para ABERTO"
-                                      onClick={() => handleRevertReceivable(r.id)}
+                                      className="h-9 border-zinc-200 bg-white px-2.5 text-zinc-700 dark:border-white/10 dark:bg-transparent dark:text-zinc-300"
+                                      onClick={() => openReceivableEdit(r)}
                                     >
-                                      ↩️ Estornar
+                                      <Edit size={13} /> Editar
                                     </Button>
                                   )}
+                                  {isPending ? (
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      className="h-9 px-3 font-bold"
+                                      onClick={() => {
+                                        setSelectedReceivable(r);
+                                        setReceiveForm((prev) => ({
+                                          ...prev,
+                                          receivedValue: r.pendingValue,
+                                        }));
+                                        setIsReceiveOpen(true);
+                                      }}
+                                    >
+                                      <HandCoins size={14} /> Liquidar
+                                    </Button>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="inline-flex h-9 items-center gap-1 rounded-xl border border-emerald-500/25 bg-emerald-500/[.08] px-2.5 text-[10px] font-black uppercase text-emerald-400">
+                                        <CheckCircle2 size={13} /> Recebido
+                                      </span>
+                                      {hasPermission("financeiro.write") && (
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          className="h-9 px-2 text-[10px] font-bold border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100"
+                                          onClick={() => handleRevertReceivable(r.id)}
+                                        >
+                                          ↩️ Estornar
+                                        </Button>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                     </Table>
                   )}
                 </div>
@@ -923,42 +1049,81 @@ export default function FinanceiroTab({
                   ) : (
                     <Table
                       headers={[
-                        "Credor / Fornecedor",
-                        "Categoria",
-                        "Centro de Custo",
+                        "Credor / Fornecedor & CNPJ",
+                        "Nº Nota (NF)",
+                        "Pedido de Compra (PO)",
+                        "OS Origem",
+                        "Categoria / Centro",
                         "Vencimento",
                         "Valor",
                         "Status",
                         "Ações",
                       ]}
                     >
-                      {payables.map((p) => (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">
-                            <div>
-                              <span>{p.providerName}</span>
-                              {p.description && (
-                                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-semibold block">
-                                  {p.description}
+                      {payables
+                        .filter((p) => {
+                          if (!searchTerm) return true;
+                          const term = searchTerm.toLowerCase();
+                          return (
+                            p.providerName.toLowerCase().includes(term) ||
+                            (p.providerDocument && p.providerDocument.toLowerCase().includes(term)) ||
+                            (p.invoiceNumber && p.invoiceNumber.toLowerCase().includes(term)) ||
+                            (p.purchaseOrder && p.purchaseOrder.toLowerCase().includes(term)) ||
+                            (p.osCode && p.osCode.toLowerCase().includes(term)) ||
+                            p.description.toLowerCase().includes(term) ||
+                            p.category.toLowerCase().includes(term)
+                          );
+                        })
+                        .map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">
+                              <div>
+                                <span className="font-bold text-xs block">{p.providerName}</span>
+                                {p.providerDocument && (
+                                  <span className="font-mono text-[10px] text-zinc-400 block">
+                                    CNPJ/CPF: {p.providerDocument}
+                                  </span>
+                                )}
+                                {p.description && (
+                                  <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block">
+                                    {p.description}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400">
+                              {p.invoiceNumber ? (
+                                <span className="bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded-lg border border-blue-200 dark:border-blue-800">
+                                  NF: {p.invoiceNumber}
                                 </span>
+                              ) : (
+                                <span className="text-zinc-400 text-[11px]">—</span>
                               )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-semibold text-zinc-650 dark:text-zinc-450 uppercase">
-                            {p.category}
-                          </TableCell>
-                          <TableCell className="font-semibold text-zinc-650 dark:text-zinc-450 uppercase">
-                            {p.costCenter}
-                          </TableCell>
-                          <TableCell className="font-semibold text-zinc-650 dark:text-zinc-450">
-                            {formatDate(p.dueDate)}
-                          </TableCell>
-                          <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">
-                            {formatCurrency(p.value)}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={p.status} />
-                          </TableCell>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
+                              {p.purchaseOrder ? (
+                                <span className="bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800">
+                                  PO: {p.purchaseOrder}
+                                </span>
+                              ) : (
+                                <span className="text-zinc-400 text-[11px]">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-bold text-zinc-650 dark:text-zinc-450">
+                              {p.osCode ? `#${p.osCode}` : <span className="text-zinc-400 text-[11px]">—</span>}
+                            </TableCell>
+                            <TableCell className="font-semibold text-zinc-650 dark:text-zinc-450 uppercase text-[11px]">
+                              {p.category} · {p.costCenter}
+                            </TableCell>
+                            <TableCell className="font-semibold text-zinc-650 dark:text-zinc-450">
+                              {formatDate(p.dueDate)}
+                            </TableCell>
+                            <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">
+                              {formatCurrency(p.value)}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={p.status} />
+                            </TableCell>
                           <TableCell>
                             <div className="flex min-w-[250px] flex-nowrap items-center gap-2">
                               {hasPermission("financeiro.write") && (
@@ -1521,6 +1686,103 @@ export default function FinanceiroTab({
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal de Liquidação Consolidada de Faturas (Em Lote por PO/Nota/CNPJ) */}
+      <Modal
+        isOpen={isBulkReceiveOpen}
+        onClose={() => setIsBulkReceiveOpen(false)}
+        title="⚡ Baixa de Fatura Consolidada (Múltiplas Notas / OSs)"
+      >
+        <div className="space-y-4 text-xs">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 dark:border-emerald-950 dark:bg-emerald-950/30">
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
+              Resumo da Fatura Consolidada Selecionada
+            </span>
+            <div className="flex items-center justify-between mt-2">
+              <div>
+                <span className="font-bold text-zinc-800 dark:text-zinc-100 text-sm block">
+                  {selectedReceivableIds.length} título(s) selecionado(s)
+                </span>
+                <span className="text-[10px] text-zinc-500 block mt-0.5">
+                  Quitando a fatura unificada cobrindo todos os serviços/pedidos selecionados
+                </span>
+              </div>
+              <span className="text-2xl font-mono font-black text-emerald-600 dark:text-emerald-400">
+                {formatCurrency(
+                  receivables
+                    .filter((r) => selectedReceivableIds.includes(r.id))
+                    .reduce((sum, r) => sum + (r.pendingValue || 0), 0)
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className="max-h-48 overflow-y-auto space-y-1.5 p-2 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
+            {receivables
+              .filter((r) => selectedReceivableIds.includes(r.id))
+              .map((r) => (
+                <div key={r.id} className="flex items-center justify-between p-2 bg-white dark:bg-zinc-800 rounded-lg text-[11px] border border-zinc-150 dark:border-zinc-700">
+                  <div>
+                    <span className="font-bold text-zinc-800 dark:text-white block">{r.clientName}</span>
+                    <span className="font-mono text-[10px] text-zinc-500">
+                      {r.invoiceNumber ? `NF ${r.invoiceNumber}` : ""} {r.purchaseOrder ? `· PO: ${r.purchaseOrder}` : ""} {r.osCode ? `· OS #${r.osCode}` : ""}
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(r.pendingValue)}
+                  </span>
+                </div>
+              ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Forma de Pagamento da Fatura *"
+              value={bulkReceiveForm.paymentMethod}
+              onChange={(e) => setBulkReceiveForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
+              options={[
+                { value: "PIX", label: "PIX" },
+                { value: "BOLETO", label: "Boleto Bancário" },
+                { value: "TRANSFERENCIA", label: "TED / DOC / Transferência" },
+                { value: "CARTAO", label: "Cartão de Crédito / Débito" },
+                { value: "DINHEIRO", label: "Espécie / Dinheiro" },
+              ]}
+            />
+
+            <Select
+              label="Conta Bancária de Destino *"
+              value={bulkReceiveForm.bankAccountId}
+              onChange={(e) => setBulkReceiveForm((prev) => ({ ...prev, bankAccountId: e.target.value }))}
+              options={bankAccounts.map((b) => ({
+                value: b.id,
+                label: `${b.name} (${formatCurrency(b.balance)})`,
+              }))}
+            />
+          </div>
+
+          <Input
+            label="Observações da Fatura (Opcional)"
+            placeholder="Ex: Fatura consolidada quitada via transferência bancária única"
+            value={bulkReceiveForm.notes}
+            onChange={(e) => setBulkReceiveForm((prev) => ({ ...prev, notes: e.target.value }))}
+          />
+
+          <div className="pt-3 flex justify-end gap-3 border-t border-zinc-100 dark:border-zinc-800">
+            <Button variant="secondary" onClick={() => setIsBulkReceiveOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="success"
+              onClick={handleBulkSettleConsolidated}
+              loading={actionLoading}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4"
+            >
+              <Zap size={15} className="mr-1.5" />
+              Confirmar e Baixar Fatura Consolidada
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <NewBankAccountModal

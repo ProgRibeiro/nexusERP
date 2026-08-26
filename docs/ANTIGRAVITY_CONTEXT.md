@@ -30,6 +30,12 @@ O **NEXUS ERP** é uma plataforma completa de gestão de serviços e engenharia 
 
 ### C. Módulo Financeiro & Estorno Seguro
 * Baixa rápida de OS gera lançamento financeiro automático.
+* **Rastreio Completo de Títulos:** Cada lançamento em Contas a Receber e Contas a Pagar exibe os campos de rastreio explícitos:
+  - 📄 **Número da Nota Fiscal (NFS-e / NF)**
+  - 🛒 **Pedido de Compra (PO / Ordem do Cliente)**
+  - 🏢 **CNPJ / CPF do Cliente ou Fornecedor**
+  - 🔗 **Código da OS / Referência**
+* **Liquidação de Fatura Consolidada (Em Lote):** Suporta clientes B2B que pagam uma fatura unificada cobrindo múltiplas notas/OSs em um único pagamento. O usuário pode buscar por PO, Nota Fiscal ou CNPJ, selecionar múltiplos títulos e dar baixa consolidada em 1 clique com o botão **`[ ⚡ Liquidar Fatura Consolidada ]`**.
 * **Recurso de Estorno:** Qualquer título ou recebimento baixado possui a opção **`[ ↩️ Estornar para Não Recebido ]`**, permitindo retornar ao estado anterior sem perda de histórico de auditoria.
 
 ### D. Interface do Usuário e Foto de Perfil
@@ -49,6 +55,14 @@ O **NEXUS ERP** é uma plataforma completa de gestão de serviços e engenharia 
 
 ### G. Tutorial Interativo Integrado
 * Botão **`[ 📖 Guia & Tutorial ]`** no Header e Sidebar aciona a modal `<ERPInteractiveTutorialModal>` com treinamento em 5 etapas para novos colaboradores.
+
+### H. Ordem de Serviço (OS): Modo Rápido (Serviço Comum) vs. Modo Elaborado (Preventiva de Loja)
+* **OS de Serviço Comum (Sem Burocracia):** Inicia automaticamente no **Modo Rápido / Simplificado**, concentrado nos 3 blocos essenciais:
+  1. 📅 **Agendamento & Técnico** (Data, Horário, Técnico Responsável, Local de Execução).
+  2. 🏢 **Pedido de Compra (PO) & Fiscal do Cliente** (Cliente, CNPJ/CPF, Campo para Salvar PO do Cliente, Valor).
+  3. 📋 **Relatório & Fotos Rápido** (Descrição da Execução, Fotos Antes/Depois e Conclusão Rápida em 1 Clique).
+* **OS de Preventiva de Contrato (Loja):** Quando a OS é vinculada a um contrato de loja (`contractId` / `operationKind === "VISITA_PREVENTIVA"`), ela ativa o **Modo Elaborado Completo**, com o checklist técnico de inspeção da loja, medições de PMOC, ativos da loja e rotinas de auditoria.
+* **Alternância em 1 Clique:** O botão no topo da OS permite alternar entre `[ ⚡ Modo Rápido ]` e `[ 📋 Modo Elaborado ]` a qualquer momento.
 
 ---
 

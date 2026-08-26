@@ -1545,6 +1545,7 @@ export async function updateOSDetails(
     serviceCategory?: string;
     checklistJson?: string;
     notes?: string;
+    purchaseOrder?: string;
   },
   userId: string
 ) {
@@ -1573,6 +1574,7 @@ export async function updateOSDetails(
         serviceCategory: data.serviceCategory !== undefined ? data.serviceCategory : oldOS.serviceCategory,
         checklistJson: data.checklistJson !== undefined ? data.checklistJson : oldOS.checklistJson,
         notes: data.notes !== undefined ? data.notes : oldOS.notes,
+        purchaseOrder: data.purchaseOrder !== undefined ? data.purchaseOrder : oldOS.purchaseOrder,
       }
     });
 

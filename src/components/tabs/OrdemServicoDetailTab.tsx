@@ -78,6 +78,7 @@ import {
   Store,
   RefreshCw,
   Receipt,
+  Zap,
 } from "lucide-react";
 
 interface OrdemServicoDetailTabProps {
@@ -215,6 +216,11 @@ export default function OrdemServicoDetailTab({
   const [isNfseDetailsOpen, setIsNfseDetailsOpen] = useState(false);
   const [nfsePreviewData, setNfsePreviewData] = useState<any>(null);
   const [nfsePreviewLoading, setNfsePreviewLoading] = useState(false);
+
+  // Modo Rápido (Serviço Comum) vs. Modo Elaborado (Preventiva de Loja)
+  const [viewMode, setViewMode] = useState<"rapido" | "elaborado">("rapido");
+  const [quickPO, setQuickPO] = useState("");
+  const [savingQuickPO, setSavingQuickPO] = useState(false);
 
   const handleOpenNfsePreview = async () => {
     setNfsePreviewLoading(true);
@@ -358,6 +364,16 @@ export default function OrdemServicoDetailTab({
       const data = await getServiceOrderDetails(id);
       setDetails(data);
       if (data) {
+        const isPreventiveContract = Boolean(
+          data.contractId ||
+          data.contract ||
+          data.operationKind === "VISITA_PREVENTIVA" ||
+          data.type === "PREVENTIVA" ||
+          data.type === "MANUTENCAO_PREVENTIVA"
+        );
+        setViewMode(isPreventiveContract ? "elaborado" : "rapido");
+        setQuickPO(data.purchaseOrder || "");
+
         setScheduleForm({
           scheduledDate: data.scheduledDate
             ? new Date(data.scheduledDate).toISOString().slice(0, 10)
@@ -459,6 +475,27 @@ export default function OrdemServicoDetailTab({
     loadDetails();
     loadInventory();
   }, [id]);
+
+  const handleSaveQuickPO = async () => {
+    setSavingQuickPO(true);
+    try {
+      const res = await updateOSDetails(
+        id,
+        { purchaseOrder: quickPO },
+        currentUser?.id || ""
+      );
+      if (res.success) {
+        toast("Pedido de Compra (PO) salvo com sucesso!", "success");
+        loadDetails();
+      } else {
+        toast(res.error || "Erro ao salvar PO.", "error");
+      }
+    } catch {
+      toast("Erro ao salvar Pedido de Compra.", "error");
+    } finally {
+      setSavingQuickPO(false);
+    }
+  };
 
   const handleSaveOSDetails = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1294,6 +1331,194 @@ export default function OrdemServicoDetailTab({
         nfseRecord={details.nfseRecords?.[0]}
         onRefresh={() => void loadDetails()}
       />
+
+      {/* Alternador de Modo da OS (Rápido vs. Elaborado) */}
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30">
+        <div className="flex items-center gap-2">
+          <Zap size={20} className="text-amber-500 shrink-0" />
+          <div>
+            <p className="font-extrabold text-xs text-blue-950 dark:text-blue-100 flex items-center gap-1.5">
+              Modo de Visualização:
+              <span className="rounded-full bg-blue-600/10 px-2 py-0.5 text-[10px] font-black text-blue-700 dark:text-blue-300">
+                {viewMode === "rapido" ? "⚡ Rápido (Serviço Comum)" : "📋 Elaborado (Preventiva de Loja)"}
+              </span>
+            </p>
+            <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-0.5">
+              {details.contractId || details.contract
+                ? "Atendimento coberto por contrato de loja (Preventiva) — checklist de inspeção e laudo técnico completos ativos."
+                : "Atendimento de serviço comum — fluxo rápido concentrado em agendamento, pedido de compra e relatório."}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-900">
+          <button
+            type="button"
+            onClick={() => setViewMode("rapido")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 ${
+              viewMode === "rapido"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+            }`}
+          >
+            <Zap size={13} /> ⚡ Modo Rápido (Serviço Comum)
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("elaborado")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1.5 ${
+              viewMode === "elaborado"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+            }`}
+          >
+            <ClipboardList size={13} /> 📋 Modo Elaborado (Preventiva)
+          </button>
+        </div>
+      </section>
+
+      {/* PAINEL MODO RÁPIDO (SIMPLIFICADO & SEM BUROCRACIA) */}
+      {viewMode === "rapido" && (
+        <section className="space-y-4 animate-in fade-in duration-200">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            {/* Bloco 1: Agendamento & Alocação Técnica */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
+                <h4 className="font-black text-xs uppercase tracking-wider text-zinc-900 dark:text-white flex items-center gap-2">
+                  <Calendar className="text-blue-600" size={16} />
+                  1. Agendamento & Técnico
+                </h4>
+                <Button size="sm" variant="secondary" onClick={() => setIsScheduleOpen(true)}>
+                  <CalendarClock size={13} className="mr-1" /> Alterar Agenda
+                </Button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-zinc-400 block text-[10px] font-bold uppercase">Data & Horário Agendado</span>
+                  <span className="font-mono text-sm font-black text-zinc-900 dark:text-white block mt-0.5">
+                    {details.scheduledDate ? formatDate(details.scheduledDate) : "Data a definir"}
+                    {details.scheduledTime ? ` às ${details.scheduledTime}` : ""}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-zinc-400 block text-[10px] font-bold uppercase">Técnico Responsável</span>
+                  <span className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5 mt-0.5">
+                    <User size={14} className="text-blue-600" />
+                    {details.technicians?.map((t: any) => t.user?.name || t.name).join(", ") || details.technicianName || "Nenhum técnico alocado"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-zinc-400 block text-[10px] font-bold uppercase">Local de Execução</span>
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300 flex items-start gap-1.5 mt-0.5">
+                    <MapPin size={14} className="text-rose-500 shrink-0 mt-0.5" />
+                    {details.addressLabel || details.client?.address || "Endereço principal cadastrado"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco 2: Pedido de Compra (PO) & Informações Fiscais */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
+                <h4 className="font-black text-xs uppercase tracking-wider text-zinc-900 dark:text-white flex items-center gap-2">
+                  <Receipt className="text-emerald-600" size={16} />
+                  2. Pedido de Compra (PO) & Fiscal
+                </h4>
+                <span className="font-mono font-black text-emerald-600 text-sm">{formatCurrency(totalValue)}</span>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-zinc-400 block text-[10px] font-bold uppercase">Cliente / Empresa</span>
+                  <span className="font-black text-zinc-900 dark:text-white text-sm block mt-0.5">
+                    {details.client?.fancyName || details.client?.name || details.clientName}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-zinc-400 block text-[10px] font-bold uppercase">CNPJ / CPF Fiscal</span>
+                  <span className="font-mono text-zinc-800 dark:text-zinc-200 font-bold block mt-0.5">
+                    {details.client?.document || "Não cadastrado"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-zinc-400 block text-[10px] font-bold uppercase mb-1">
+                    Pedido de Compra (PO / Ordem do Cliente)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={quickPO}
+                      onChange={(e) => setQuickPO(e.target.value)}
+                      placeholder="Ex: PO-987452 / PC-2026"
+                      className="w-full rounded-xl border border-zinc-300 bg-zinc-50 p-2 font-mono text-xs font-bold text-zinc-900 focus:border-blue-600 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                    />
+                    <Button size="sm" variant="secondary" onClick={handleSaveQuickPO} loading={savingQuickPO}>
+                      Salvar
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco 3: Relatório Rápido & Conclusão */}
+            <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
+                <h4 className="font-black text-xs uppercase tracking-wider text-zinc-900 dark:text-white flex items-center gap-2">
+                  <FileText className="text-purple-600" size={16} />
+                  3. Relatório & Ações Rápidas
+                </h4>
+                <StatusBadge status={details.status} />
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-zinc-400 block text-[10px] font-bold uppercase">Descrição / Resumo Executado</span>
+                  <p className="mt-1 line-clamp-3 text-zinc-700 dark:text-zinc-300 font-medium bg-zinc-50 dark:bg-zinc-800/50 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                    {details.serviceDescription || details.completionReport?.executedServices || "Diagnóstico ou atendimento realizado..."}
+                  </p>
+                </div>
+
+                <div className="pt-2 flex flex-col gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={() => handleUpdateStatus("CONCLUIDA")}
+                    loading={actionLoading}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl shadow-md"
+                  >
+                    <CheckCircle size={16} className="mr-1.5" /> Concluir Serviço Rápido
+                  </Button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => { setSubTab("relatorio"); setViewMode("elaborado"); }}
+                      className="w-full text-[11px]"
+                    >
+                      <Camera size={13} className="mr-1" /> Fotos & Laudo
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setIsPrintModalOpen(true)}
+                      className="w-full text-[11px]"
+                    >
+                      <Printer size={13} className="mr-1" /> Emitir PDF
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+      )}
 
       {details.contract && (
         <section className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm dark:border-indigo-950 dark:bg-zinc-900">
