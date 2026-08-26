@@ -853,12 +853,12 @@ export default function FinanceiroTab({
                       <p className="mt-1 text-2xl font-black text-blue-950 dark:text-white">
                         {formatCurrency(
                           receivables
-                            .filter((r) => ["ABERTO", "PENDENTE", "PARCIAL", "VENCIDO"].includes(r.status))
-                            .reduce((sum, r) => sum + (r.pendingValue || 0), 0)
+                            .filter((r) => r.status?.toUpperCase() !== "PAGO" && r.status?.toUpperCase() !== "CANCELADO")
+                            .reduce((sum, r) => sum + (r.pendingValue > 0 ? r.pendingValue : r.totalValue || 0), 0)
                         )}
                       </p>
                       <p className="mt-1 text-xs text-blue-600">
-                        {receivables.filter((r) => ["ABERTO", "PENDENTE", "PARCIAL", "VENCIDO"].includes(r.status)).length} título(s) aguardando baixa
+                        {receivables.filter((r) => r.status?.toUpperCase() !== "PAGO" && r.status?.toUpperCase() !== "CANCELADO").length} título(s) aguardando baixa
                       </p>
                     </div>
 
@@ -868,11 +868,11 @@ export default function FinanceiroTab({
                       </span>
                       <p className="mt-1 text-2xl font-black text-emerald-950 dark:text-white">
                         {formatCurrency(
-                          receivables.reduce((sum, r) => sum + (r.receivedValue || 0), 0)
+                          receivables.reduce((sum, r) => sum + (r.receivedValue > 0 ? r.receivedValue : r.status?.toUpperCase() === "PAGO" ? r.totalValue : 0), 0)
                         )}
                       </p>
                       <p className="mt-1 text-xs text-emerald-600">
-                        {receivables.filter((r) => r.status === "PAGO").length} título(s) quitados
+                        {receivables.filter((r) => r.status?.toUpperCase() === "PAGO" || (r.receivedValue > 0 && r.pendingValue === 0)).length} título(s) quitados
                       </p>
                     </div>
 
@@ -883,8 +883,8 @@ export default function FinanceiroTab({
                       <p className="mt-1 text-2xl font-black text-amber-950 dark:text-white">
                         {formatCurrency(
                           receivables
-                            .filter((r) => r.status === "VENCIDO" || (["ABERTO", "PENDENTE"].includes(r.status) && new Date(r.dueDate) < new Date()))
-                            .reduce((sum, r) => sum + (r.pendingValue || 0), 0)
+                            .filter((r) => (r.status?.toUpperCase() === "VENCIDO" || (r.pendingValue > 0 && r.dueDate && new Date(r.dueDate) < new Date())) && r.status?.toUpperCase() !== "PAGO")
+                            .reduce((sum, r) => sum + (r.pendingValue || r.totalValue || 0), 0)
                         )}
                       </p>
                       <p className="mt-1 text-xs text-amber-600">
