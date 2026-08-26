@@ -182,12 +182,6 @@ export default function Sidebar() {
           icon: Smartphone,
           permission: "os.execute",
         },
-        {
-          title: "Relatórios",
-          href: "/relatorios",
-          icon: BarChart3,
-          permission: "os.read",
-        },
       ],
     },
     {

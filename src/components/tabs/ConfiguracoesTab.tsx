@@ -9,7 +9,8 @@ import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { Table, TableRow, TableCell } from "../ui/Table";
 import { Modal } from "../ui/Modal";
-import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, AlertTriangle, BookOpen, KeyRound, Server, Unplug, Smartphone, Tablet, Wifi, AppWindow, Share2, Users, UserPlus, Key, Trash2, Edit3, Plus, Search } from "lucide-react";
+import { Settings, Shield, Sliders, CheckCircle, XCircle, Building, FileSpreadsheet, Download, Upload, ShieldCheck, Lock, Cloud, HardDrive, RefreshCw, Mail, ExternalLink, Copy, Link2, Send, AlertCircle, AlertTriangle, BookOpen, KeyRound, Server, Unplug, Smartphone, Tablet, Wifi, AppWindow, Share2, Users, UserPlus, Key, Trash2, Edit3, Plus, Search, BarChart3 } from "lucide-react";
+import RelatoriosTab from "./RelatoriosTab";
 import { consultarCNPJAction } from "@/app/actions/clientActions";
 import { importClientsAction, importServicesAction, importProductsAction, parseImportFileAction, previewImportAction } from "@/app/actions/importActions";
 import { getBackupStatusAction, triggerBackupAction } from "@/app/actions/backupActions";
@@ -27,11 +28,15 @@ import NfseCompanyConfigTab from "@/components/nfse/NfseCompanyConfigTab";
 
 type GmailSettings = Awaited<ReturnType<typeof getGmailIntegrationSettings>>;
 
-export default function ConfiguracoesTab() {
+interface ConfiguracoesTabProps {
+  initialSubTab?: "system" | "empresa" | "nfse" | "users" | "matrix" | "importador" | "mobile" | "integrations" | "security" | "updates" | "relatorios";
+}
+
+export default function ConfiguracoesTab({ initialSubTab = "system" }: ConfiguracoesTabProps) {
   const { user: currentUser, hasPermission } = useAuth();
   const { toast } = useToast();
 
-  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "nfse" | "users" | "matrix" | "importador" | "mobile" | "integrations" | "security" | "updates">("system");
+  const [activeSubTab, setActiveSubTab] = useState<"system" | "empresa" | "nfse" | "users" | "matrix" | "importador" | "mobile" | "integrations" | "security" | "updates" | "relatorios">(initialSubTab);
 
   // User management states
   const [usersList, setUsersList] = useState<any[]>([]);
@@ -647,6 +652,14 @@ export default function ConfiguracoesTab() {
           >
             <ShieldCheck size={13} className="inline mr-1" /> Segurança & 2FA
           </button>
+          <button
+            onClick={() => setActiveSubTab("relatorios")}
+            className={`py-2 px-3 text-xs font-bold border-b-2 rounded-t-lg transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === "relatorios" ? "border-primary text-primary" : "border-transparent text-zinc-400 hover:text-zinc-650"
+            }`}
+          >
+            <BarChart3 size={13} className="inline mr-1 text-amber-500" /> Auditoria & Relatórios
+          </button>
           {(currentUser?.roleName === "Desenvolvedor" || hasPermission("dev.all")) && (
             <button
               onClick={() => setActiveSubTab("updates")}
@@ -660,6 +673,11 @@ export default function ConfiguracoesTab() {
         </div>
 
         <div className="p-6">
+          {/* Subaba Auditoria & Relatórios */}
+          {activeSubTab === "relatorios" && (
+            <RelatoriosTab />
+          )}
+
           {/* Subaba Auto-Update & Manutenção (Apenas Desenvolvedor) */}
           {activeSubTab === "updates" && (currentUser?.roleName === "Desenvolvedor" || hasPermission("dev.all")) && (
             <AutoUpdateMaintenancePanel />

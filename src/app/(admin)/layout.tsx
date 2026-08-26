@@ -76,9 +76,9 @@ function TabContentRenderer({ tab }: { tab: Tab }) {
     case "contratos":
       return <ContratosTab newRecord={tab.params?.new === "true"} requestId={tab.params?.requestId} />;
     case "relatorios":
-      return <RelatoriosTab />;
+      return <ConfiguracoesTab initialSubTab="relatorios" />;
     case "configuracoes":
-      return <ConfiguracoesTab />;
+      return <ConfiguracoesTab initialSubTab={tab.params?.tab as any || "system"} />;
     default:
       return (
         <div className="p-12 text-center text-zinc-400">

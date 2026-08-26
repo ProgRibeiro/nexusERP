@@ -58,6 +58,7 @@ import {
   Copy,
   Receipt,
   FileText,
+  Zap,
 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { calculateSimples, SimplesAnnex } from "@/lib/simplesNacional";
@@ -925,12 +926,7 @@ export default function FinanceiroTab({
                                   <Edit size={13} /> Editar
                                 </Button>
                               )}
-                              {[
-                                "ABERTO",
-                                "PENDENTE",
-                                "VENCIDO",
-                                "PARCIAL",
-                              ].includes(r.status) ? (
+                              {["ABERTO", "PENDENTE", "VENCIDO", "PARCIAL"].includes(r.status) ? (
                                 <Button
                                   variant="primary"
                                   size="sm"
@@ -948,92 +944,25 @@ export default function FinanceiroTab({
                                 </Button>
                               ) : (
                                 <div className="flex items-center gap-1.5">
-                                  <span className="inline-flex h-9 min-w-[100px] items-center justify-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/[.08] px-3 text-[10px] font-black uppercase tracking-wider text-emerald-400">
-                                    <CheckCircle2 size={13} />
-                                    Recebido
+                                  <span className="inline-flex h-9 items-center gap-1 rounded-xl border border-emerald-500/25 bg-emerald-500/[.08] px-2.5 text-[10px] font-black uppercase text-emerald-400">
+                                    <CheckCircle2 size={13} /> Recebido
                                   </span>
-                                ) : (
-                                  <span className="text-zinc-400 text-[11px]">—</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="font-mono text-xs font-bold text-amber-600 dark:text-amber-400">
-                                {r.purchaseOrder ? (
-                                  <span className="bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-800">
-                                    PO: {r.purchaseOrder}
-                                  </span>
-                                ) : (
-                                  <span className="text-zinc-400 text-[11px]">—</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="font-bold text-zinc-650 dark:text-zinc-450">
-                                {r.osCode ? `#${r.osCode}` : <span className="text-zinc-400 text-[11px]">—</span>}
-                              </TableCell>
-                              <TableCell className="font-semibold text-zinc-650 dark:text-zinc-400">
-                                {formatDate(r.dueDate)}
-                              </TableCell>
-                              <TableCell className="font-semibold text-zinc-850 dark:text-zinc-100">
-                                <div>
-                                  <span className="font-bold text-xs">{formatCurrency(r.totalValue)}</span>
-                                  {r.pendingValue < r.totalValue && r.pendingValue > 0 && (
-                                    <span className="text-[10px] text-amber-600 font-bold block">
-                                      Pendente: {formatCurrency(r.pendingValue)}
-                                    </span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge status={r.status} />
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex min-w-[200px] flex-nowrap items-center gap-2">
                                   {hasPermission("financeiro.write") && (
                                     <Button
                                       variant="secondary"
                                       size="sm"
-                                      className="h-9 border-zinc-200 bg-white px-2.5 text-zinc-700 dark:border-white/10 dark:bg-transparent dark:text-zinc-300"
-                                      onClick={() => openReceivableEdit(r)}
+                                      className="h-9 px-2 text-[10px] font-bold border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100"
+                                      onClick={() => handleRevertReceivable(r.id)}
                                     >
-                                      <Edit size={13} /> Editar
+                                      ↩️ Estornar
                                     </Button>
-                                  )}
-                                  {isPending ? (
-                                    <Button
-                                      variant="primary"
-                                      size="sm"
-                                      className="h-9 px-3 font-bold"
-                                      onClick={() => {
-                                        setSelectedReceivable(r);
-                                        setReceiveForm((prev) => ({
-                                          ...prev,
-                                          receivedValue: r.pendingValue,
-                                        }));
-                                        setIsReceiveOpen(true);
-                                      }}
-                                    >
-                                      <HandCoins size={14} /> Liquidar
-                                    </Button>
-                                  ) : (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="inline-flex h-9 items-center gap-1 rounded-xl border border-emerald-500/25 bg-emerald-500/[.08] px-2.5 text-[10px] font-black uppercase text-emerald-400">
-                                        <CheckCircle2 size={13} /> Recebido
-                                      </span>
-                                      {hasPermission("financeiro.write") && (
-                                        <Button
-                                          variant="secondary"
-                                          size="sm"
-                                          className="h-9 px-2 text-[10px] font-bold border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100"
-                                          onClick={() => handleRevertReceivable(r.id)}
-                                        >
-                                          ↩️ Estornar
-                                        </Button>
-                                      )}
-                                    </div>
                                   )}
                                 </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </Table>
                   )}
                 </div>

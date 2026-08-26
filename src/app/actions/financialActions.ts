@@ -13,6 +13,8 @@ export interface ReceivableDTO {
   clientId: string;
   clientName: string;
   clientDocument: string | null;
+  purchaseOrder?: string | null;
+  invoiceNumber?: string | null;
   osCode: string | null;
   invoiceId: string | null;
   invoiceCode: string | null;
@@ -58,7 +60,7 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
     const list = await prisma.accountsReceivable.findMany({
       include: {
         client: true,
-        serviceOrder: { select: { code: true } },
+        serviceOrder: { select: { code: true, purchaseOrder: true } },
         invoice: { select: { id: true, code: true, pdfUrl: true, xmlUrl: true } },
       },
       orderBy: { dueDate: "desc" },
@@ -72,6 +74,9 @@ export async function getReceivables(): Promise<ReceivableDTO[]> {
         id: r.id,
         clientId: r.clientId,
         clientName: r.client.name,
+        clientDocument: r.client.cpfCnpj || null,
+        purchaseOrder: r.serviceOrder?.purchaseOrder || null,
+        invoiceNumber: r.invoice?.code || null,
         osCode: r.serviceOrder?.code || null,
         invoiceId: r.invoiceId || r.invoice?.id || null,
         invoiceCode: r.invoice?.code || null,
@@ -113,10 +118,10 @@ export async function getPayables(): Promise<PayableDTO[]> {
     return list.map((item) => ({
       ...item,
       value: Number(item.value),
-      providerDocument: item.documentNumber || null,
+      providerDocument: null,
       osCode: item.serviceOrder?.code || null,
-      purchaseOrder: item.purchaseOrder || item.serviceOrder?.purchaseOrder || null,
-      invoiceNumber: item.invoiceNumber || null,
+      purchaseOrder: item.serviceOrder?.purchaseOrder || null,
+      invoiceNumber: null,
     }));
   } catch (error) {
     failDataAccess("financial.payables.list", error);
@@ -934,7 +939,7 @@ export async function bulkSettleConsolidatedInvoiceAction(data: {
             category: rec.category || "RECEITA_CONSOLIDADA",
             costCenter: rec.costCenter || "GERAL",
             accountsReceivableId: rec.id,
-            description: `Baixa Fatura Consolidada — Cliente: ${rec.client?.name || "N/A"} ${rec.purchaseOrder ? `(PO: ${rec.purchaseOrder})` : ""}`,
+            description: `Baixa Fatura Consolidada — Cliente: ${rec.client?.name || "N/A"} ${rec.serviceOrder?.purchaseOrder ? `(PO: ${rec.serviceOrder.purchaseOrder})` : ""}`,
             bankAccountId: caixaGeralId || null,
           },
         });
