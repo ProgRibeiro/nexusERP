@@ -19,6 +19,7 @@ import {
   revertReceivablePaymentAction,
   revertPayablePaymentAction,
   bulkSettleConsolidatedInvoiceAction,
+  syncAllFinancialsAction,
   ReceivableDTO,
   PayableDTO,
 } from "@/app/actions/financialActions";
@@ -59,6 +60,9 @@ import {
   Receipt,
   FileText,
   Zap,
+  CheckSquare,
+  Square,
+  RefreshCw,
 } from "lucide-react";
 import { StatusBadge } from "../ui/StatusBadge";
 import { calculateSimples, SimplesAnnex } from "@/lib/simplesNacional";
@@ -150,11 +154,29 @@ export default function FinanceiroTab({
   // Seleção Múltipla & Liquidação Consolidada de Faturas
   const [selectedReceivableIds, setSelectedReceivableIds] = useState<string[]>([]);
   const [isBulkReceiveOpen, setIsBulkReceiveOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [bulkReceiveForm, setBulkReceiveForm] = useState({
     paymentMethod: "PIX",
     bankAccountId: "",
     notes: "",
   });
+
+  const handleSyncFinancials = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncAllFinancialsAction();
+      if (res.success) {
+        toast(res.message || "Valores financeiros sincronizados e recalculados com sucesso!", "success");
+        await loadFinancialData();
+      } else {
+        toast(res.error || "Erro ao sincronizar valores financeiros", "error");
+      }
+    } catch {
+      toast("Erro ao executar sincronização financeira", "error");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleBulkSettleConsolidated = async () => {
     if (selectedReceivableIds.length === 0) return;
@@ -535,6 +557,15 @@ export default function FinanceiroTab({
 
         {hasPermission("financeiro.write") && (
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={handleSyncFinancials}
+              loading={isSyncing}
+              className="border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-bold dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 text-xs"
+              title="Recalcular e gerar títulos financeiros para todas as OSs, faturas e orçamentos do sistema"
+            >
+              <RefreshCw size={14} className={`mr-1.5 text-emerald-600 ${isSyncing ? "animate-spin" : ""}`} /> Sincronizar & Recalcular Valores
+            </Button>
             <Button
               variant="secondary"
               onClick={() => setIsSmartNfOpen(true)}

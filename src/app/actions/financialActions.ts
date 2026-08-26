@@ -967,3 +967,139 @@ export async function bulkSettleConsolidatedInvoiceAction(data: {
     return { success: false, error: error.message || "Erro ao dar baixa consolidada." };
   }
 }
+
+/**
+ * Varre e sincroniza automaticamente todas as Ordens de Serviço, Faturas, Contratos e Orçamentos,
+ * gerando ou atualizando os títulos financeiros em Contas a Receber e Contas a Pagar.
+ */
+export async function syncAllFinancialsAction() {
+  try {
+    const session = await requirePermission("financeiro.write");
+
+    let createdReceivablesCount = 0;
+    let updatedReceivablesCount = 0;
+    let totalSyncedValue = 0;
+
+    // 1. Busca todas as Ordens de Serviço que possuem cliente vinculado
+    const serviceOrders = await prisma.serviceOrder.findMany({
+      include: {
+        client: true,
+        invoices: true,
+        items: true,
+        accountsReceivable: true,
+      },
+    });
+
+    for (const os of serviceOrders) {
+      if (!os.clientId) continue;
+
+      // Calcula valor total da OS (baseado na soma dos itens)
+      const osValue = os.items.reduce(
+        (sum: number, item: any) => sum + (Number(item.total) || Number(item.unitPrice) * item.quantity),
+        0
+      );
+
+      if (osValue <= 0) continue;
+
+      const primaryInvoiceNumber = os.invoices?.[0]?.code || null;
+      const osStatus = os.status;
+      const isPaid = ["FATURADA", "FATURADO", "CONCLUIDA", "CONCLUIDO"].includes(osStatus);
+
+      // Verifica se já existe título a receber vinculado a esta OS
+      const existingReceivable = os.accountsReceivable?.[0] || await prisma.accountsReceivable.findFirst({
+        where: { serviceOrderId: os.id },
+      });
+
+      if (existingReceivable) {
+        // Atualiza título existente com informações de PO, NF e CNPJ
+        await prisma.accountsReceivable.update({
+          where: { id: existingReceivable.id },
+          data: {
+            totalValue: osValue,
+            pendingValue: isPaid ? 0 : osValue,
+            receivedValue: isPaid ? osValue : Number(existingReceivable.receivedValue),
+            purchaseOrder: os.purchaseOrder || existingReceivable.purchaseOrder,
+            invoiceNumber: primaryInvoiceNumber || existingReceivable.invoiceNumber,
+            documentNumber: os.client?.cpfCnpj || existingReceivable.documentNumber,
+            status: isPaid ? "PAGO" : (os.scheduledDate && new Date(os.scheduledDate) < new Date() ? "VENCIDO" : "ABERTO"),
+          },
+        });
+        updatedReceivablesCount++;
+      } else {
+        // Cria novo título a receber para a OS
+        await prisma.accountsReceivable.create({
+          data: {
+            clientId: os.clientId,
+            serviceOrderId: os.id,
+            totalValue: osValue,
+            pendingValue: isPaid ? 0 : osValue,
+            receivedValue: isPaid ? osValue : 0,
+            issueDate: os.createdAt,
+            dueDate: os.scheduledDate || os.createdAt,
+            paymentDate: isPaid ? new Date() : null,
+            status: isPaid ? "PAGO" : (os.scheduledDate && new Date(os.scheduledDate) < new Date() ? "VENCIDO" : "ABERTO"),
+            purchaseOrder: os.purchaseOrder || null,
+            invoiceNumber: primaryInvoiceNumber,
+            documentNumber: os.client?.cpfCnpj || null,
+            category: "RECEITA_SERVICO",
+            costCenter: "OPERACIONAL",
+            notes: `Gerado automaticamente via sincronização financeira da OS #${os.code}`,
+          },
+        });
+        createdReceivablesCount++;
+      }
+      totalSyncedValue += osValue;
+    }
+
+    // 2. Busca todas as Faturas (Invoices) avulsas
+    const invoices = await prisma.invoice.findMany({
+      include: { client: true, receivables: true },
+    });
+
+    for (const inv of invoices) {
+      if (!inv.clientId) continue;
+      const invValue = Number(inv.value);
+      if (invValue <= 0) continue;
+
+      const existingRec = inv.receivables?.[0] || await prisma.accountsReceivable.findFirst({
+        where: { invoiceId: inv.id },
+      });
+
+      if (!existingRec) {
+        await prisma.accountsReceivable.create({
+          data: {
+            clientId: inv.clientId,
+            invoiceId: inv.id,
+            invoiceNumber: inv.code,
+            totalValue: invValue,
+            pendingValue: inv.status === "PAGA" ? 0 : invValue,
+            receivedValue: inv.status === "PAGA" ? invValue : 0,
+            issueDate: inv.issueDate,
+            dueDate: inv.issueDate,
+            status: inv.status === "PAGA" ? "PAGO" : "ABERTO",
+            documentNumber: inv.client?.cpfCnpj || null,
+            category: "RECEITA_SERVICO",
+            notes: `Gerado via sincronização de faturas - NF ${inv.code}`,
+          },
+        });
+        createdReceivablesCount++;
+        totalSyncedValue += invValue;
+      }
+    }
+
+    revalidatePath("/financeiro");
+    revalidatePath("/faturamento");
+    revalidatePath("/ordens-servico");
+
+    return {
+      success: true,
+      createdReceivablesCount,
+      updatedReceivablesCount,
+      totalSyncedValue,
+      message: `Sincronização financeira concluída com sucesso! ${createdReceivablesCount} novo(s) título(s) criado(s), ${updatedReceivablesCount} título(s) atualizados (Total recalculado: R$ ${totalSyncedValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}).`,
+    };
+  } catch (error: any) {
+    logger.error("Erro na sincronização financeira:", error);
+    return { success: false, error: error.message || "Erro ao sincronizar valores financeiros." };
+  }
+}
