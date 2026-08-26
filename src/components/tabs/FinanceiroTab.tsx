@@ -200,24 +200,46 @@ export default function FinanceiroTab({
   async function loadFinancialData() {
     setLoading(true);
     try {
-      const recs = await getReceivables();
-      const pays = await getPayables();
-      const banks = await getBankAccounts();
-      const txs = await getTransactions();
-      const clientList = await getClients();
+      const [recsRes, paysRes, banksRes, txsRes, clientsRes] = await Promise.allSettled([
+        getReceivables(),
+        getPayables(),
+        getBankAccounts(),
+        getTransactions(),
+        getClients(),
+      ]);
 
-      setReceivables(recs);
-      setPayables(pays);
-      setBankAccounts(banks);
-      setTransactions(txs);
-      setClients(clientList);
+      if (recsRes.status === "fulfilled" && recsRes.value) {
+        setReceivables(recsRes.value);
+      } else if (recsRes.status === "rejected") {
+        console.error("Erro getReceivables:", recsRes.reason);
+      }
 
-      if (banks.length > 0) {
-        setReceiveForm((prev) => ({ ...prev, bankAccountId: banks[0].id }));
+      if (paysRes.status === "fulfilled" && paysRes.value) {
+        setPayables(paysRes.value);
+      } else if (paysRes.status === "rejected") {
+        console.error("Erro getPayables:", paysRes.reason);
+      }
+
+      if (banksRes.status === "fulfilled" && banksRes.value) {
+        setBankAccounts(banksRes.value);
+        if (banksRes.value.length > 0) {
+          setReceiveForm((prev) => ({ ...prev, bankAccountId: banksRes.value[0].id }));
+        }
+      } else if (banksRes.status === "rejected") {
+        console.error("Erro getBankAccounts:", banksRes.reason);
+      }
+
+      if (txsRes.status === "fulfilled" && txsRes.value) {
+        setTransactions(txsRes.value);
+      } else if (txsRes.status === "rejected") {
+        console.error("Erro getTransactions:", txsRes.reason);
+      }
+
+      if (clientsRes.status === "fulfilled" && clientsRes.value) {
+        setClients(clientsRes.value);
       }
     } catch (err) {
-      console.error(err);
-      toast("Erro ao carregar dados financeiros", "error");
+      console.error("Erro ao carregar dados financeiros:", err);
     } finally {
       setLoading(false);
     }
