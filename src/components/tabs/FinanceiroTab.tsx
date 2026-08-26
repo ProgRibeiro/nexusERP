@@ -319,7 +319,7 @@ export default function FinanceiroTab({
           category: launchForm.category,
           costCenter: launchForm.costCenter,
           value: parseFloat(launchForm.value) || 0,
-          dueDate: new Date(launchForm.dueDate),
+          dueDate: launchForm.dueDate,
         };
         const res = editingLaunch
           ? await updatePayable(editingLaunch.id, payload)
@@ -346,7 +346,7 @@ export default function FinanceiroTab({
         const payload = {
           clientId: launchForm.clientId,
           totalValue: parseFloat(launchForm.value) || 0,
-          dueDate: new Date(launchForm.dueDate),
+          dueDate: launchForm.dueDate,
           category: launchForm.category,
           costCenter: launchForm.costCenter,
           notes: launchForm.description,

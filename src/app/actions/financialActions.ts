@@ -8,6 +8,32 @@ import { requireAuth, requirePermission } from "@/lib/auth";
 import { receivePaymentSchema, payBillSchema } from "@/lib/schemas";
 import { failDataAccess, mutationFailure } from "@/lib/actionErrors";
 
+function parseFlexibleDate(dateInput: any): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date && !isNaN(dateInput.getTime())) return dateInput;
+
+  const str = String(dateInput).trim();
+  if (!str) return new Date();
+
+  // Formato YYYY-MM-DD (padrão de inputs HTML type="date")
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    const d = new Date(str.includes("T") ? str : `${str}T12:00:00.000Z`);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Formato DD/MM/YYYY (ex: "27/08/2026")
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(str)) {
+    const parts = str.split("/");
+    if (parts.length === 3) {
+      const d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00.000Z`);
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+
+  const fallback = new Date(str);
+  return !isNaN(fallback.getTime()) ? fallback : new Date();
+}
+
 export interface ReceivableDTO {
   id: string;
   clientId: string;
@@ -426,9 +452,8 @@ export async function payBill(data: {
   }
 }
 
-/**
- * Cria uma nova Conta a Pagar (Despesa)
- */
+
+
 export async function createPayable(
   data: {
     providerName: string;
@@ -436,7 +461,10 @@ export async function createPayable(
     category: string;
     costCenter?: string;
     value: number;
-    dueDate: Date;
+    dueDate: Date | string;
+    invoiceNumber?: string;
+    purchaseOrder?: string;
+    documentNumber?: string;
   },
   userId: string
 ) {
@@ -444,14 +472,25 @@ export async function createPayable(
     const session = await requirePermission("financeiro.write");
     userId = session.userId; // nunca confiar no valor vindo do client
 
+    const providerName = (data.providerName || "").trim();
+    if (!providerName) throw new Error("Informe o credor ou fornecedor.");
+
+    const val = Number(data.value) || 0;
+    if (val <= 0) throw new Error("O valor deve ser maior que zero.");
+
+    const parsedDueDate = parseFlexibleDate(data.dueDate);
+
     const payable = await prisma.accountsPayable.create({
       data: {
-        providerName: data.providerName,
-        description: data.description,
-        category: data.category,
+        providerName,
+        description: (data.description || "").trim(),
+        category: data.category || "PECA",
         costCenter: data.costCenter || "GERAL",
-        value: data.value,
-        dueDate: data.dueDate,
+        value: val,
+        dueDate: parsedDueDate,
+        invoiceNumber: data.invoiceNumber || null,
+        purchaseOrder: data.purchaseOrder || null,
+        documentNumber: data.documentNumber || null,
         status: "ABERTO",
       },
     });
@@ -481,29 +520,35 @@ export async function updatePayable(
     category: string;
     costCenter: string;
     value: number;
-    dueDate: Date;
+    dueDate: Date | string;
   }
 ) {
   try {
     const session = await requirePermission("financeiro.write");
     const current = await prisma.accountsPayable.findUnique({ where: { id } });
     if (!current) throw new Error("Conta a pagar não encontrada.");
-    if (!data.providerName.trim()) throw new Error("Informe o credor ou fornecedor.");
-    if (!Number.isFinite(data.value) || data.value <= 0) throw new Error("O valor deve ser maior que zero.");
-    if (Number.isNaN(data.dueDate.getTime())) throw new Error("Informe uma data de vencimento válida.");
-    if (["PAGO", "ESTORNADO"].includes(current.status) && Math.abs(Number(current.value) - data.value) > 0.001) {
+
+    const providerName = (data.providerName || "").trim();
+    if (!providerName) throw new Error("Informe o credor ou fornecedor.");
+
+    const val = Number(data.value) || 0;
+    if (val <= 0) throw new Error("O valor deve ser maior que zero.");
+
+    const parsedDueDate = parseFlexibleDate(data.dueDate);
+
+    if (["PAGO", "ESTORNADO"].includes(current.status) && Math.abs(Number(current.value) - val) > 0.001) {
       throw new Error("O valor de uma conta já liquidada não pode ser alterado. Estorne o pagamento antes de corrigir o valor.");
     }
 
     const updated = await prisma.accountsPayable.update({
       where: { id },
       data: {
-        providerName: data.providerName.trim(),
-        description: data.description.trim(),
-        category: data.category,
-        costCenter: data.costCenter,
-        value: data.value,
-        dueDate: data.dueDate,
+        providerName,
+        description: (data.description || "").trim(),
+        category: data.category || current.category,
+        costCenter: data.costCenter || current.costCenter,
+        value: val,
+        dueDate: parsedDueDate,
       },
     });
 
@@ -516,11 +561,11 @@ export async function updatePayable(
         changesJson: JSON.stringify({ before: current, after: updated }),
       },
     });
+
     revalidatePath("/financeiro");
-    revalidatePath("/");
     return { success: true as const, error: undefined, payable: updated };
   } catch (error: unknown) {
-    return mutationFailure("financial.payable.update", error, "Não foi possível editar a conta a pagar.");
+    return mutationFailure("financial.payable.update", error, "Não foi possível atualizar a conta a pagar.");
   }
 }
 
@@ -637,7 +682,7 @@ export async function createReceivable(
   data: {
     clientId: string;
     totalValue: number;
-    dueDate: Date;
+    dueDate: Date | string;
     category?: string;
     costCenter?: string;
     notes?: string;
@@ -648,12 +693,19 @@ export async function createReceivable(
     const session = await requirePermission("financeiro.write");
     userId = session.userId; // nunca confiar no valor vindo do client
 
+    if (!data.clientId) throw new Error("Selecione o cliente de cobrança.");
+
+    const val = Number(data.totalValue) || 0;
+    if (val <= 0) throw new Error("O valor deve ser maior que zero.");
+
+    const parsedDueDate = parseFlexibleDate(data.dueDate);
+
     const receivable = await prisma.accountsReceivable.create({
       data: {
         clientId: data.clientId,
-        totalValue: data.totalValue,
-        pendingValue: data.totalValue,
-        dueDate: data.dueDate,
+        totalValue: val,
+        pendingValue: val,
+        dueDate: parsedDueDate,
         category: data.category || "RECEITA_SERVICO",
         costCenter: data.costCenter || "GERAL",
         notes: data.notes || null,
@@ -683,7 +735,7 @@ export async function updateReceivable(
   data: {
     clientId: string;
     totalValue: number;
-    dueDate: Date;
+    dueDate: Date | string;
     category: string;
     costCenter: string;
     notes?: string;
@@ -694,26 +746,29 @@ export async function updateReceivable(
     const current = await prisma.accountsReceivable.findUnique({ where: { id } });
     if (!current) throw new Error("Conta a receber não encontrada.");
     if (!data.clientId) throw new Error("Selecione o cliente.");
-    if (!Number.isFinite(data.totalValue) || data.totalValue <= 0) throw new Error("O valor deve ser maior que zero.");
-    if (Number.isNaN(data.dueDate.getTime())) throw new Error("Informe uma data de vencimento válida.");
+
+    const val = Number(data.totalValue) || 0;
+    if (val <= 0) throw new Error("O valor deve ser maior que zero.");
+
+    const parsedDueDate = parseFlexibleDate(data.dueDate);
 
     const receivedValue = Number(current.receivedValue);
-    if (data.totalValue + 0.001 < receivedValue) {
+    if (val + 0.001 < receivedValue) {
       throw new Error(`O valor total não pode ser menor que o valor já recebido (R$ ${receivedValue.toFixed(2)}).`);
     }
-    const pendingValue = Math.max(0, data.totalValue - receivedValue);
+    const pendingValue = Math.max(0, val - receivedValue);
     const status = pendingValue <= 0.01 ? "PAGO" : receivedValue > 0 ? "PARCIAL" : current.status === "VENCIDO" ? "VENCIDO" : "PENDENTE";
 
     const updated = await prisma.accountsReceivable.update({
       where: { id },
       data: {
         clientId: data.clientId,
-        totalValue: data.totalValue,
+        totalValue: val,
         pendingValue,
-        dueDate: data.dueDate,
-        category: data.category,
-        costCenter: data.costCenter,
-        notes: data.notes?.trim() || null,
+        dueDate: parsedDueDate,
+        category: data.category || current.category,
+        costCenter: data.costCenter || current.costCenter,
+        notes: data.notes !== undefined ? data.notes : current.notes,
         status,
       },
     });
@@ -728,10 +783,9 @@ export async function updateReceivable(
       },
     });
     revalidatePath("/financeiro");
-    revalidatePath("/");
     return { success: true as const, error: undefined, receivable: updated };
   } catch (error: unknown) {
-    return mutationFailure("financial.receivable.update", error, "Não foi possível editar a conta a receber.");
+    return mutationFailure("financial.receivable.update", error, "Não foi possível atualizar a conta a receber.");
   }
 }
 
