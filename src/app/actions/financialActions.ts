@@ -145,12 +145,19 @@ export async function getPayables(): Promise<PayableDTO[]> {
     return list.map((item) => {
       const pay = item as any;
       return {
-        ...item,
-        value: Number(item.value || 0),
+        id: item.id,
+        providerName: item.providerName || "Fornecedor não informado",
         providerDocument: pay.documentNumber || pay.providerDocument || null,
         osCode: item.serviceOrder?.code || null,
         purchaseOrder: pay.purchaseOrder || null,
         invoiceNumber: pay.invoiceNumber || null,
+        description: item.description || "",
+        category: item.category || "GERAL",
+        costCenter: item.costCenter || "GERAL",
+        value: Number(item.value || 0),
+        dueDate: item.dueDate || new Date(),
+        paymentDate: item.paymentDate || null,
+        status: item.status || "ABERTO",
       };
     });
   } catch (error) {
@@ -177,7 +184,16 @@ export async function getBankAccounts() {
       accounts = await prisma.bankAccount.findMany({ orderBy: { name: "asc" } });
     }
 
-    return accounts.map((account) => ({ ...account, balance: Number(account.balance) }));
+    return accounts.map((account) => ({
+      id: account.id,
+      name: account.name,
+      bank: account.bank,
+      agency: account.agency,
+      accountNumber: account.accountNumber,
+      balance: Number(account.balance || 0),
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+    }));
   } catch (error) {
     failDataAccess("financial.bank-accounts.list", error);
   }
@@ -234,10 +250,26 @@ export async function getTransactions() {
       orderBy: { date: "desc" },
     });
     return transactions.map((transaction) => ({
-      ...transaction,
-      value: Number(transaction.value),
+      id: transaction.id,
+      type: transaction.type,
+      value: Number(transaction.value || 0),
+      date: transaction.date || new Date(),
+      category: transaction.category || "GERAL",
+      costCenter: transaction.costCenter || "GERAL",
+      description: transaction.description || null,
+      paymentMethod: (transaction as any).paymentMethod || null,
+      accountsReceivableId: transaction.accountsReceivableId || null,
+      accountsPayableId: transaction.accountsPayableId || null,
+      bankAccountId: transaction.bankAccountId || null,
       bankAccount: transaction.bankAccount
-        ? { ...transaction.bankAccount, balance: Number(transaction.bankAccount.balance) }
+        ? {
+            id: transaction.bankAccount.id,
+            name: transaction.bankAccount.name,
+            bank: transaction.bankAccount.bank,
+            agency: transaction.bankAccount.agency,
+            accountNumber: transaction.bankAccount.accountNumber,
+            balance: Number(transaction.bankAccount.balance || 0),
+          }
         : null,
     }));
   } catch (error) {
