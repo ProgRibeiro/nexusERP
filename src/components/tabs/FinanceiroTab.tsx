@@ -476,24 +476,26 @@ export default function FinanceiroTab({
   };
 
   // Metrics
-  const totalCash = bankAccounts.reduce((acc, b) => acc + b.balance, 0);
-  const totalRealizedReceivables = receivables
-    .filter((r) => r.status === "PAGO" || r.receivedValue > 0)
-    .reduce((acc, r) => acc + r.receivedValue, 0);
-  const totalReceivables = receivables
-    .filter((r) =>
-      ["ABERTO", "PENDENTE", "VENCIDO", "PARCIAL"].includes(r.status),
-    )
-    .reduce((acc, r) => acc + r.pendingValue, 0);
+  const totalCash = bankAccounts.reduce((acc, b) => acc + (b.balance || 0), 0);
+  const totalRealizedReceivables = receivables.reduce(
+    (acc, r) => acc + (r.receivedValue > 0 ? r.receivedValue : r.status?.toUpperCase() === "PAGO" ? r.totalValue : 0),
+    0
+  );
+  const totalReceivables = receivables.reduce(
+    (acc, r) => acc + (r.pendingValue > 0 ? r.pendingValue : ["ABERTO", "PENDENTE", "VENCIDO", "PARCIAL"].includes(r.status?.toUpperCase() || "") ? r.totalValue : 0),
+    0
+  );
   const totalPayables = payables
-    .filter((p) => ["ABERTO", "PENDENTE", "VENCIDO"].includes(p.status))
+    .filter((p) => p.status?.toUpperCase() !== "PAGO" && p.status?.toUpperCase() !== "CANCELADO")
     .reduce((acc, p) => acc + p.value, 0);
-  const overdueCount = receivables.filter((r) => r.status === "VENCIDO").length;
+  const overdueCount = receivables.filter(
+    (r) => r.status?.toUpperCase() === "VENCIDO" || (r.pendingValue > 0 && r.dueDate && new Date(r.dueDate) < new Date() && r.status?.toUpperCase() !== "PAGO")
+  ).length;
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-  const rbt12 = receivables.filter((r) => new Date(r.issueDate) >= twelveMonthsAgo && r.status !== "CANCELADO").reduce((sum, r) => sum + r.totalValue, 0);
-  const currentMonthRevenue = receivables.filter((r) => { const d = new Date(r.issueDate); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && r.status !== "CANCELADO"; }).reduce((sum, r) => sum + r.totalValue, 0);
-  const payroll12 = payables.filter((p) => new Date(p.dueDate) >= twelveMonthsAgo && p.category === "FOLHA" && p.status !== "CANCELADO").reduce((sum, p) => sum + p.value, 0);
+  const rbt12 = receivables.filter((r) => new Date(r.issueDate) >= twelveMonthsAgo && r.status?.toUpperCase() !== "CANCELADO").reduce((sum, r) => sum + r.totalValue, 0);
+  const currentMonthRevenue = receivables.filter((r) => { const d = new Date(r.issueDate); const now = new Date(); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && r.status?.toUpperCase() !== "CANCELADO"; }).reduce((sum, r) => sum + r.totalValue, 0);
+  const payroll12 = payables.filter((p) => new Date(p.dueDate) >= twelveMonthsAgo && p.category === "FOLHA" && p.status?.toUpperCase() !== "CANCELADO").reduce((sum, p) => sum + p.value, 0);
   const factorR = rbt12 > 0 ? payroll12 / rbt12 : 0;
   const simples = calculateSimples(rbt12, currentMonthRevenue, simplesAnnex);
 
@@ -672,11 +674,17 @@ export default function FinanceiroTab({
             { id: "visao", label: "📊 Cockpit Executivo & Caixa" },
             {
               id: "receber",
-              label: `💵 Contas a Receber (${receivables.filter(r => ["ABERTO","PENDENTE","PARCIAL","VENCIDO"].includes(r.status)).length})`,
+              label: `💵 Contas a Receber (${receivables.length})`,
+              badge: receivables.filter((r) => r.pendingValue > 0 || r.status?.toUpperCase() !== "PAGO").length > 0
+                ? `${receivables.filter((r) => r.pendingValue > 0 || r.status?.toUpperCase() !== "PAGO").length} abertos`
+                : null,
             },
             {
               id: "pagar",
-              label: `💸 Contas a Pagar (${payables.filter(p => ["ABERTO","PENDENTE","VENCIDO"].includes(p.status)).length})`,
+              label: `💸 Contas a Pagar (${payables.length})`,
+              badge: payables.filter((p) => p.status?.toUpperCase() !== "PAGO").length > 0
+                ? `${payables.filter((p) => p.status?.toUpperCase() !== "PAGO").length} abertos`
+                : null,
             },
             {
               id: "nfe_center",
