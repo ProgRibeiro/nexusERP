@@ -338,6 +338,15 @@ if [[ "$HEALTHY" != "true" ]]; then
   exit 1
 fi
 
+echo "Executando fotografia e auditoria visual anti-regressão das telas no slot candidato..."
+if ! node "$RELEASE/scripts/verify-ui-render-integrity.mjs" "$CANDIDATE_PORT"; then
+  systemctl stop "nexus-erp@$CANDIDATE.service" || true
+  systemctl disable "nexus-erp@$CANDIDATE.service" || true
+  write_update_status "rejected" "BLINDAGEM VISUAL: Regressão na renderização das telas detectada; versão anterior mantida."
+  echo "Atualização abortada: a auditoria visual das telas detectou falha na renderização de dados." >&2
+  exit 1
+fi
+
 UPSTREAM_FILE="/etc/nginx/nexus-erp-upstream.conf"
 UPSTREAM_BACKUP="${UPSTREAM_FILE}.previous"
 write_update_status "switching" "Testes aprovados; direcionando novas conexões para a nova versão."
